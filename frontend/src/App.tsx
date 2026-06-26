@@ -7,7 +7,6 @@ import AlbumPage from './pages/AlbumPage';
 import HeartsPage from './pages/HeartsPage';
 import { PlaylistsPage } from './pages/PlaylistsPage';
 import { LoginPage } from './pages/LoginPage';
-import { PlayerProvider } from './context/PlayerContext';
 import { HeartsProvider } from './context/HeartsContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { apiService } from '../services/api';
-import { Playlist, Track } from '../types';
+import type { Playlist, Track, Album } from '../types';
 import { usePlayer } from '../context/PlayerContext';
 
 export const PlaylistsPage: React.FC = () => {
@@ -10,7 +10,7 @@ export const PlaylistsPage: React.FC = () => {
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { playTrack } = usePlayer();
+  const { playContext } = usePlayer();
 
   const loadPlaylists = async () => {
     try {
@@ -159,7 +159,7 @@ export const PlaylistsPage: React.FC = () => {
                     <span style={{ color: '#b3b3b3', width: '24px' }}>{index + 1}</span>
                     <span 
                       style={{ color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
-                      onClick={() => playTrack(track, tracks)}
+                      onClick={() => playContext(tracks, index, { id: selectedPlaylist.id, title: selectedPlaylist.name, artist_id: '', release_year: 0, cover_art_path: '' } as Album)}
                     >
                       {track.title}
                     </span>

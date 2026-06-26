@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiService } from '../services/api';
-import { Playlist } from '../types';
+import type { Playlist } from '../types';
 
 interface AddToPlaylistMenuProps {
   trackId: string;
