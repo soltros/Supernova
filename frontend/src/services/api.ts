@@ -10,10 +10,21 @@ const getHeaders = () => {
   };
 };
 
+const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
+  const response = await fetch(url, options);
+  if (response.status === 401) {
+    // Phantom User fix: If the backend explicitly rejects our token, wipe state and reload
+    localStorage.removeItem('sn_user');
+    localStorage.removeItem('sn_token');
+    window.location.reload();
+  }
+  return response;
+};
+
 export const apiService = {
   // Auth
   register: async (username: string, password: string): Promise<AuthResponse> => {
-    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
@@ -23,7 +34,7 @@ export const apiService = {
   },
 
   login: async (username: string, password: string): Promise<AuthResponse> => {
-    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
@@ -32,38 +43,38 @@ export const apiService = {
     return response.json();
   },
   fetchAlbums: async (limit: number = 50, offset: number = 0): Promise<Album[]> => {
-    const response = await fetch(`${API_BASE_URL}/api/albums?limit=${limit}&offset=${offset}`);
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/albums?limit=${limit}&offset=${offset}`);
     if (!response.ok) throw new Error('Failed to fetch albums');
     return response.json();
   },
 
   fetchAlbumById: async (id: string): Promise<Album> => {
-    const response = await fetch(`${API_BASE_URL}/api/albums/${id}`);
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/albums/${id}`);
     if (!response.ok) throw new Error('Failed to fetch album');
     return response.json();
   },
 
   fetchArtists: async (limit: number = 50, offset: number = 0): Promise<Artist[]> => {
-    const response = await fetch(`${API_BASE_URL}/api/artists?limit=${limit}&offset=${offset}`);
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/artists?limit=${limit}&offset=${offset}`);
     if (!response.ok) throw new Error('Failed to fetch artists');
     return response.json();
   },
 
   fetchTracks: async (albumId: string, limit: number = 50, offset: number = 0): Promise<Track[]> => {
-    const response = await fetch(`${API_BASE_URL}/api/tracks?album_id=${albumId}&limit=${limit}&offset=${offset}`);
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/tracks?album_id=${albumId}&limit=${limit}&offset=${offset}`);
     if (!response.ok) throw new Error('Failed to fetch tracks');
     return response.json();
   },
 
   // Hearts API
   fetchHearts: async (): Promise<{ entity_id: string }[]> => {
-    const response = await fetch(`${API_BASE_URL}/api/hearts`, { headers: getHeaders() });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts`, { headers: getHeaders() });
     if (!response.ok) throw new Error('Failed to fetch hearts');
     return response.json();
   },
 
   addHeart: async (entityType: string, entityId: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/api/hearts`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ entity_type: entityType, entity_id: entityId })
@@ -72,7 +83,7 @@ export const apiService = {
   },
 
   removeHeart: async (entityType: string, entityId: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/api/hearts?entity_type=${entityType}&entity_id=${entityId}`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts?entity_type=${entityType}&entity_id=${entityId}`, {
       method: 'DELETE',
       headers: getHeaders()
     });
@@ -80,7 +91,7 @@ export const apiService = {
   },
   
   importHearts: async (file: File): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/api/hearts/import`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts/import`, {
       method: 'POST',
       headers: getHeaders(),
       body: await file.text()
@@ -90,7 +101,7 @@ export const apiService = {
 
   // Scrobbling
   scrobbleTrack: async (trackId: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/api/scrobbles`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/scrobbles`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ track_id: trackId })
@@ -99,20 +110,20 @@ export const apiService = {
   },
   
   getRecentScrobbles: async (): Promise<Track[]> => {
-    const response = await fetch(`${API_BASE_URL}/api/scrobbles/recent`, { headers: getHeaders() });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/scrobbles/recent`, { headers: getHeaders() });
     if (!response.ok) throw new Error('Failed to fetch recent scrobbles');
     return response.json();
   },
 
   // Playlists API
   fetchPlaylists: async (): Promise<Playlist[]> => {
-    const response = await fetch(`${API_BASE_URL}/api/playlists`, { headers: getHeaders() });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists`, { headers: getHeaders() });
     if (!response.ok) throw new Error('Failed to fetch playlists');
     return response.json();
   },
 
   createPlaylist: async (name: string): Promise<Playlist> => {
-    const response = await fetch(`${API_BASE_URL}/api/playlists`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ name })
@@ -122,7 +133,7 @@ export const apiService = {
   },
 
   deletePlaylist: async (id: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/api/playlists/${id}`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/${id}`, {
       method: 'DELETE',
       headers: getHeaders()
     });
@@ -130,13 +141,13 @@ export const apiService = {
   },
 
   fetchPlaylistTracks: async (id: string): Promise<Track[]> => {
-    const response = await fetch(`${API_BASE_URL}/api/playlists/${id}/tracks`, { headers: getHeaders() });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/${id}/tracks`, { headers: getHeaders() });
     if (!response.ok) throw new Error('Failed to fetch playlist tracks');
     return response.json();
   },
 
   addTrackToPlaylist: async (playlistId: string, trackId: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/api/playlists/${playlistId}/tracks`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/${playlistId}/tracks`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ track_id: trackId })
@@ -145,7 +156,7 @@ export const apiService = {
   },
 
   removeTrackFromPlaylist: async (playlistId: string, trackId: string): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/api/playlists/${playlistId}/tracks/${trackId}`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/${playlistId}/tracks/${trackId}`, {
       method: 'DELETE',
       headers: getHeaders()
     });
@@ -153,7 +164,7 @@ export const apiService = {
   },
 
   exportPlaylists: async (): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/api/playlists/export`, { headers: getHeaders() });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/export`, { headers: getHeaders() });
     if (!response.ok) throw new Error('Failed to export playlists');
     
     // Trigger download
@@ -169,7 +180,7 @@ export const apiService = {
   },
 
   importPlaylists: async (file: File): Promise<void> => {
-    const response = await fetch(`${API_BASE_URL}/api/playlists/import`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/import`, {
       method: 'POST',
       headers: getHeaders(),
       body: await file.text()
