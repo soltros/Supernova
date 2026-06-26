@@ -7,9 +7,9 @@ services:
       - "8080:8080"
     volumes:
       # Persist the SQLite database and image cache across container restarts
-      - ~/.supernova:/root/.supernova 
+      - /home/derrik/.supernova:/root/.supernova 
       # Mount the host machine's music folder securely (Read-Only)
-      - ~/Music:/root/Music:ro 
+      - /home/derrik/Music:/root/Music:ro 
     environment:
       - MEDIA_PATH=/root/Music
       - DB_PATH=/root/.supernova/supernova.db
