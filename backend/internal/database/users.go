@@ -38,3 +38,18 @@ func (r *Repository) GetUserByUsername(ctx context.Context, username string) (*m
 	}
 	return &user, hash, nil
 }
+
+// GetUserByID checks if a user exists by ID
+func (r *Repository) GetUserByID(ctx context.Context, id string) (*models.User, error) {
+	query := `SELECT id, username, created_at FROM users WHERE id = ?`
+	
+	var user models.User
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&user.ID, &user.Username, &user.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}

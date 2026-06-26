@@ -124,7 +124,7 @@ func generateJWT(userID string) (string, error) {
 }
 
 // requireAuth is a middleware that intercepts protected routes, validates the JWT, and injects the user_id into the context
-func requireAuth(next http.HandlerFunc) http.HandlerFunc {
+func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
@@ -152,6 +152,13 @@ func requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		userID, ok := claims["user_id"].(string)
 		if !ok {
 			http.Error(w, "unauthorized - invalid user id claim", http.StatusUnauthorized)
+			return
+		}
+
+		// Double-check the database to completely prevent Phantom Users
+		user, err := s.repo.GetUserByID(r.Context(), userID)
+		if err != nil || user == nil {
+			http.Error(w, "unauthorized - user does not exist", http.StatusUnauthorized)
 			return
 		}
 

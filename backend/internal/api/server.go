@@ -48,12 +48,12 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/albums/{id}", s.handleGetAlbumByID())
 	s.mux.HandleFunc("GET /api/tracks", s.handleGetTracks())
 	
-	// Hearts / Favorites (Protected)
-	s.mux.HandleFunc("GET /api/hearts", requireAuth(s.handleGetHearts()))
-	s.mux.HandleFunc("POST /api/hearts", requireAuth(s.handleAddHeart()))
-	s.mux.HandleFunc("DELETE /api/hearts", requireAuth(s.handleRemoveHeart()))
-	s.mux.HandleFunc("GET /api/hearts/export", requireAuth(s.handleExportHearts()))
-	s.mux.HandleFunc("POST /api/hearts/import", requireAuth(s.handleImportHearts()))
+	// Protected User Data routes
+	s.mux.HandleFunc("GET /api/hearts", s.requireAuth(s.handleGetHearts()))
+	s.mux.HandleFunc("POST /api/hearts", s.requireAuth(s.handleAddHeart()))
+	s.mux.HandleFunc("DELETE /api/hearts", s.requireAuth(s.handleRemoveHeart()))
+	s.mux.HandleFunc("GET /api/hearts/export", s.requireAuth(s.handleExportHearts()))
+	s.mux.HandleFunc("POST /api/hearts/import", s.requireAuth(s.handleImportHearts()))
 	
 	// Streaming route leveraging Go 1.22 path variables
 	s.mux.HandleFunc("GET /api/stream/{id}", s.handleStreamTrack())
@@ -62,18 +62,18 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/art/album/{id}", s.handleGetAlbumArt())
 	
 	// Scrobbling / Listen History (Protected)
-	s.mux.HandleFunc("POST /api/scrobbles", requireAuth(s.handleScrobble()))
-	s.mux.HandleFunc("GET /api/scrobbles/recent", requireAuth(s.handleGetRecentScrobbles()))
+	s.mux.HandleFunc("POST /api/scrobbles", s.requireAuth(s.handleScrobble()))
+	s.mux.HandleFunc("GET /api/scrobbles/recent", s.requireAuth(s.handleGetRecentScrobbles()))
 	
 	// Playlists (Protected)
-	s.mux.HandleFunc("GET /api/playlists", requireAuth(s.handleGetPlaylists()))
-	s.mux.HandleFunc("POST /api/playlists", requireAuth(s.handleCreatePlaylist()))
-	s.mux.HandleFunc("DELETE /api/playlists/{id}", requireAuth(s.handleDeletePlaylist()))
-	s.mux.HandleFunc("GET /api/playlists/{id}/tracks", requireAuth(s.handleGetPlaylistTracks()))
-	s.mux.HandleFunc("POST /api/playlists/{id}/tracks", requireAuth(s.handleAddTrackToPlaylist()))
-	s.mux.HandleFunc("DELETE /api/playlists/{id}/tracks/{trackId}", requireAuth(s.handleRemoveTrackFromPlaylist()))
-	s.mux.HandleFunc("GET /api/playlists/export", requireAuth(s.handleExportPlaylists()))
-	s.mux.HandleFunc("POST /api/playlists/import", requireAuth(s.handleImportPlaylists()))
+	s.mux.HandleFunc("GET /api/playlists", s.requireAuth(s.handleGetPlaylists()))
+	s.mux.HandleFunc("POST /api/playlists", s.requireAuth(s.handleCreatePlaylist()))
+	s.mux.HandleFunc("DELETE /api/playlists/{id}", s.requireAuth(s.handleDeletePlaylist()))
+	s.mux.HandleFunc("GET /api/playlists/{id}/tracks", s.requireAuth(s.handleGetPlaylistTracks()))
+	s.mux.HandleFunc("POST /api/playlists/{id}/tracks", s.requireAuth(s.handleAddTrackToPlaylist()))
+	s.mux.HandleFunc("DELETE /api/playlists/{id}/tracks/{trackId}", s.requireAuth(s.handleRemoveTrackFromPlaylist()))
+	s.mux.HandleFunc("GET /api/playlists/export", s.requireAuth(s.handleExportPlaylists()))
+	s.mux.HandleFunc("POST /api/playlists/import", s.requireAuth(s.handleImportPlaylists()))
 	
 	s.mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "version": "1.0"})
