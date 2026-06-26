@@ -9,7 +9,10 @@ services:
       # Persist the SQLite database and image cache across container restarts
       - ~/.supernova:/root/.supernova 
       # Mount the host machine's music folder securely (Read-Only)
-      - /mnt/nfs/hdd4/Music/Derriks_Music/:/root/Music:ro 
+      - ~/Music:/root/Music:ro 
+    environment:
+      - MEDIA_PATH=/root/Music
+      - DB_PATH=/root/.supernova/supernova.db
     restart: unless-stopped
 
   frontend:
