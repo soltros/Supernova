@@ -7,6 +7,9 @@ import AlbumPage from './pages/AlbumPage';
 import HeartsPage from './pages/HeartsPage';
 import { PlaylistsPage } from './pages/PlaylistsPage';
 import { LoginPage } from './pages/LoginPage';
+import ArtistsPage from './pages/ArtistsPage';
+import AlbumsPage from './pages/AlbumsPage';
+import SettingsPage from './pages/SettingsPage';
 import { HeartsProvider } from './context/HeartsContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -33,10 +36,10 @@ function AppContent() {
             <Route path="/album/:id" element={<AlbumPage />} />
             <Route path="/hearts" element={<HeartsPage />} />
             
-            <Route path="/artists" element={<div className="content-scroll"><h2 className="section-title">Artists</h2></div>} />
-            <Route path="/albums" element={<div className="content-scroll"><h2 className="section-title">Albums</h2></div>} />
+            <Route path="/artists" element={<ArtistsPage />} />
+            <Route path="/albums" element={<AlbumsPage />} />
             <Route path="/playlists" element={<PlaylistsPage />} />
-            <Route path="/settings" element={<div className="content-scroll"><h2 className="section-title">Settings</h2></div>} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </main>
 

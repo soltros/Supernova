@@ -64,7 +64,7 @@ export const LoginPage: React.FC = () => {
           {isRegistering ? 'Already have an account? ' : "Don't have an account? "}
           <span 
             onClick={() => setIsRegistering(!isRegistering)}
-            style={{ color: 'white', cursor: 'pointer', textDecoration: 'underline', fontWeight: 600 }}
+            style={{ color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 700, textDecoration: 'none' }}
           >
             {isRegistering ? 'Log in' : 'Sign up'}
           </span>

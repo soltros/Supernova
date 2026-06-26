@@ -45,6 +45,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+input, button, textarea, select {
+  font-family: inherit;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
 /* Glassmorphism Foundation */
 .glass-panel {
   background: var(--bg-glass);
