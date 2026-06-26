@@ -1,0 +1,271 @@
+import { createContext, useState, useContext, useEffect, useRef } from 'react';
+import type { FC, ReactNode } from 'react';
+import { apiService } from '../services/api';
+import type { Track, Album } from '../types';
+
+interface PlayerState {
+  currentTrack: Track | null;
+  currentAlbum: Album | null;
+  isPlaying: boolean;
+  progress: number;
+  currentTime: number;
+  duration: number;
+  volume: number;
+  queue: Track[];
+  queueIndex: number;
+  playContext: (tracks: Track[], startIndex: number, album: Album) => void;
+  playNext: () => void;
+  playPrev: () => void;
+  togglePlay: () => void;
+  seekTo: (percent: number) => void;
+  changeVolume: (level: number) => void;
+}
+
+const PlayerContext = createContext<PlayerState | undefined>(undefined);
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
+export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
+  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
+  const [currentAlbum, setCurrentAlbum] = useState<Album | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1.0);
+
+  // Playback Queue State
+  const [queue, setQueue] = useState<Track[]>([]);
+  const [queueIndex, setQueueIndex] = useState(0);
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // We use Refs for state accessed inside event listeners to avoid stale closures
+  const queueRef = useRef<Track[]>([]);
+  const queueIndexRef = useRef<number>(0);
+  const albumRef = useRef<Album | null>(null);
+  const playNextRef = useRef<(() => void) | null>(null);
+  const playPrevRef = useRef<(() => void) | null>(null);
+  const playPromiseRef = useRef<Promise<void> | null>(null);
+  const hasScrobbledRef = useRef<boolean>(false);
+  const accumulatedPlayTimeRef = useRef<number>(0);
+  const lastTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    const audio = new Audio();
+    audio.volume = 1.0;
+    audioRef.current = audio;
+
+    audio.addEventListener('timeupdate', () => {
+      setCurrentTime(audio.currentTime);
+      if (audio.duration && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+        setProgress((audio.currentTime / audio.duration) * 100);
+      }
+      
+      // Phase 6: Internal Scrobbling Engine (Scrub-Proof)
+      const activeTrack = queueRef.current[queueIndexRef.current];
+      if (activeTrack && !hasScrobbledRef.current) {
+        // Calculate real time delta
+        const diff = audio.currentTime - lastTimeRef.current;
+        
+        // If diff is between 0 and 1, it's normal playback. If it's huge, it's a seek/scrub.
+        if (diff > 0 && diff < 1.0) {
+          accumulatedPlayTimeRef.current += diff;
+        }
+        lastTimeRef.current = audio.currentTime;
+
+        const durationSeconds = activeTrack.duration_ms / 1000;
+        // Scrobble if 30 seconds of REAL playback have passed, or 50% of the song (whichever is smaller)
+        const threshold = Math.min(30, durationSeconds * 0.5);
+        if (accumulatedPlayTimeRef.current >= threshold) {
+          hasScrobbledRef.current = true;
+          apiService.scrobbleTrack(activeTrack.id).catch(e => console.error("Scrobble failed:", e));
+        }
+      }
+    });
+
+    audio.addEventListener('ended', () => {
+      if (playNextRef.current) {
+        playNextRef.current();
+      }
+    });
+
+    audio.addEventListener('play', () => {
+      setIsPlaying(true);
+      // Sync media session API when audio actually starts playing
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'playing';
+      }
+    });
+    
+    audio.addEventListener('pause', () => {
+      setIsPlaying(false);
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = 'paused';
+      }
+    });
+
+    // Wire up global lock-screen media keys to our React refs
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', () => audioRef.current?.play());
+      navigator.mediaSession.setActionHandler('pause', () => audioRef.current?.pause());
+      navigator.mediaSession.setActionHandler('previoustrack', () => playPrevRef.current?.());
+      navigator.mediaSession.setActionHandler('nexttrack', () => playNextRef.current?.());
+      
+      // Support lock-screen scrubbing
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime && audioRef.current) {
+          audioRef.current.currentTime = details.seekTime;
+        }
+      });
+    }
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+    };
+  }, []);
+
+  const internalPlay = async (track: Track, album: Album) => {
+    hasScrobbledRef.current = false;
+    accumulatedPlayTimeRef.current = 0;
+    lastTimeRef.current = 0;
+    
+    setCurrentTrack(track);
+    setCurrentAlbum(album);
+    setDuration(track.duration_ms / 1000);
+    setProgress(0);
+    setCurrentTime(0);
+    
+    if (!audioRef.current) return;
+
+    // Safely await any pending play() Promises before mutating .src
+    // This entirely prevents the DOMException race condition
+    if (playPromiseRef.current) {
+      await playPromiseRef.current.catch(() => {});
+    }
+
+    audioRef.current.pause();
+    audioRef.current.src = `${API_BASE_URL}/api/stream/${track.id}`;
+    
+    try {
+      playPromiseRef.current = audioRef.current.play();
+      await playPromiseRef.current;
+    } catch (e) {
+      console.log("Playback interrupted safely by next track load.");
+    }
+
+    // Update Lock Screen Metadata (Media Session API)
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.title,
+        artist: album.title, // In the future we will use the track's actual primary artist
+        album: album.title,
+        artwork: [
+          { src: `${API_BASE_URL}/api/art/album/${album.id}`, sizes: '500x500', type: 'image/jpeg' }
+        ]
+      });
+    }
+  };
+
+  const playContext = (tracks: Track[], startIndex: number, album: Album) => {
+    setQueue(tracks);
+    setQueueIndex(startIndex);
+    
+    queueRef.current = tracks;
+    queueIndexRef.current = startIndex;
+    albumRef.current = album;
+    
+    internalPlay(tracks[startIndex], album);
+  };
+
+  const playNext = () => {
+    if (queueIndexRef.current < queueRef.current.length - 1) {
+      const nextIdx = queueIndexRef.current + 1;
+      setQueueIndex(nextIdx);
+      queueIndexRef.current = nextIdx;
+      internalPlay(queueRef.current[nextIdx], albumRef.current!);
+    } else {
+      setIsPlaying(false);
+      setProgress(0);
+      setCurrentTime(0);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    }
+  };
+
+  const playPrev = () => {
+    if (!audioRef.current) return;
+    
+    if (audioRef.current.currentTime > 3) {
+      audioRef.current.currentTime = 0;
+      return;
+    }
+
+    if (queueIndexRef.current > 0) {
+      const prevIdx = queueIndexRef.current - 1;
+      setQueueIndex(prevIdx);
+      queueIndexRef.current = prevIdx;
+      internalPlay(queueRef.current[prevIdx], albumRef.current!);
+    }
+  };
+
+  playNextRef.current = playNext;
+  playPrevRef.current = playPrev;
+
+  const togglePlay = async () => {
+    if (!audioRef.current || !currentTrack) return;
+    
+    if (playPromiseRef.current) {
+      await playPromiseRef.current.catch(() => {});
+    }
+
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      try {
+        playPromiseRef.current = audioRef.current.play();
+        await playPromiseRef.current;
+      } catch (e) {
+        console.log("Playback resumed and instantly interrupted.");
+      }
+    }
+  };
+
+  const seekTo = (percent: number) => {
+    if (!audioRef.current) return;
+    const activeDuration = duration || (currentTrack ? currentTrack.duration_ms / 1000 : 0);
+    if (!activeDuration) return;
+
+    const newTime = (percent / 100) * activeDuration;
+    audioRef.current.currentTime = newTime;
+    lastTimeRef.current = newTime; // Prevent scrub spikes
+    setProgress(percent);
+  };
+
+  const changeVolume = (level: number) => {
+    if (!audioRef.current) return;
+    const safeLevel = Math.max(0, Math.min(1, level));
+    audioRef.current.volume = safeLevel;
+    setVolume(safeLevel);
+  };
+
+  return (
+    <PlayerContext.Provider value={{ 
+      currentTrack, currentAlbum, isPlaying, 
+      progress, currentTime, duration, volume,
+      queue, queueIndex,
+      playContext, playNext, playPrev, togglePlay, seekTo, changeVolume 
+    }}>
+      {children}
+    </PlayerContext.Provider>
+  );
+};
+
+export const usePlayer = () => {
+  const context = useContext(PlayerContext);
+  if (!context) throw new Error('usePlayer must be used within PlayerProvider');
+  return context;
+};

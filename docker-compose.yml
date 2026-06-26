@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: supernova-backend
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persist the SQLite database and image cache across container restarts
+      - ~/.supernova:/root/.supernova 
+      # Mount the host machine's music folder securely (Read-Only)
+      - ~/Music:/root/Music:ro 
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: supernova-frontend
+    ports:
+      # Map container port 80 to host port 5173 for familiar Vite access
+      - "5173:80"
+    environment:
+      # Instruct the frontend to connect to the backend container
+      - VITE_API_URL=http://localhost:8080
+    depends_on:
+      - backend
+    restart: unless-stopped

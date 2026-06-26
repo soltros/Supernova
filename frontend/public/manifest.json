@@ -1,0 +1,18 @@
+{
+  "name": "Supernova Music",
+  "short_name": "Supernova",
+  "description": "A lightning-fast, highly-concurrent audiophile music server.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

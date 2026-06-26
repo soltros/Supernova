@@ -1,0 +1,22 @@
+# Node
+node_modules/
+dist/
+.DS_Store
+
+# Go
+backend/supernova
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Project specific
+~/.supernova
