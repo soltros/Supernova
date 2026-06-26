@@ -171,25 +171,25 @@ func (r *Repository) GetAlbumByID(ctx context.Context, id string) (*models.Album
 	return &a, nil
 }
 
-// HeartEntity adds a heart for an entity, safely generating its own UUID
-func (r *Repository) HeartEntity(ctx context.Context, entityType, entityID string) error {
+// HeartEntity saves a favorite for a specific user
+func (r *Repository) HeartEntity(ctx context.Context, userID, entityType, entityID string) error {
 	id := generateUUID()
-	query := `INSERT INTO hearts (id, entity_type, entity_id) VALUES (?, ?, ?) ON CONFLICT(entity_type, entity_id) DO NOTHING`
-	_, err := r.db.ExecContext(ctx, query, id, entityType, entityID)
+	query := `INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id) VALUES (?, ?, ?, ?)`
+	_, err := r.db.ExecContext(ctx, query, id, userID, entityType, entityID)
 	return err
 }
 
-// UnheartEntity removes a heart from an entity
-func (r *Repository) UnheartEntity(ctx context.Context, entityType, entityID string) error {
-	query := `DELETE FROM hearts WHERE entity_type = ? AND entity_id = ?`
-	_, err := r.db.ExecContext(ctx, query, entityType, entityID)
+// UnheartEntity removes a favorite for a specific user
+func (r *Repository) UnheartEntity(ctx context.Context, userID, entityType, entityID string) error {
+	query := `DELETE FROM hearts WHERE user_id = ? AND entity_type = ? AND entity_id = ?`
+	_, err := r.db.ExecContext(ctx, query, userID, entityType, entityID)
 	return err
 }
 
-// GetAllHearts retrieves all hearts for the frontend context
-func (r *Repository) GetAllHearts(ctx context.Context) ([]models.Heart, error) {
-	query := `SELECT id, entity_type, entity_id, created_at FROM hearts`
-	rows, err := r.db.QueryContext(ctx, query)
+// GetAllHearts retrieves all favorites for a specific user
+func (r *Repository) GetAllHearts(ctx context.Context, userID string) ([]models.Heart, error) {
+	query := `SELECT id, entity_type, entity_id, created_at FROM hearts WHERE user_id = ?`
+	rows, err := r.db.QueryContext(ctx, query, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -210,21 +210,22 @@ func (r *Repository) GetAllHearts(ctx context.Context) ([]models.Heart, error) {
 }
 
 // ExportHearts performs a robust JOIN to export permanent file_paths rather than temporary UUIDs
-func (r *Repository) ExportHearts(ctx context.Context) ([]models.HeartBackup, error) {
+func (r *Repository) ExportHearts(ctx context.Context, userID string) ([]models.HeartBackup, error) {
 	query := `
-		SELECT h.entity_type, 
-		       CASE 
-		           WHEN h.entity_type = 'track' THEN t.file_path 
-		           WHEN h.entity_type = 'album' THEN a.title 
-		           ELSE '' 
-		       END as reference,
-		       h.created_at
+		SELECT 
+			h.entity_type,
+			CASE 
+				WHEN h.entity_type = 'track' THEN t.file_path
+				WHEN h.entity_type = 'album' THEN a.title
+			END as reference,
+			h.created_at
 		FROM hearts h
 		LEFT JOIN tracks t ON h.entity_type = 'track' AND h.entity_id = t.id
 		LEFT JOIN albums a ON h.entity_type = 'album' AND h.entity_id = a.id
-		WHERE reference != '' AND reference IS NOT NULL
+		WHERE h.user_id = ?
+		AND reference IS NOT NULL
 	`
-	rows, err := r.db.QueryContext(ctx, query)
+	rows, err := r.db.QueryContext(ctx, query, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -241,44 +242,48 @@ func (r *Repository) ExportHearts(ctx context.Context) ([]models.HeartBackup, er
 	return backups, nil
 }
 
-// ImportHeartBackup safely resolves the permanent reference back to the local database UUID
-func (r *Repository) ImportHeartBackup(ctx context.Context, b models.HeartBackup) error {
-	var entityID string
-	if b.EntityType == "track" {
-		err := r.db.QueryRowContext(ctx, `SELECT id FROM tracks WHERE file_path = ?`, b.Reference).Scan(&entityID)
-		if err != nil {
-			return err // Silently skip if track no longer exists in this user's library
-		}
-	} else if b.EntityType == "album" {
-		err := r.db.QueryRowContext(ctx, `SELECT id FROM albums WHERE title = ?`, b.Reference).Scan(&entityID)
-		if err != nil {
-			return err
-		}
-	} else {
-		return nil
+// ImportHeartBackup attempts to restore a user's favorite using its permanent reference
+func (r *Repository) ImportHeartBackup(ctx context.Context, userID string, backup models.HeartBackup) error {
+	var query string
+	var err error
+	id := generateUUID()
+
+	if backup.EntityType == "track" {
+		query = `
+			INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id)
+			SELECT ?, ?, 'track', id FROM tracks WHERE file_path = ?
+		`
+		_, err = r.db.ExecContext(ctx, query, id, userID, backup.Reference)
+	} else if backup.EntityType == "album" {
+		query = `
+			INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id)
+			SELECT ?, ?, 'album', id FROM albums WHERE title = ?
+		`
+		_, err = r.db.ExecContext(ctx, query, id, userID, backup.Reference)
 	}
 
-	return r.HeartEntity(ctx, b.EntityType, entityID)
+	return err
 }
 
 // ScrobbleTrack records a successful track play into the user's history
-func (r *Repository) ScrobbleTrack(ctx context.Context, trackID string) error {
+func (r *Repository) ScrobbleTrack(ctx context.Context, userID, trackID string) error {
 	id := generateUUID()
-	query := `INSERT INTO scrobbles (id, track_id) VALUES (?, ?)`
-	_, err := r.db.ExecContext(ctx, query, id, trackID)
+	query := `INSERT INTO scrobbles (id, user_id, track_id) VALUES (?, ?, ?)`
+	_, err := r.db.ExecContext(ctx, query, id, userID, trackID)
 	return err
 }
 
 // GetRecentScrobbles returns the user's most recently listened to tracks
-func (r *Repository) GetRecentScrobbles(ctx context.Context, limit int) ([]models.Track, error) {
+func (r *Repository) GetRecentScrobbles(ctx context.Context, userID string, limit int) ([]models.Track, error) {
 	query := `
 		SELECT t.id, t.album_id, t.title, t.track_number, t.disc_number, t.duration_ms, t.format, t.bitrate
 		FROM tracks t
 		JOIN scrobbles s ON t.id = s.track_id
+		WHERE s.user_id = ?
 		ORDER BY s.listened_at DESC
 		LIMIT ?
 	`
-	rows, err := r.db.QueryContext(ctx, query, limit)
+	rows, err := r.db.QueryContext(ctx, query, userID, limit)
 	if err != nil {
 		return nil, err
 	}

@@ -10,7 +10,9 @@ import (
 // handleGetHearts fetches all hearts for the user
 func (s *Server) handleGetHearts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		hearts, err := s.repo.GetAllHearts(r.Context())
+		userID := r.Context().Value("user_id").(string)
+		
+		hearts, err := s.repo.GetAllHearts(r.Context(), userID)
 		if err != nil {
 			http.Error(w, "failed to get hearts", http.StatusInternalServerError)
 			return
@@ -22,15 +24,17 @@ func (s *Server) handleGetHearts() http.HandlerFunc {
 // handleAddHeart adds a new heart, letting the DB securely generate the UUID
 func (s *Server) handleAddHeart() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		userID := r.Context().Value("user_id").(string)
+
 		var req struct {
 			EntityType string `json:"entity_type"`
 			EntityID   string `json:"entity_id"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+			http.Error(w, "invalid request", http.StatusBadRequest)
 			return
 		}
-		if err := s.repo.HeartEntity(r.Context(), req.EntityType, req.EntityID); err != nil {
+		if err := s.repo.HeartEntity(r.Context(), userID, req.EntityType, req.EntityID); err != nil {
 			http.Error(w, "failed to add heart", http.StatusInternalServerError)
 			return
 		}
@@ -41,13 +45,14 @@ func (s *Server) handleAddHeart() http.HandlerFunc {
 // handleRemoveHeart deletes a heart
 func (s *Server) handleRemoveHeart() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		userID := r.Context().Value("user_id").(string)
 		entityType := r.URL.Query().Get("entity_type")
 		entityID := r.URL.Query().Get("entity_id")
 		if entityType == "" || entityID == "" {
 			http.Error(w, "missing parameters", http.StatusBadRequest)
 			return
 		}
-		if err := s.repo.UnheartEntity(r.Context(), entityType, entityID); err != nil {
+		if err := s.repo.UnheartEntity(r.Context(), userID, entityType, entityID); err != nil {
 			http.Error(w, "failed to remove heart", http.StatusInternalServerError)
 			return
 		}
@@ -58,7 +63,9 @@ func (s *Server) handleRemoveHeart() http.HandlerFunc {
 // handleExportHearts allows the user to backup their hearts as a JSON file
 func (s *Server) handleExportHearts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		hearts, err := s.repo.ExportHearts(r.Context())
+		userID := r.Context().Value("user_id").(string)
+
+		hearts, err := s.repo.ExportHearts(r.Context(), userID)
 		if err != nil {
 			http.Error(w, "failed to export hearts", http.StatusInternalServerError)
 			return
@@ -72,6 +79,8 @@ func (s *Server) handleExportHearts() http.HandlerFunc {
 // handleImportHearts safely restores hearts by matching permanent file paths
 func (s *Server) handleImportHearts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		userID := r.Context().Value("user_id").(string)
+
 		var backups []models.HeartBackup
 		if err := json.NewDecoder(r.Body).Decode(&backups); err != nil {
 			http.Error(w, "invalid backup format", http.StatusBadRequest)
@@ -79,7 +88,7 @@ func (s *Server) handleImportHearts() http.HandlerFunc {
 		}
 		for _, b := range backups {
 			// We silently ignore errors per-item so a partial failure doesn't crash the import
-			_ = s.repo.ImportHeartBackup(r.Context(), b)
+			_ = s.repo.ImportHeartBackup(r.Context(), userID, b)
 		}
 		w.WriteHeader(http.StatusOK)
 	}

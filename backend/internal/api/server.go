@@ -38,17 +38,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) routes() {
+	// Authentication
+	s.mux.HandleFunc("POST /api/auth/register", s.handleRegister())
+	s.mux.HandleFunc("POST /api/auth/login", s.handleLogin())
+
+	// Public read-only library routes
 	s.mux.HandleFunc("GET /api/artists", s.handleGetArtists())
 	s.mux.HandleFunc("GET /api/albums", s.handleGetAlbums())
 	s.mux.HandleFunc("GET /api/albums/{id}", s.handleGetAlbumByID())
 	s.mux.HandleFunc("GET /api/tracks", s.handleGetTracks())
 	
-	// Hearts / Favorites
-	s.mux.HandleFunc("GET /api/hearts", s.handleGetHearts())
-	s.mux.HandleFunc("POST /api/hearts", s.handleAddHeart())
-	s.mux.HandleFunc("DELETE /api/hearts", s.handleRemoveHeart())
-	s.mux.HandleFunc("GET /api/hearts/export", s.handleExportHearts())
-	s.mux.HandleFunc("POST /api/hearts/import", s.handleImportHearts())
+	// Hearts / Favorites (Protected)
+	s.mux.HandleFunc("GET /api/hearts", requireAuth(s.handleGetHearts()))
+	s.mux.HandleFunc("POST /api/hearts", requireAuth(s.handleAddHeart()))
+	s.mux.HandleFunc("DELETE /api/hearts", requireAuth(s.handleRemoveHeart()))
+	s.mux.HandleFunc("GET /api/hearts/export", requireAuth(s.handleExportHearts()))
+	s.mux.HandleFunc("POST /api/hearts/import", requireAuth(s.handleImportHearts()))
 	
 	// Streaming route leveraging Go 1.22 path variables
 	s.mux.HandleFunc("GET /api/stream/{id}", s.handleStreamTrack())
@@ -56,9 +61,9 @@ func (s *Server) routes() {
 	// Art Delivery
 	s.mux.HandleFunc("GET /api/art/album/{id}", s.handleGetAlbumArt())
 	
-	// Scrobbling / Listen History
-	s.mux.HandleFunc("POST /api/scrobbles", s.handleScrobble())
-	s.mux.HandleFunc("GET /api/scrobbles/recent", s.handleGetRecentScrobbles())
+	// Scrobbling / Listen History (Protected)
+	s.mux.HandleFunc("POST /api/scrobbles", requireAuth(s.handleScrobble()))
+	s.mux.HandleFunc("GET /api/scrobbles/recent", requireAuth(s.handleGetRecentScrobbles()))
 	
 	s.mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "version": "1.0"})
@@ -129,9 +134,11 @@ func (s *Server) handleGetTracks() http.HandlerFunc {
 	}
 }
 
-// handleScrobble processes a track playback event
+// handleScrobble processes a track playback event for the authenticated user
 func (s *Server) handleScrobble() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		userID := r.Context().Value("user_id").(string)
+
 		var req struct {
 			TrackID string `json:"track_id"`
 		}
@@ -139,7 +146,7 @@ func (s *Server) handleScrobble() http.HandlerFunc {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if err := s.repo.ScrobbleTrack(r.Context(), req.TrackID); err != nil {
+		if err := s.repo.ScrobbleTrack(r.Context(), userID, req.TrackID); err != nil {
 			http.Error(w, "failed to scrobble track", http.StatusInternalServerError)
 			return
 		}
@@ -147,10 +154,12 @@ func (s *Server) handleScrobble() http.HandlerFunc {
 	}
 }
 
-// handleGetRecentScrobbles returns the most recent listen history
+// handleGetRecentScrobbles returns the most recent listen history for the authenticated user
 func (s *Server) handleGetRecentScrobbles() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		tracks, err := s.repo.GetRecentScrobbles(r.Context(), 20)
+		userID := r.Context().Value("user_id").(string)
+
+		tracks, err := s.repo.GetRecentScrobbles(r.Context(), userID, 20)
 		if err != nil {
 			http.Error(w, "failed to fetch scrobbles", http.StatusInternalServerError)
 			return

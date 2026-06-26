@@ -5,40 +5,52 @@ import PlayerBar from './components/PlayerBar';
 import LibraryPage from './pages/LibraryPage';
 import AlbumPage from './pages/AlbumPage';
 import HeartsPage from './pages/HeartsPage';
+import { LoginPage } from './pages/LoginPage';
 import { PlayerProvider } from './context/PlayerContext';
 import { HeartsProvider } from './context/HeartsContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 import './index.css';
 import './App.css';
 
-function App() {
+function AppContent() {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
   return (
     <HeartsProvider>
-      <PlayerProvider>
-        <div className="app-container">
-          <Sidebar />
+      <div className="app-container">
+        <Sidebar />
+        
+        <main className="main-content">
+          <TopBar />
           
-          <main className="main-content">
-            <TopBar />
+          <Routes>
+            <Route path="/" element={<LibraryPage />} />
+            <Route path="/album/:id" element={<AlbumPage />} />
+            <Route path="/hearts" element={<HeartsPage />} />
             
-            {/* Client-side routing maps URLs directly to React Components */}
-            <Routes>
-              <Route path="/" element={<LibraryPage />} />
-              <Route path="/album/:id" element={<AlbumPage />} />
-              <Route path="/hearts" element={<HeartsPage />} />
-              
-              {/* Temporary placeholders until we build out the respective pages */}
-              <Route path="/artists" element={<div className="content-scroll"><h2 className="section-title">Artists</h2></div>} />
-              <Route path="/albums" element={<div className="content-scroll"><h2 className="section-title">Albums</h2></div>} />
-              <Route path="/playlists" element={<div className="content-scroll"><h2 className="section-title">Playlists</h2></div>} />
-              <Route path="/settings" element={<div className="content-scroll"><h2 className="section-title">Settings</h2></div>} />
-            </Routes>
-          </main>
+            <Route path="/artists" element={<div className="content-scroll"><h2 className="section-title">Artists</h2></div>} />
+            <Route path="/albums" element={<div className="content-scroll"><h2 className="section-title">Albums</h2></div>} />
+            <Route path="/playlists" element={<div className="content-scroll"><h2 className="section-title">Playlists</h2></div>} />
+            <Route path="/settings" element={<div className="content-scroll"><h2 className="section-title">Settings</h2></div>} />
+          </Routes>
+        </main>
 
-          <PlayerBar />
-        </div>
-      </PlayerProvider>
+        <PlayerBar />
+      </div>
     </HeartsProvider>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

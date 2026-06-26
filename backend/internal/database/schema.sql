@@ -1,3 +1,10 @@
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS artists (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -31,10 +38,12 @@ CREATE TABLE IF NOT EXISTS tracks (
 
 CREATE TABLE IF NOT EXISTS hearts (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
     entity_type TEXT NOT NULL,
     entity_id TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(entity_type, entity_id)
+    UNIQUE(user_id, entity_type, entity_id),
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS track_artists (
@@ -60,8 +69,10 @@ END;
 
 CREATE TABLE IF NOT EXISTS scrobbles (
     id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
     track_id TEXT NOT NULL,
     listened_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE
 );
 

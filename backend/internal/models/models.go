@@ -65,3 +65,10 @@ type HeartBackup struct {
 	Reference  string `json:"reference"`
 	CreatedAt  string `json:"created_at"`
 }
+
+// User represents an authenticated account
+type User struct {
+	ID        string `json:"id"`
+	Username  string `json:"username"`
+	CreatedAt string `json:"created_at"`
+}
