@@ -1,4 +1,4 @@
-import type { Album, Artist, Track, AuthResponse } from '../types';
+import type { Album, Artist, Track, AuthResponse, Playlist } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -102,5 +102,78 @@ export const apiService = {
     const response = await fetch(`${API_BASE_URL}/api/scrobbles/recent`, { headers: getHeaders() });
     if (!response.ok) throw new Error('Failed to fetch recent scrobbles');
     return response.json();
+  },
+
+  // Playlists API
+  fetchPlaylists: async (): Promise<Playlist[]> => {
+    const response = await fetch(`${API_BASE_URL}/api/playlists`, { headers: getHeaders() });
+    if (!response.ok) throw new Error('Failed to fetch playlists');
+    return response.json();
+  },
+
+  createPlaylist: async (name: string): Promise<Playlist> => {
+    const response = await fetch(`${API_BASE_URL}/api/playlists`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ name })
+    });
+    if (!response.ok) throw new Error('Failed to create playlist');
+    return response.json();
+  },
+
+  deletePlaylist: async (id: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/api/playlists/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    if (!response.ok) throw new Error('Failed to delete playlist');
+  },
+
+  fetchPlaylistTracks: async (id: string): Promise<Track[]> => {
+    const response = await fetch(`${API_BASE_URL}/api/playlists/${id}/tracks`, { headers: getHeaders() });
+    if (!response.ok) throw new Error('Failed to fetch playlist tracks');
+    return response.json();
+  },
+
+  addTrackToPlaylist: async (playlistId: string, trackId: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/api/playlists/${playlistId}/tracks`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ track_id: trackId })
+    });
+    if (!response.ok) throw new Error('Failed to add track to playlist');
+  },
+
+  removeTrackFromPlaylist: async (playlistId: string, trackId: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/api/playlists/${playlistId}/tracks/${trackId}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    if (!response.ok) throw new Error('Failed to remove track from playlist');
+  },
+
+  exportPlaylists: async (): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/api/playlists/export`, { headers: getHeaders() });
+    if (!response.ok) throw new Error('Failed to export playlists');
+    
+    // Trigger download
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'supernova_playlists_backup.json';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
+  importPlaylists: async (file: File): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/api/playlists/import`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: await file.text()
+    });
+    if (!response.ok) throw new Error('Failed to import playlists');
   }
 };

@@ -65,6 +65,16 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/scrobbles", requireAuth(s.handleScrobble()))
 	s.mux.HandleFunc("GET /api/scrobbles/recent", requireAuth(s.handleGetRecentScrobbles()))
 	
+	// Playlists (Protected)
+	s.mux.HandleFunc("GET /api/playlists", requireAuth(s.handleGetPlaylists()))
+	s.mux.HandleFunc("POST /api/playlists", requireAuth(s.handleCreatePlaylist()))
+	s.mux.HandleFunc("DELETE /api/playlists/{id}", requireAuth(s.handleDeletePlaylist()))
+	s.mux.HandleFunc("GET /api/playlists/{id}/tracks", requireAuth(s.handleGetPlaylistTracks()))
+	s.mux.HandleFunc("POST /api/playlists/{id}/tracks", requireAuth(s.handleAddTrackToPlaylist()))
+	s.mux.HandleFunc("DELETE /api/playlists/{id}/tracks/{trackId}", requireAuth(s.handleRemoveTrackFromPlaylist()))
+	s.mux.HandleFunc("GET /api/playlists/export", requireAuth(s.handleExportPlaylists()))
+	s.mux.HandleFunc("POST /api/playlists/import", requireAuth(s.handleImportPlaylists()))
+	
 	s.mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "version": "1.0"})
 	})

@@ -33,3 +33,16 @@ export interface AuthResponse {
   token: string;
   user: User;
 }
+
+export interface Playlist {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface PlaylistBackup {
+  name: string;
+  created_at: string;
+  tracks: string[];
+}

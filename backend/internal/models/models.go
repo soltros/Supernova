@@ -72,3 +72,18 @@ type User struct {
 	Username  string `json:"username"`
 	CreatedAt string `json:"created_at"`
 }
+
+// Playlist represents a user-created collection of tracks
+type Playlist struct {
+	ID        string `json:"id"`
+	UserID    string `json:"user_id"`
+	Name      string `json:"name"`
+	CreatedAt string `json:"created_at"`
+}
+
+// PlaylistBackup is used for exporting playlists robustly, matching tracks by file_path
+type PlaylistBackup struct {
+	Name      string   `json:"name"`
+	CreatedAt string   `json:"created_at"`
+	Tracks    []string `json:"tracks"` // file paths
+}

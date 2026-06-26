@@ -90,3 +90,23 @@ CREATE INDEX IF NOT EXISTS idx_tracks_album_id ON tracks(album_id);
 CREATE INDEX IF NOT EXISTS idx_tracks_file_path ON tracks(file_path);
 CREATE INDEX IF NOT EXISTS idx_artists_name ON artists(name);
 CREATE INDEX IF NOT EXISTS idx_albums_title ON albums(title);
+
+CREATE TABLE IF NOT EXISTS playlists (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+    playlist_id TEXT NOT NULL,
+    track_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (playlist_id, track_id),
+    FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+    FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_playlists_user_id ON playlists(user_id);

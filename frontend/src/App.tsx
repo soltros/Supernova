@@ -5,6 +5,7 @@ import PlayerBar from './components/PlayerBar';
 import LibraryPage from './pages/LibraryPage';
 import AlbumPage from './pages/AlbumPage';
 import HeartsPage from './pages/HeartsPage';
+import { PlaylistsPage } from './pages/PlaylistsPage';
 import { LoginPage } from './pages/LoginPage';
 import { PlayerProvider } from './context/PlayerContext';
 import { HeartsProvider } from './context/HeartsContext';
@@ -35,7 +36,7 @@ function AppContent() {
             
             <Route path="/artists" element={<div className="content-scroll"><h2 className="section-title">Artists</h2></div>} />
             <Route path="/albums" element={<div className="content-scroll"><h2 className="section-title">Albums</h2></div>} />
-            <Route path="/playlists" element={<div className="content-scroll"><h2 className="section-title">Playlists</h2></div>} />
+            <Route path="/playlists" element={<PlaylistsPage />} />
             <Route path="/settings" element={<div className="content-scroll"><h2 className="section-title">Settings</h2></div>} />
           </Routes>
         </main>

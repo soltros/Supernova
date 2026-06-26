@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { usePlayer } from '../context/PlayerContext';
 import HeartButton from '../components/HeartButton';
+import AddToPlaylistMenu from '../components/AddToPlaylistMenu';
 import type { Album, Track } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -107,8 +108,9 @@ const AlbumPage: FC = () => {
               <div style={{ fontWeight: isThisTrackPlaying ? 600 : 400, color: isThisTrackPlaying ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
                 {track.title}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', alignItems: 'center' }}>
                 <HeartButton entityType="track" entityId={track.id} />
+                <AddToPlaylistMenu trackId={track.id} />
               </div>
               <div style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: '13px' }}>
                 {formatTime(track.duration_ms)}
