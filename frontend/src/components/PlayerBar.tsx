@@ -31,83 +31,84 @@ const PlayerBar: FC = () => {
   const displayDuration = duration || (currentTrack ? currentTrack.duration_ms / 1000 : 0);
 
   return (
-    <footer className="player-bar glass-panel" style={{ display: 'flex', flexDirection: 'column', padding: 0 }}>
-      {/* Interactive Progress Bar */}
-      <div 
-        className="progress-bar-container" 
-        style={{ width: '100%', height: '4px', background: 'var(--border-glass)', cursor: 'pointer' }}
-        onClick={handleProgressClick}
-      >
-        <div 
-          className="progress-bar-fill" 
-          style={{ width: `${progress}%`, height: '100%', background: 'var(--accent-primary)', transition: 'width 0.1s linear' }}
-        ></div>
+    <footer className="player-bar">
+      
+      {/* Left Side: Now Playing Metadata */}
+      <div className="now-playing">
+        <div style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
+          {currentAlbum ? (
+            <img 
+              src={`${API_BASE_URL}/api/art/album/${currentAlbum.id}`} 
+              alt="art"
+              className={`track-art-small ${isPlaying ? 'playing' : ''}`}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                if (e.currentTarget.nextElementSibling) {
+                  (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'block';
+                }
+              }}
+            />
+          ) : (
+            <div className={`track-art-small ${isPlaying ? 'playing' : ''}`}></div>
+          )}
+        </div>
+        <div className="track-details">
+          <h4>{currentTrack ? currentTrack.title : 'No Track Playing'}</h4>
+          <p>{currentAlbum ? currentAlbum.title : 'Select a track to begin'}</p>
+        </div>
       </div>
-
-      {/* Main Player UI */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', height: '86px', width: '100%' }}>
-        
-        {/* Left Side: Now Playing Metadata */}
-        <div className="now-playing">
-          <div style={{ position: 'relative', width: '50px', height: '50px', borderRadius: '4px', overflow: 'hidden', flexShrink: 0 }}>
-            {currentAlbum ? (
-              <img 
-                src={`${API_BASE_URL}/api/art/album/${currentAlbum.id}`} 
-                alt="art"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  if (e.currentTarget.nextElementSibling) {
-                    (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'block';
-                  }
-                }}
-              />
-            ) : null}
-            <div className="track-art-small" style={{ display: currentAlbum ? 'none' : 'block', width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, background: 'var(--bg-glass)' }}></div>
-          </div>
-          <div className="track-details">
-            <h4>{currentTrack ? currentTrack.title : 'No Track Playing'}</h4>
-            <p>{currentAlbum ? currentAlbum.title : 'Select a track to begin'}</p>
-          </div>
+      
+      {/* Center: Playback Controls & Interactive Progress */}
+      <div className="player-controls" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '400px' }}>
+        <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
+          <button className="control-btn" onClick={playPrev}>⏮</button>
+          <button className={`control-btn play-btn ${isPlaying ? 'playing' : ''}`} onClick={togglePlay}>
+            {isPlaying ? '⏸' : '▶'}
+          </button>
+          <button className="control-btn" onClick={playNext}>⏭</button>
         </div>
         
-        {/* Center: Playback Controls & Time */}
-        <div className="player-controls" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-            <button className="control-btn" onClick={playPrev}>⏮</button>
-            <button className="control-btn play-btn" onClick={togglePlay}>
-              {isPlaying ? '⏸' : '▶'}
-            </button>
-            <button className="control-btn" onClick={playNext}>⏭</button>
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '8px', display: 'flex', gap: '10px' }}>
-            <span>{formatTime(currentTime)}</span>
-            <span>/</span>
-            <span>{formatTime(displayDuration)}</span>
-          </div>
-        </div>
-        
-        {/* Right Side: Interactive Volume Slider */}
-        <div className="volume-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '250px', justifyContent: 'flex-end' }}>
-          <span style={{ cursor: 'pointer' }} onClick={() => changeVolume(volume === 0 ? 1 : 0)}>
-            {volume === 0 ? '🔇' : '🔊'}
+        {/* Floating Progress Bar underneath controls */}
+        <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '12px', marginTop: '4px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+            {formatTime(currentTime)}
           </span>
-          <input 
-            type="range" 
-            min="0" 
-            max="1" 
-            step="0.01" 
-            value={volume} 
-            onChange={handleVolumeChange}
-            style={{
-              width: '100px',
-              cursor: 'pointer',
-              accentColor: 'var(--accent-primary)' // Uses standard HTML5 slider but styles it with our brand color
-            }}
-          />
+          <div 
+            className="progress-bar-container" 
+            style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', cursor: 'pointer', overflow: 'hidden' }}
+            onClick={handleProgressClick}
+          >
+            <div 
+              className="progress-bar-fill" 
+              style={{ width: `${progress}%`, height: '100%', background: 'var(--accent-gradient)', borderRadius: '2px', transition: 'width 0.1s linear' }}
+            ></div>
+          </div>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+            {formatTime(displayDuration)}
+          </span>
         </div>
-        
       </div>
+      
+      {/* Right Side: Interactive Volume Slider */}
+      <div className="volume-controls">
+        <span style={{ cursor: 'pointer', fontSize: '18px' }} onClick={() => changeVolume(volume === 0 ? 1 : 0)}>
+          {volume === 0 ? '🔇' : '🔊'}
+        </span>
+        <input 
+          type="range" 
+          min="0" 
+          max="1" 
+          step="0.01" 
+          value={volume} 
+          onChange={handleVolumeChange}
+          style={{
+            width: '100px',
+            cursor: 'pointer',
+            accentColor: 'var(--accent-primary)'
+          }}
+        />
+      </div>
+      
     </footer>
   );
 };

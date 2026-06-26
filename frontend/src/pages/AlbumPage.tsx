@@ -46,10 +46,32 @@ const AlbumPage: FC = () => {
   if (!album) return <div className="content-scroll">Album not found</div>;
 
   return (
-    <div className="content-scroll">
-      {/* Hero Section */}
-      <div style={{ display: 'flex', gap: '32px', marginBottom: '40px' }}>
-        <div style={{ position: 'relative', width: '250px', height: '250px', flexShrink: 0, margin: 0, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+    <div className="content-scroll" style={{ padding: 0 }}>
+      {/* Cinematic Hero Section */}
+      <div style={{ 
+        position: 'relative', 
+        padding: '64px 48px 48px', 
+        display: 'flex', 
+        gap: '40px', 
+        marginBottom: '24px',
+        alignItems: 'flex-end',
+        borderBottom: '1px solid var(--border-glass)'
+      }}>
+        {/* Dynamic Blurred Background */}
+        <div style={{
+          position: 'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundImage: `url(${API_BASE_URL}/api/art/album/${album.id})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          filter: 'blur(80px) saturate(2)',
+          opacity: 0.25,
+          zIndex: 0,
+          maskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)'
+        }} />
+        
+        <div style={{ position: 'relative', width: '280px', height: '280px', flexShrink: 0, margin: 0, borderRadius: '16px', overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.6)', zIndex: 1 }}>
           <img 
             src={`${API_BASE_URL}/api/art/album/${album.id}`}
             alt={album.title}
@@ -61,27 +83,32 @@ const AlbumPage: FC = () => {
               }
             }}
           />
-          <div className="album-art-placeholder glass-panel" style={{ display: 'none', width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, margin: 0, borderRadius: 0 }}>
-            <span style={{ fontSize: '72px' }}>{album.title.charAt(0)}</span>
+          <div className="album-art-placeholder glass-panel" style={{ display: 'none', width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, margin: 0, borderRadius: 0, alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: '96px', fontWeight: 800 }}>{album.title.charAt(0)}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: '16px' }}>
-          <span style={{ textTransform: 'uppercase', fontSize: '12px', fontWeight: 600, letterSpacing: '1px', color: 'var(--text-secondary)' }}>Album</span>
-          <h1 style={{ fontSize: '48px', fontWeight: 800, margin: '8px 0', letterSpacing: '-1px' }}>{album.title}</h1>
-          <p style={{ color: 'var(--text-secondary)' }}>{album.release_year > 0 ? album.release_year : 'Unknown Year'} • {tracks.length} tracks</p>
+        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', zIndex: 1, paddingBottom: '12px' }}>
+          <span style={{ textTransform: 'uppercase', fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: 'var(--text-secondary)' }}>Album</span>
+          <h1 style={{ fontSize: '64px', fontWeight: 900, margin: '8px 0', letterSpacing: '-2px', lineHeight: 1.1 }}>{album.title}</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '16px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: 'var(--text-primary)' }}>{album.release_year > 0 ? album.release_year : 'Unknown Year'}</span>
+            <span>•</span>
+            <span>{tracks.length} tracks</span>
+          </p>
           
-          <button 
-            className="btn-primary" 
-            style={{ width: '120px', marginTop: '24px' }}
-            onClick={() => tracks.length > 0 && playContext(tracks, 0, album)}
-          >
-            Play Album
-          </button>
+          <div style={{ display: 'flex', gap: '16px', marginTop: '32px' }}>
+            <button 
+              style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--accent-primary)', color: 'white', fontSize: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: '4px', boxShadow: 'var(--accent-glow)' }}
+              onClick={() => tracks.length > 0 && playContext(tracks, 0, album)}
+            >
+              ▶
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Tracklist */}
-      <div className="tracklist">
+      <div className="tracklist" style={{ padding: '0 48px' }}>
         {tracks.map(track => {
           const isThisTrackPlaying = currentTrack?.id === track.id;
           return (

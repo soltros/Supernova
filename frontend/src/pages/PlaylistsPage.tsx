@@ -96,69 +96,100 @@ export const PlaylistsPage: React.FC = () => {
   }
 
   return (
-    <div className="content-scroll" style={{ display: 'flex', gap: '2rem', padding: '2rem' }}>
-      <div style={{ flex: '1', minWidth: '300px' }}>
-        <h2 className="section-title" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="content-scroll" style={{ display: 'flex', gap: '32px', padding: '32px' }}>
+      <div style={{ flex: '1', minWidth: '320px', maxWidth: '400px' }}>
+        <h2 className="section-title" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           Your Playlists
-          <div>
-            <button onClick={handleExport} style={{ background: 'transparent', border: '1px solid #1db954', color: '#1db954', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', marginRight: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button onClick={handleExport} style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-glass-bright)', color: 'var(--text-primary)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
               Export
             </button>
-            <button onClick={() => fileInputRef.current?.click()} style={{ background: 'transparent', border: '1px solid #1db954', color: '#1db954', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer' }}>
+            <button onClick={() => fileInputRef.current?.click()} style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-glass-bright)', color: 'var(--text-primary)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
               Import
             </button>
             <input type="file" ref={fileInputRef} onChange={handleImport} style={{ display: 'none' }} accept=".json" />
           </div>
         </h2>
         
-        <form onSubmit={handleCreatePlaylist} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+        <form onSubmit={handleCreatePlaylist} style={{ display: 'flex', gap: '12px', marginBottom: '32px' }}>
           <input 
             type="text" 
             placeholder="New Playlist Name" 
             value={newPlaylistName}
             onChange={(e) => setNewPlaylistName(e.target.value)}
-            style={{ flex: '1', padding: '0.75rem', borderRadius: '4px', border: 'none', backgroundColor: '#2d2d2d', color: 'white' }}
+            style={{ flex: '1', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-glass-bright)', backgroundColor: 'var(--bg-glass)', color: 'white', outline: 'none', fontFamily: 'Outfit' }}
           />
-          <button type="submit" style={{ padding: '0.75rem 1rem', borderRadius: '4px', border: 'none', backgroundColor: '#1db954', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
+          <button type="submit" style={{ padding: '0 24px', borderRadius: '12px', border: 'none', background: 'var(--accent-gradient)', color: 'white', fontWeight: 'bold', cursor: 'pointer', boxShadow: 'var(--accent-glow)' }}>
             Create
           </button>
         </form>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {playlists.map(p => (
-            <div 
-              key={p.id} 
-              style={{ 
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-                padding: '1rem', borderRadius: '4px', cursor: 'pointer',
-                backgroundColor: selectedPlaylist?.id === p.id ? '#282828' : '#181818'
-              }}
-              onClick={() => handleSelectPlaylist(p)}
-            >
-              <span style={{ fontWeight: 'bold', color: 'white' }}>{p.name}</span>
-              <button 
-                onClick={(e) => { e.stopPropagation(); handleDeletePlaylist(p.id); }}
-                style={{ background: 'transparent', border: 'none', color: '#ff4444', cursor: 'pointer' }}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {playlists.map(p => {
+            const isActive = selectedPlaylist?.id === p.id;
+            return (
+              <div 
+                key={p.id} 
+                style={{ 
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                  padding: '16px', borderRadius: '12px', cursor: 'pointer',
+                  background: isActive ? 'var(--accent-primary)' : 'var(--bg-glass)',
+                  border: '1px solid',
+                  borderColor: isActive ? 'transparent' : 'var(--border-glass)',
+                  boxShadow: isActive ? 'var(--accent-glow)' : 'none',
+                  transition: 'var(--transition-fast)'
+                }}
+                onClick={() => handleSelectPlaylist(p)}
+                onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = 'var(--bg-glass-hover)' }}
+                onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'var(--bg-glass)' }}
               >
-                Delete
-              </button>
-            </div>
-          ))}
-          {playlists.length === 0 && <p style={{ color: '#b3b3b3' }}>No playlists found.</p>}
+                <span style={{ fontWeight: 600, color: 'white' }}>{p.name}</span>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleDeletePlaylist(p.id); }}
+                  style={{ background: 'rgba(255, 68, 68, 0.1)', border: '1px solid rgba(255, 68, 68, 0.2)', color: '#ff4444', cursor: 'pointer', padding: '4px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600 }}
+                >
+                  Delete
+                </button>
+              </div>
+            );
+          })}
+          {playlists.length === 0 && <p style={{ color: 'var(--text-secondary)' }}>No playlists found.</p>}
         </div>
       </div>
 
-      <div style={{ flex: '2' }}>
+      <div style={{ flex: '2', background: 'var(--bg-glass)', borderRadius: '24px', border: '1px solid var(--border-glass)', padding: '32px', boxShadow: 'var(--shadow-drop)' }}>
         {selectedPlaylist ? (
           <div>
-            <h2 className="section-title" style={{ marginBottom: '1rem' }}>{selectedPlaylist.name}</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '32px' }}>
+              <div>
+                <span style={{ textTransform: 'uppercase', fontSize: '12px', fontWeight: 800, letterSpacing: '1px', color: 'var(--text-secondary)' }}>Playlist</span>
+                <h2 style={{ fontSize: '42px', fontWeight: 900, margin: '8px 0 0 0', letterSpacing: '-1px' }}>{selectedPlaylist.name}</h2>
+              </div>
+              <button 
+                style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--accent-primary)', color: 'white', fontSize: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: '4px', boxShadow: 'var(--accent-glow)' }}
+                onClick={() => tracks.length > 0 && playContext(tracks, 0, { id: selectedPlaylist.id, title: selectedPlaylist.name, artist_id: '', release_year: 0, cover_art_path: '' } as Album)}
+              >
+                ▶
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {tracks.map((track, index) => (
-                <div key={track.id + index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', backgroundColor: '#181818', borderRadius: '4px' }}>
-                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <span style={{ color: '#b3b3b3', width: '24px' }}>{index + 1}</span>
+                <div 
+                  key={track.id + index} 
+                  className="track-row"
+                  style={{ 
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                    padding: '12px 16px', backgroundColor: 'transparent', borderRadius: '8px',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--border-glass-bright)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--text-secondary)', width: '24px', fontWeight: 600 }}>{index + 1}</span>
                     <span 
-                      style={{ color: 'white', fontWeight: 'bold', cursor: 'pointer' }}
+                      style={{ color: 'white', fontWeight: 600, cursor: 'pointer' }}
                       onClick={() => playContext(tracks, index, { id: selectedPlaylist.id, title: selectedPlaylist.name, artist_id: '', release_year: 0, cover_art_path: '' } as Album)}
                     >
                       {track.title}
@@ -166,18 +197,22 @@ export const PlaylistsPage: React.FC = () => {
                   </div>
                   <button 
                     onClick={() => handleRemoveTrack(track.id)}
-                    style={{ background: 'transparent', border: 'none', color: '#ff4444', cursor: 'pointer' }}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#ff4444'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
                   >
                     Remove
                   </button>
                 </div>
               ))}
-              {tracks.length === 0 && <p style={{ color: '#b3b3b3' }}>This playlist is empty.</p>}
+              {tracks.length === 0 && <p style={{ color: 'var(--text-secondary)', textAlign: 'center', marginTop: '40px' }}>This playlist is empty.</p>}
             </div>
           </div>
         ) : (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: '#b3b3b3' }}>
-            Select a playlist to view tracks
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-secondary)' }}>
+            <div style={{ fontSize: '64px', marginBottom: '16px', opacity: 0.2 }}>🎵</div>
+            <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)' }}>Select a playlist</h3>
+            <p>Choose a playlist from the sidebar to view its tracks</p>
           </div>
         )}
       </div>

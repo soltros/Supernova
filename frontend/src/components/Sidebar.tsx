@@ -6,7 +6,7 @@ const Sidebar: FC = () => {
   const { logout } = useAuth();
 
   return (
-    <aside className="sidebar glass-panel" style={{ display: 'flex', flexDirection: 'column' }}>
+    <aside className="sidebar">
       <div className="logo-container">
         <div className="logo-icon"></div>
         <h1 className="text-gradient">Supernova</h1>
@@ -33,10 +33,12 @@ const Sidebar: FC = () => {
         </NavLink>
       </nav>
       
-      <div style={{ marginTop: 'auto', padding: '0 1rem' }}>
+      <div style={{ marginTop: 'auto' }}>
         <button 
           onClick={logout}
-          style={{ width: '100%', padding: '0.75rem', background: 'transparent', border: '1px solid #404040', color: '#b3b3b3', borderRadius: '4px', cursor: 'pointer' }}
+          style={{ width: '100%', padding: '12px', background: 'rgba(255, 68, 68, 0.1)', border: '1px solid rgba(255, 68, 68, 0.2)', color: '#ff4444', borderRadius: '12px', cursor: 'pointer', fontWeight: 600, fontSize: '14px', transition: 'var(--transition-fast)' }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 68, 68, 0.2)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 68, 68, 0.1)'}
         >
           Log Out
         </button>

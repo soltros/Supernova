@@ -2,7 +2,7 @@ import type { FC } from 'react';
 
 const TopBar: FC = () => {
   return (
-    <header className="top-bar glass-panel">
+    <header className="top-bar">
       <input 
         type="text" 
         className="search-bar" 

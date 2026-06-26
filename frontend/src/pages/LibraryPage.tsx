@@ -37,15 +37,20 @@ const LibraryPage: FC = () => {
             {recentScrobbles.slice(0, 5).map((track, i) => (
               <div 
                 key={`${track.id}-${i}`}
-                className="track-row glass-panel"
+                className="track-row"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr auto',
                   padding: '12px 16px',
                   borderRadius: '8px',
                   alignItems: 'center',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  transition: 'background 0.2s, transform 0.2s'
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-glass-hover)'; e.currentTarget.style.transform = 'translateX(4px)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)'; e.currentTarget.style.transform = 'translateX(0)' }}
                 // To play a scrobble, we fake an album context since we just have the track
                 onClick={() => playContext([track], 0, { id: track.album_id, title: "History", release_year: 0, cover_art_path: "" })}
               >
