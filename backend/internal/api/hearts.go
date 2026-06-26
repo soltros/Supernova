@@ -10,7 +10,7 @@ import (
 // handleGetHearts fetches all hearts for the user
 func (s *Server) handleGetHearts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID := r.Context().Value("user_id").(string)
+		userID := r.Context().Value(userIDKey).(string)
 		
 		hearts, err := s.repo.GetAllHearts(r.Context(), userID)
 		if err != nil {
@@ -24,7 +24,7 @@ func (s *Server) handleGetHearts() http.HandlerFunc {
 // handleAddHeart adds a new heart, letting the DB securely generate the UUID
 func (s *Server) handleAddHeart() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID := r.Context().Value("user_id").(string)
+		userID := r.Context().Value(userIDKey).(string)
 
 		var req struct {
 			EntityType string `json:"entity_type"`
@@ -45,7 +45,7 @@ func (s *Server) handleAddHeart() http.HandlerFunc {
 // handleRemoveHeart deletes a heart
 func (s *Server) handleRemoveHeart() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID := r.Context().Value("user_id").(string)
+		userID := r.Context().Value(userIDKey).(string)
 		entityType := r.URL.Query().Get("entity_type")
 		entityID := r.URL.Query().Get("entity_id")
 		if entityType == "" || entityID == "" {
@@ -63,7 +63,7 @@ func (s *Server) handleRemoveHeart() http.HandlerFunc {
 // handleExportHearts allows the user to backup their hearts as a JSON file
 func (s *Server) handleExportHearts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID := r.Context().Value("user_id").(string)
+		userID := r.Context().Value(userIDKey).(string)
 
 		hearts, err := s.repo.ExportHearts(r.Context(), userID)
 		if err != nil {
@@ -79,7 +79,7 @@ func (s *Server) handleExportHearts() http.HandlerFunc {
 // handleImportHearts safely restores hearts by matching permanent file paths
 func (s *Server) handleImportHearts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID := r.Context().Value("user_id").(string)
+		userID := r.Context().Value(userIDKey).(string)
 
 		var backups []models.HeartBackup
 		if err := json.NewDecoder(r.Body).Decode(&backups); err != nil {

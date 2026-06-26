@@ -26,7 +26,7 @@ func NewServer(repo *database.Repository) *Server {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 	
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
@@ -137,7 +137,7 @@ func (s *Server) handleGetTracks() http.HandlerFunc {
 // handleScrobble processes a track playback event for the authenticated user
 func (s *Server) handleScrobble() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID := r.Context().Value("user_id").(string)
+		userID := r.Context().Value(userIDKey).(string)
 
 		var req struct {
 			TrackID string `json:"track_id"`
@@ -157,7 +157,7 @@ func (s *Server) handleScrobble() http.HandlerFunc {
 // handleGetRecentScrobbles returns the most recent listen history for the authenticated user
 func (s *Server) handleGetRecentScrobbles() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userID := r.Context().Value("user_id").(string)
+		userID := r.Context().Value(userIDKey).(string)
 
 		tracks, err := s.repo.GetRecentScrobbles(r.Context(), userID, 20)
 		if err != nil {

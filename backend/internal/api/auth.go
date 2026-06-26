@@ -13,6 +13,9 @@ import (
 
 var jwtSecret = []byte("supernova_development_secret_key") // In production, this would be injected via ENV
 
+type contextKey string
+const userIDKey contextKey = "user_id"
+
 type AuthRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -153,7 +156,7 @@ func requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// Inject userID into context
-		ctx := context.WithValue(r.Context(), "user_id", userID)
+		ctx := context.WithValue(r.Context(), userIDKey, userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
