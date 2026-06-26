@@ -19,8 +19,8 @@ services:
     build: ./frontend
     container_name: supernova-frontend
     ports:
-      # Map container port 80 to host port 5173 for familiar Vite access
-      - "5173:80"
+      # Changed to 5174 to permanently bypass the old corrupted Service Worker cache on 5173
+      - "5174:80"
     environment:
       # Instruct the frontend to connect to the backend container
       - VITE_API_URL=http://localhost:8080
