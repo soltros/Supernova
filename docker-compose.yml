@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   backend:
@@ -10,7 +9,7 @@ services:
       # Persist the SQLite database and image cache across container restarts
       - ~/.supernova:/root/.supernova 
       # Mount the host machine's music folder securely (Read-Only)
-      - ~/Music:/root/Music:ro 
+      - /mnt/nfs/hdd4/Music/Derriks_Music/:/root/Music:ro 
     restart: unless-stopped
 
   frontend:
