@@ -14,6 +14,9 @@ RUN npm run build
 # Run Stage
 FROM nginx:alpine
 
+# Copy the custom Nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
 # Copy the compiled Vite assets to the Nginx html directory
 COPY --from=builder /app/dist /usr/share/nginx/html
 
