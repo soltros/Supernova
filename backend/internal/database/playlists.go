@@ -81,7 +81,7 @@ func (r *Repository) AddTrackToPlaylist(ctx context.Context, userID, playlistID,
 	_ = r.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(position), 0) FROM playlist_tracks WHERE playlist_id = ?`, playlistID).Scan(&maxPos)
 
 	_, err = r.db.ExecContext(ctx, `
-		INSERT INTO playlist_tracks (playlist_id, track_id, position)
+		INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position)
 		VALUES (?, ?, ?)
 	`, playlistID, trackID, maxPos+1)
 
@@ -180,18 +180,46 @@ func (r *Repository) ExportPlaylists(ctx context.Context, userID string) ([]mode
 
 // ImportPlaylistBackup safely creates a playlist from paths
 func (r *Repository) ImportPlaylistBackup(ctx context.Context, userID string, backup models.PlaylistBackup) error {
+	// Create the playlist first
 	p, err := r.CreatePlaylist(ctx, userID, backup.Name)
 	if err != nil {
 		return err
 	}
-	
-	// Add tracks one by one using file path matching
+
+	r.writeMu.Lock()
+	defer r.writeMu.Unlock()
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Prepare statements
+	stmtSelect, err := tx.PrepareContext(ctx, `SELECT id FROM tracks WHERE file_path = ?`)
+	if err != nil {
+		return err
+	}
+	defer stmtSelect.Close()
+
+	stmtInsert, err := tx.PrepareContext(ctx, `
+		INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position)
+		VALUES (?, ?, ?)
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmtInsert.Close()
+
+	position := 1
 	for _, path := range backup.Tracks {
 		var trackID string
-		err := r.db.QueryRowContext(ctx, `SELECT id FROM tracks WHERE file_path = ?`, path).Scan(&trackID)
-		if err == nil {
-			_ = r.AddTrackToPlaylist(ctx, userID, p.ID, trackID)
+		if err := stmtSelect.QueryRowContext(ctx, path).Scan(&trackID); err == nil {
+			if _, err := stmtInsert.ExecContext(ctx, p.ID, trackID, position); err == nil {
+				position++
+			}
 		}
 	}
-	return nil
+
+	return tx.Commit()
 }
