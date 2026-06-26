@@ -11,7 +11,7 @@ interface Props {
 const AlbumCard: FC<Props> = ({ album }) => {
   return (
     <Link to={`/album/${album.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-      <div className="album-card glass-panel">
+      <div className="album-card">
         <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden' }}>
           <img 
             src={`${API_BASE_URL}/api/art/album/${album.id}`}

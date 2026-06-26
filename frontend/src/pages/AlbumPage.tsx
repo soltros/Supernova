@@ -83,7 +83,7 @@ const AlbumPage: FC = () => {
               }
             }}
           />
-          <div className="album-art-placeholder glass-panel" style={{ display: 'none', width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, margin: 0, borderRadius: 0, alignItems: 'center', justifyContent: 'center' }}>
+          <div className="album-art-placeholder" style={{ display: 'none', width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, margin: 0, borderRadius: 0, alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ fontSize: '96px', fontWeight: 800 }}>{album.title.charAt(0)}</span>
           </div>
         </div>

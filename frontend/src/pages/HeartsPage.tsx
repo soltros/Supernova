@@ -43,21 +43,21 @@ const HeartsPage: FC = () => {
             style={{ display: 'none' }} 
             onChange={handleImport}
           />
-          <label htmlFor="import-upload" className="btn-primary" style={{ background: 'var(--bg-glass-hover)', cursor: 'pointer', padding: '8px 16px', borderRadius: '24px', color: 'var(--text-primary)' }}>
+          <label htmlFor="import-upload" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-glass-bright)', cursor: 'pointer', padding: '12px 24px', borderRadius: '12px', color: 'var(--text-primary)', fontWeight: 600, transition: 'var(--transition-fast)' }} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-glass-hover)'} onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-glass)'}>
             ↓ Import Backup
           </label>
           
-          <button onClick={handleExport} className="btn-primary" style={{ padding: '8px 16px' }}>
+          <button onClick={handleExport} style={{ background: 'var(--accent-gradient)', padding: '12px 24px', borderRadius: '12px', border: 'none', color: 'white', fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--accent-glow)' }}>
             ↑ Export Backup
           </button>
         </div>
       </div>
 
-      <div className="glass-panel" style={{ padding: '24px' }}>
-        <p style={{ color: 'var(--text-secondary)' }}>
-          You have <strong style={{ color: 'var(--accent-primary)' }}>{heartedIds.size}</strong> total hearts.
+      <div style={{ background: 'var(--bg-glass)', padding: '32px', borderRadius: '24px', border: '1px solid var(--border-glass-bright)', boxShadow: 'var(--shadow-drop)' }}>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '18px' }}>
+          You have <strong style={{ color: 'var(--text-primary)', fontSize: '24px', margin: '0 4px' }}>{heartedIds.size}</strong> total hearts.
         </p>
-        <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '12px' }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '16px' }}>
           * In a future update, this page will beautifully list all your hearted tracks and albums. For now, you can freely backup and restore your collection!
         </p>
       </div>
