@@ -71,8 +71,8 @@ func (r *Repository) UpsertTrack(ctx context.Context, meta *models.TrackMetadata
 	}
 
 	// 5. Insert the Track itself (Upsert on FilePath conflict)
-	trackID := generateUUID()
-	_, err = tx.ExecContext(ctx, `
+	var trackID string
+	err = tx.QueryRowContext(ctx, `
 		INSERT INTO tracks (id, album_id, title, track_number, disc_number, duration_ms, file_path, format, bitrate)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(file_path) DO UPDATE SET
@@ -82,7 +82,8 @@ func (r *Repository) UpsertTrack(ctx context.Context, meta *models.TrackMetadata
 			disc_number=excluded.disc_number,
 			duration_ms=excluded.duration_ms,
 			bitrate=excluded.bitrate
-	`, trackID, albumID, meta.Title, meta.TrackNumber, meta.DiscNumber, meta.DurationMs, meta.FilePath, meta.Format, meta.Bitrate)
+		RETURNING id
+	`, generateUUID(), albumID, meta.Title, meta.TrackNumber, meta.DiscNumber, meta.DurationMs, meta.FilePath, meta.Format, meta.Bitrate).Scan(&trackID)
 	
 	if err != nil {
 		return fmt.Errorf("failed to insert track: %w", err)
