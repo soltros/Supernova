@@ -1,9 +1,12 @@
 import type { FC } from 'react';
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const Sidebar: FC = () => {
+  const { logout } = useAuth();
+
   return (
-    <aside className="sidebar glass-panel">
+    <aside className="sidebar glass-panel" style={{ display: 'flex', flexDirection: 'column' }}>
       <div className="logo-container">
         <div className="logo-icon"></div>
         <h1 className="text-gradient">Supernova</h1>
@@ -29,6 +32,15 @@ const Sidebar: FC = () => {
           Settings
         </NavLink>
       </nav>
+      
+      <div style={{ marginTop: 'auto', padding: '0 1rem' }}>
+        <button 
+          onClick={logout}
+          style={{ width: '100%', padding: '0.75rem', background: 'transparent', border: '1px solid #404040', color: '#b3b3b3', borderRadius: '4px', cursor: 'pointer' }}
+        >
+          Log Out
+        </button>
+      </div>
     </aside>
   );
 };
