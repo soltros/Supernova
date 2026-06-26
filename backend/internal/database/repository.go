@@ -5,23 +5,28 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
+	"sync"
 
 	"github.com/soltros/Supernova/internal/models"
 )
 
 // Repository provides all database access methods for Supernova
 type Repository struct {
-	db *DB
+	db      *DB
+	writeMu sync.Mutex
 }
 
 func NewRepository(db *DB) *Repository {
 	return &Repository{db: db}
 }
 
-// UpsertTrack safely inserts a track and all its associated relational data
-// (Artists, Albums, and their join tables). It uses a database transaction to 
-// guarantee absolute data integrity.
+// UpsertTrack safely inserts or updates a track and its relational metadata.
+// It uses a mutex to serialize writes to SQLite, enabling extreme concurrency for scanning 
+// without triggering "database is locked" timeouts.
 func (r *Repository) UpsertTrack(ctx context.Context, meta *models.TrackMetadata) error {
+	r.writeMu.Lock()
+	defer r.writeMu.Unlock()
+
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -141,9 +146,9 @@ func (r *Repository) upsertAlbum(tx *sql.Tx, title, mbid string, year int, cover
 
 func (r *Repository) linkTrackArtist(tx *sql.Tx, trackID, artistID, role string) error {
 	_, err := tx.Exec(`
-		INSERT OR IGNORE INTO track_artists (track_id, artist_id, role)
-		VALUES (?, ?, ?)
-	`, trackID, artistID, role)
+		INSERT OR IGNORE INTO track_artists (track_id, artist_id)
+		VALUES (?, ?)
+	`, trackID, artistID)
 	return err
 }
 
