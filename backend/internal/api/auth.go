@@ -135,6 +135,9 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, jwt.ErrSignatureInvalid
+			}
 			return jwtSecret, nil
 		})
 

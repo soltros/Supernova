@@ -11,6 +11,7 @@ import type { Album, Track } from '../types';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const formatTime = (ms: number) => {
+  if (!ms) return '--:--';
   const seconds = Math.floor(ms / 1000);
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);

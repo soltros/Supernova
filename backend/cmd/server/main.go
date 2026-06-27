@@ -104,4 +104,12 @@ func main() {
 	<-quit
 
 	log.Println("Shutting down Supernova server gracefully...")
+	
+	// Create a deadline to wait for currently active requests
+	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelShutdown()
+
+	if err := srv.Shutdown(ctxShutdown); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
 }

@@ -299,8 +299,8 @@ func (r *Repository) GetAllHearts(ctx context.Context, userID string) ([]models.
 	return hearts, nil
 }
 
-// GetHeartDetails retrieves the detailed track and album metadata for a user's favorites
-func (r *Repository) GetHeartDetails(ctx context.Context, userID string) ([]models.Track, []models.Album, error) {
+// GetHeartDetails retrieves the detailed track, album, artist, and playlist metadata for a user's favorites
+func (r *Repository) GetHeartDetails(ctx context.Context, userID string) ([]models.Track, []models.Album, []models.Artist, []models.Playlist, error) {
 	// 1. Fetch tracks
 	queryTracks := `
 		SELECT t.id, t.album_id, t.title, t.track_number, t.disc_number, t.duration_ms, t.format, t.bitrate, art.id, art.name
@@ -314,7 +314,7 @@ func (r *Repository) GetHeartDetails(ctx context.Context, userID string) ([]mode
 	`
 	rowsT, err := r.db.QueryContext(ctx, queryTracks, userID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	defer rowsT.Close()
 
@@ -323,7 +323,7 @@ func (r *Repository) GetHeartDetails(ctx context.Context, userID string) ([]mode
 		var t models.Track
 		var artID, artName *string
 		if err := rowsT.Scan(&t.ID, &t.AlbumID, &t.Title, &t.TrackNumber, &t.DiscNumber, &t.DurationMs, &t.Format, &t.Bitrate, &artID, &artName); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		if artID != nil {
 			t.ArtistID = *artID
@@ -347,7 +347,7 @@ func (r *Repository) GetHeartDetails(ctx context.Context, userID string) ([]mode
 	`
 	rowsA, err := r.db.QueryContext(ctx, queryAlbums, userID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	defer rowsA.Close()
 
@@ -356,7 +356,7 @@ func (r *Repository) GetHeartDetails(ctx context.Context, userID string) ([]mode
 		var a models.Album
 		var artID, artName *string
 		if err := rowsA.Scan(&a.ID, &a.Title, &a.ReleaseYear, &a.MusicBrainzID, &a.CoverArtPath, &artID, &artName); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 		if artID != nil {
 			a.ArtistID = *artID
@@ -374,7 +374,59 @@ func (r *Repository) GetHeartDetails(ctx context.Context, userID string) ([]mode
 		albums = []models.Album{}
 	}
 
-	return tracks, albums, nil
+	// 3. Fetch artists
+	queryArtists := `
+		SELECT a.id, a.name, a.musicbrainz_id, a.image_url, a.bio
+		FROM artists a
+		JOIN hearts h ON a.id = h.entity_id AND h.entity_type = 'artist'
+		WHERE h.user_id = ?
+		ORDER BY h.created_at DESC
+	`
+	rowsArt, err := r.db.QueryContext(ctx, queryArtists, userID)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	defer rowsArt.Close()
+
+	var artists []models.Artist
+	for rowsArt.Next() {
+		var a models.Artist
+		if err := rowsArt.Scan(&a.ID, &a.Name, &a.MusicBrainzID, &a.ImageURL, &a.Bio); err != nil {
+			return nil, nil, nil, nil, err
+		}
+		artists = append(artists, a)
+	}
+	if artists == nil {
+		artists = []models.Artist{}
+	}
+
+	// 4. Fetch playlists
+	queryPlaylists := `
+		SELECT p.id, p.user_id, p.name, p.created_at
+		FROM playlists p
+		JOIN hearts h ON p.id = h.entity_id AND h.entity_type = 'playlist'
+		WHERE h.user_id = ?
+		ORDER BY h.created_at DESC
+	`
+	rowsP, err := r.db.QueryContext(ctx, queryPlaylists, userID)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	defer rowsP.Close()
+
+	var playlists []models.Playlist
+	for rowsP.Next() {
+		var p models.Playlist
+		if err := rowsP.Scan(&p.ID, &p.UserID, &p.Name, &p.CreatedAt); err != nil {
+			return nil, nil, nil, nil, err
+		}
+		playlists = append(playlists, p)
+	}
+	if playlists == nil {
+		playlists = []models.Playlist{}
+	}
+
+	return tracks, albums, artists, playlists, nil
 }
 
 // ExportHearts performs a robust JOIN to export permanent file_paths rather than temporary UUIDs
@@ -385,11 +437,15 @@ func (r *Repository) ExportHearts(ctx context.Context, userID string) ([]models.
 			CASE 
 				WHEN h.entity_type = 'track' THEN t.file_path
 				WHEN h.entity_type = 'album' THEN a.title
+				WHEN h.entity_type = 'artist' THEN art.name
+				WHEN h.entity_type = 'playlist' THEN p.name
 			END as reference,
 			h.created_at
 		FROM hearts h
 		LEFT JOIN tracks t ON h.entity_type = 'track' AND h.entity_id = t.id
 		LEFT JOIN albums a ON h.entity_type = 'album' AND h.entity_id = a.id
+		LEFT JOIN artists art ON h.entity_type = 'artist' AND h.entity_id = art.id
+		LEFT JOIN playlists p ON h.entity_type = 'playlist' AND h.entity_id = p.id
 		WHERE h.user_id = ?
 		AND reference IS NOT NULL
 	`
@@ -428,6 +484,18 @@ func (r *Repository) ImportHeartBackup(ctx context.Context, userID string, backu
 			SELECT ?, ?, 'album', id FROM albums WHERE title = ?
 		`
 		_, err = r.db.ExecContext(ctx, query, id, userID, backup.Reference)
+	} else if backup.EntityType == "artist" {
+		query = `
+			INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id)
+			SELECT ?, ?, 'artist', id FROM artists WHERE name = ?
+		`
+		_, err = r.db.ExecContext(ctx, query, id, userID, backup.Reference)
+	} else if backup.EntityType == "playlist" {
+		query = `
+			INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id)
+			SELECT ?, ?, 'playlist', id FROM playlists WHERE name = ? AND user_id = ?
+		`
+		_, err = r.db.ExecContext(ctx, query, id, userID, backup.Reference, userID)
 	}
 
 	return err

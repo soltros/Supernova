@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { useParams } from 'react-router-dom';
 import { Play } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import { apiService } from '../services/api';
 import { usePlayer } from '../context/PlayerContext';
 import AlbumCard from '../components/AlbumCard';
+import HeartButton from '../components/HeartButton';
 import type { Artist, Album, Track } from '../types';
 
 const formatTime = (ms: number) => {
+  if (!ms) return '--:--';
   const seconds = Math.floor(ms / 1000);
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
@@ -118,12 +121,13 @@ const ArtistPage: FC = () => {
           >
             <Play size={28} fill="currentColor" />
           </button>
+          <HeartButton entityType="artist" entityId={artist.id} />
         </div>
 
         {artist.bio && artist.bio !== 'NOT_FOUND' && (
           <div style={{ marginBottom: '48px', maxWidth: '800px' }}>
             <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '16px' }}>About</h2>
-            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '15px' }} dangerouslySetInnerHTML={{ __html: artist.bio }}></p>
+            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '15px' }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(artist.bio) }}></p>
           </div>
         )}
 
@@ -131,14 +135,20 @@ const ArtistPage: FC = () => {
         {tracks.length > 0 && (
           <div style={{ marginBottom: '48px' }}>
             <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '16px' }}>Popular Tracks</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div className="track-list">
+              <div className="track-list-header">
+                <div className="track-number">#</div>
+                <div className="track-title-cell">TITLE</div>
+                <div className="track-actions"></div>
+                <div className="track-duration">TIME</div>
+              </div>
               {tracks.slice(0, 5).map((track, index) => {
                 const isCurrentlyPlaying = currentTrack?.id === track.id;
                 
                 return (
                   <div 
                     key={track.id}
-                    className="track-row"
+                    className={`track-row ${isCurrentlyPlaying ? 'playing' : ''}`}
                     onDoubleClick={() => playContext(tracks, index, { id: `artist-${artist.id}`, title: `${artist.name} Top Tracks`, release_year: 0, cover_art_path: '', artist_id: artist.id, artist_name: artist.name } as Album)}
                   >
                     <div className="track-number">
@@ -152,6 +162,17 @@ const ArtistPage: FC = () => {
                       <div className="track-title-text" style={{ color: isCurrentlyPlaying ? 'var(--primary-color)' : 'var(--text-primary)' }}>
                         {track.title}
                       </div>
+                    </div>
+                    <div className="track-actions">
+                      <button 
+                        className="play-btn-small" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          playContext(tracks, index, { id: `artist-${artist.id}`, title: `${artist.name} Top Tracks`, release_year: 0, cover_art_path: '', artist_id: artist.id, artist_name: artist.name } as Album);
+                        }}
+                      >
+                        <Play size={18} fill="currentColor" />
+                      </button>
                     </div>
                     <div className="track-duration">{formatTime(track.duration_ms)}</div>
                   </div>

@@ -7,6 +7,7 @@ import AlbumCard from '../components/AlbumCard';
 import type { Album, Track } from '../types';
 
 const formatTime = (ms: number) => {
+  if (!ms) return '--:--';
   const seconds = Math.floor(ms / 1000);
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
@@ -42,7 +43,7 @@ const HomePage: FC = () => {
     const isCurrentlyPlaying = currentTrack?.id === track.id;
     return (
       <div 
-        key={track.id + index}
+        key={`${contextId}-${track.id}-${index}`}
         className="track-row"
         onDoubleClick={() => playContext(contextTracks, index, { id: contextId, title: 'Home Tracks', release_year: 0, cover_art_path: '', artist_id: '', artist_name: '' } as Album)}
       >

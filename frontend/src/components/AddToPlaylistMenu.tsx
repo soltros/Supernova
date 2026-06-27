@@ -12,9 +12,13 @@ const AddToPlaylistMenu: React.FC<AddToPlaylistMenuProps> = ({ trackId }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let isMounted = true;
     if (isOpen) {
-      apiService.fetchPlaylists().then(data => setPlaylists(data || []));
+      apiService.fetchPlaylists().then(data => {
+        if (isMounted) setPlaylists(data || []);
+      });
     }
+    return () => { isMounted = false; };
   }, [isOpen]);
 
   useEffect(() => {

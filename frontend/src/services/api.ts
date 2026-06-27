@@ -18,14 +18,19 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
       ...options.headers,
     },
   };
-  const response = await fetch(url, mergedOptions);
-  if (response.status === 401) {
-    // Phantom User fix: If the backend explicitly rejects our token, wipe state and reload
-    localStorage.removeItem('sn_user');
-    localStorage.removeItem('sn_token');
-    window.location.reload();
+  try {
+    const response = await fetch(url, mergedOptions);
+    if (response.status === 401) {
+      // Phantom User fix: If the backend explicitly rejects our token, wipe state and reload
+      localStorage.removeItem('sn_user');
+      localStorage.removeItem('sn_token');
+      window.location.reload();
+    }
+    return response;
+  } catch (error) {
+    console.error("Network error in fetchWithAuth:", error);
+    throw new Error("Network error. Please check your connection.");
   }
-  return response;
 };
 
 export const apiService = {
@@ -103,7 +108,7 @@ export const apiService = {
     return response.json();
   },
 
-  fetchHeartDetails: async (): Promise<{ tracks: Track[], albums: Album[] }> => {
+  fetchHeartDetails: async (): Promise<{ tracks: Track[], albums: Album[], artists: Artist[], playlists: Playlist[] }> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts/details`);
     if (!response.ok) throw new Error('Failed to fetch heart details');
     return response.json();

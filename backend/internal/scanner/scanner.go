@@ -61,6 +61,7 @@ func (s *Scanner) FullScan() error {
 	// 3. Walk the directory rapidly and push files into the queue
 	err := filepath.WalkDir(s.mediaPath, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
+			log.Printf("Scanner permission error skipping path %s: %v", path, err)
 			return nil 
 		}
 		if d.IsDir() {

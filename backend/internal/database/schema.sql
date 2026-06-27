@@ -91,6 +91,13 @@ CREATE INDEX IF NOT EXISTS idx_tracks_file_path ON tracks(file_path);
 CREATE INDEX IF NOT EXISTS idx_artists_name ON artists(name);
 CREATE INDEX IF NOT EXISTS idx_albums_title ON albums(title);
 
+-- Fix Scrobble performance
+CREATE INDEX IF NOT EXISTS idx_scrobbles_user_id_time ON scrobbles(user_id, listened_at DESC);
+
+-- Fix reverse lookups on artist relations
+CREATE INDEX IF NOT EXISTS idx_track_artists_artist_id ON track_artists(artist_id);
+CREATE INDEX IF NOT EXISTS idx_album_artists_artist_id ON album_artists(artist_id);
+
 CREATE TABLE IF NOT EXISTS playlists (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,

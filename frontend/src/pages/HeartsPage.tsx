@@ -5,12 +5,15 @@ import { useHearts } from '../context/HeartsContext';
 import { usePlayer } from '../context/PlayerContext';
 import { apiService } from '../services/api';
 import AlbumCard from '../components/AlbumCard';
+import ArtistCard from '../components/ArtistCard';
+import PlaylistCard from '../components/PlaylistCard';
 import HeartButton from '../components/HeartButton';
-import type { Album, Track } from '../types';
+import type { Album, Track, Artist, Playlist } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const formatTime = (ms: number) => {
+  if (!ms) return '--:--';
   const seconds = Math.floor(ms / 1000);
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
@@ -24,19 +27,23 @@ const HeartsPage: FC = () => {
   const [loading, setLoading] = useState(true);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
 
   useEffect(() => {
     apiService.fetchHeartDetails()
       .then(data => {
         setTracks(data.tracks || []);
         setAlbums(data.albums || []);
+        setArtists(data.artists || []);
+        setPlaylists(data.playlists || []);
         setLoading(false);
       })
       .catch(err => {
         console.error("Failed to load heart details:", err);
         setLoading(false);
       });
-  }, [heartedIds]); // Re-fetch when hearts change so it auto-updates
+  }, []); // Run once on mount, let HeartButton handle optimistic UI locally
 
   const handleExport = () => {
     window.open(`${API_BASE_URL}/api/hearts/export`, '_blank');
@@ -59,7 +66,7 @@ const HeartsPage: FC = () => {
     const isCurrentlyPlaying = currentTrack?.id === track.id;
     return (
       <div 
-        key={track.id + index}
+        key={`${contextId}-${track.id}-${index}`}
         className="track-row"
         onDoubleClick={() => playContext(contextTracks, index, { id: contextId, title: 'Favorite Tracks', release_year: 0, cover_art_path: '', artist_id: '', artist_name: '' } as Album)}
       >
@@ -113,10 +120,38 @@ const HeartsPage: FC = () => {
         </div>
       </div>
 
-      {albums.length === 0 && tracks.length === 0 && (
+      {albums.length === 0 && tracks.length === 0 && artists.length === 0 && playlists.length === 0 && (
         <div style={{ padding: '48px', textAlign: 'center', background: 'var(--bg-glass)', borderRadius: '24px', border: '1px solid var(--border-glass-bright)' }}>
           <p style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>You haven't hearted anything yet!</p>
         </div>
+      )}
+
+      {artists.length > 0 && (
+        <section style={{ marginBottom: '48px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            Artists
+            <span style={{ fontSize: '14px', padding: '4px 12px', background: 'var(--bg-glass)', borderRadius: '24px', color: 'var(--text-secondary)' }}>{artists.length}</span>
+          </h2>
+          <div className="album-grid">
+            {artists.map(artist => (
+              <ArtistCard key={artist.id} artist={artist} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {playlists.length > 0 && (
+        <section style={{ marginBottom: '48px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            Playlists
+            <span style={{ fontSize: '14px', padding: '4px 12px', background: 'var(--bg-glass)', borderRadius: '24px', color: 'var(--text-secondary)' }}>{playlists.length}</span>
+          </h2>
+          <div className="album-grid">
+            {playlists.map(playlist => (
+              <PlaylistCard key={playlist.id} playlist={playlist} />
+            ))}
+          </div>
+        </section>
       )}
 
       {albums.length > 0 && (
@@ -125,7 +160,7 @@ const HeartsPage: FC = () => {
             Albums
             <span style={{ fontSize: '14px', padding: '4px 12px', background: 'var(--bg-glass)', borderRadius: '24px', color: 'var(--text-secondary)' }}>{albums.length}</span>
           </h2>
-          <div className="grid-container">
+          <div className="album-grid">
             {albums.map(album => (
               <AlbumCard key={album.id} album={album} />
             ))}

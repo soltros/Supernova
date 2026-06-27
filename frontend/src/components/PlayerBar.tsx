@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import type { FC, MouseEvent, ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
+import HeartButton from './HeartButton';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -15,9 +17,33 @@ const formatTime = (seconds: number) => {
 const PlayerBar: FC = () => {
   const { 
     currentTrack, currentAlbum, isPlaying, 
-    progress, currentTime, duration, volume, 
+    duration, volume, audioElement,
     togglePlay, seekTo, playNext, playPrev, changeVolume 
   } = usePlayer();
+
+  const [currentTime, setCurrentTime] = useState(0);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    if (!audioElement) return;
+
+    const handleTimeUpdate = () => {
+      setCurrentTime(audioElement.currentTime);
+      if (audioElement.duration && isFinite(audioElement.duration)) {
+        setProgress((audioElement.currentTime / audioElement.duration) * 100);
+      } else {
+        setProgress(0);
+      }
+    };
+
+    // Initial setup if we re-render while playing
+    handleTimeUpdate();
+
+    audioElement.addEventListener('timeupdate', handleTimeUpdate);
+    return () => {
+      audioElement.removeEventListener('timeupdate', handleTimeUpdate);
+    };
+  }, [audioElement]);
 
   const handleProgressClick = (e: MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -74,32 +100,41 @@ const PlayerBar: FC = () => {
         </div>
       </div>
       
-      {/* Center: Playback Controls & Interactive Progress */}
-      <div className="player-controls" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '400px' }}>
-        <div style={{ display: 'flex', gap: '24px', alignItems: 'center', marginBottom: '8px' }}>
+      {/* Center: Playback Controls & Progress Bar */}
+      <div className="player-controls-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, gap: '8px' }}>
+        <div className="player-controls" style={{ display: 'flex', alignItems: 'center', gap: '24px', justifyContent: 'center' }}>
+          {currentTrack && (
+            <div style={{ position: 'absolute', transform: 'translateX(-120px)' }}>
+              <HeartButton entityType="track" entityId={currentTrack.id} />
+            </div>
+          )}
           <button className="control-btn" onClick={playPrev}><SkipBack size={20} fill="currentColor" /></button>
-          <button className={`control-btn play-btn ${isPlaying ? 'playing' : ''}`} onClick={togglePlay}>
-            {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+          <button 
+            className={`control-btn play-btn ${isPlaying ? 'playing' : ''}`} 
+            onClick={togglePlay}
+            style={{ width: '48px', height: '48px', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: 'var(--text-primary)', color: 'var(--bg-primary)' }}
+          >
+            {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" style={{ marginLeft: '4px' }} />}
           </button>
           <button className="control-btn" onClick={playNext}><SkipForward size={20} fill="currentColor" /></button>
         </div>
         
-        {/* Floating Progress Bar underneath controls */}
-        <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '12px', marginTop: '4px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+        {/* Integrated Progress Bar */}
+        <div style={{ width: '100%', maxWidth: '500px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 500, minWidth: '40px', textAlign: 'right' }}>
             {formatTime(currentTime)}
           </span>
           <div 
             className="progress-bar-container" 
-            style={{ flex: 1, height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', cursor: 'pointer', overflow: 'hidden' }}
+            style={{ flex: 1, height: '6px', background: 'var(--bg-secondary)', borderRadius: '3px', cursor: 'pointer', overflow: 'hidden', position: 'relative' }}
             onClick={handleProgressClick}
           >
             <div 
               className="progress-bar-fill" 
-              style={{ width: `${progress}%`, height: '100%', background: 'var(--accent-gradient)', borderRadius: '2px', transition: 'width 0.1s linear' }}
+              style={{ width: `${progress}%`, height: '100%', background: 'var(--text-primary)', borderRadius: '3px', transition: 'width 0.1s linear' }}
             ></div>
           </div>
-          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 500, minWidth: '40px' }}>
             {formatTime(displayDuration)}
           </span>
         </div>

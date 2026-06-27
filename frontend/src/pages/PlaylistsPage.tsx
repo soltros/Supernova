@@ -5,6 +5,7 @@ import { apiService } from '../services/api';
 import type { Playlist, Track, Album } from '../types';
 import { usePlayer } from '../context/PlayerContext';
 import { usePlaylists } from '../context/PlaylistsContext';
+import HeartButton from '../components/HeartButton';
 
 export const PlaylistsPage: React.FC = () => {
   const { playlists, createPlaylist, deletePlaylist, refreshPlaylists } = usePlaylists();
@@ -63,7 +64,7 @@ export const PlaylistsPage: React.FC = () => {
     if (!selectedPlaylist) return;
     try {
       await apiService.removeTrackFromPlaylist(selectedPlaylist.id, trackId);
-      setTracks(tracks.filter(t => t.id !== trackId));
+      setTracks(prevTracks => prevTracks.filter(t => t.id !== trackId));
     } catch (err) {
       console.error(err);
     }
@@ -164,12 +165,15 @@ export const PlaylistsPage: React.FC = () => {
                 <span style={{ textTransform: 'uppercase', fontSize: '12px', fontWeight: 800, letterSpacing: '1px', color: 'var(--text-secondary)' }}>Playlist</span>
                 <h2 style={{ fontSize: '42px', fontWeight: 900, margin: '8px 0 0 0', letterSpacing: '-1px' }}>{selectedPlaylist.name}</h2>
               </div>
-              <button 
-                style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--accent-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--accent-glow)', cursor: 'pointer', border: 'none' }}
-                onClick={() => tracks.length > 0 && playContext(tracks, 0, { id: selectedPlaylist.id, title: selectedPlaylist.name, artist_id: '', release_year: 0, cover_art_path: '' } as Album)}
-              >
-                <Play size={24} fill="currentColor" />
-              </button>
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                <HeartButton entityType="playlist" entityId={selectedPlaylist.id} />
+                <button 
+                  style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--accent-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--accent-glow)', cursor: 'pointer', border: 'none' }}
+                  onClick={() => tracks.length > 0 && playContext(tracks, 0, { id: selectedPlaylist.id, title: selectedPlaylist.name, artist_id: '', release_year: 0, cover_art_path: '' } as Album)}
+                >
+                  <Play size={24} fill="currentColor" />
+                </button>
+              </div>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

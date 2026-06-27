@@ -7,12 +7,11 @@ interface PlayerState {
   currentTrack: Track | null;
   currentAlbum: Album | null;
   isPlaying: boolean;
-  progress: number;
-  currentTime: number;
   duration: number;
   volume: number;
   queue: Track[];
   queueIndex: number;
+  audioElement: HTMLAudioElement | null;
   playContext: (tracks: Track[], startIndex: number, album: Album) => void;
   playNext: () => void;
   playPrev: () => void;
@@ -28,8 +27,6 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [currentAlbum, setCurrentAlbum] = useState<Album | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1.0);
 
@@ -56,10 +53,8 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     audioRef.current = audio;
 
     audio.addEventListener('timeupdate', () => {
-      setCurrentTime(audio.currentTime);
       if (audio.duration && isFinite(audio.duration)) {
         setDuration(audio.duration);
-        setProgress((audio.currentTime / audio.duration) * 100);
       }
       
       // Phase 6: Internal Scrobbling Engine (Scrub-Proof)
@@ -134,8 +129,6 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     setCurrentTrack(track);
     setCurrentAlbum(album);
     setDuration(track.duration_ms / 1000);
-    setProgress(0);
-    setCurrentTime(0);
     
     if (!audioRef.current) return;
 
@@ -187,8 +180,6 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       internalPlay(queueRef.current[nextIdx], albumRef.current!);
     } else {
       setIsPlaying(false);
-      setProgress(0);
-      setCurrentTime(0);
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
@@ -242,7 +233,6 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const newTime = (percent / 100) * activeDuration;
     audioRef.current.currentTime = newTime;
     lastTimeRef.current = newTime; // Prevent scrub spikes
-    setProgress(percent);
   };
 
   const changeVolume = (level: number) => {
@@ -255,8 +245,8 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
   return (
     <PlayerContext.Provider value={{ 
       currentTrack, currentAlbum, isPlaying, 
-      progress, currentTime, duration, volume,
-      queue, queueIndex,
+      duration, volume, queue, queueIndex,
+      audioElement: audioRef.current,
       playContext, playNext, playPrev, togglePlay, seekTo, changeVolume 
     }}>
       {children}

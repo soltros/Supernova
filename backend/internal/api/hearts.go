@@ -26,18 +26,22 @@ func (s *Server) handleGetHeartDetails() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := r.Context().Value(userIDKey).(string)
 
-		tracks, albums, err := s.repo.GetHeartDetails(r.Context(), userID)
+		tracks, albums, artists, playlists, err := s.repo.GetHeartDetails(r.Context(), userID)
 		if err != nil {
 			http.Error(w, "failed to get heart details", http.StatusInternalServerError)
 			return
 		}
 
 		response := struct {
-			Tracks []models.Track `json:"tracks"`
-			Albums []models.Album `json:"albums"`
+			Tracks    []models.Track    `json:"tracks"`
+			Albums    []models.Album    `json:"albums"`
+			Artists   []models.Artist   `json:"artists"`
+			Playlists []models.Playlist `json:"playlists"`
 		}{
-			Tracks: tracks,
-			Albums: albums,
+			Tracks:    tracks,
+			Albums:    albums,
+			Artists:   artists,
+			Playlists: playlists,
 		}
 
 		json.NewEncoder(w).Encode(response)
