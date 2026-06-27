@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { Play } from 'lucide-react';
 import { apiService } from '../services/api';
 import { usePlayer } from '../context/PlayerContext';
 import HeartButton from '../components/HeartButton';
@@ -98,10 +99,10 @@ const AlbumPage: FC = () => {
           
           <div style={{ display: 'flex', gap: '16px', marginTop: '32px' }}>
             <button 
-              style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--accent-primary)', color: 'white', fontSize: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: '4px', boxShadow: 'var(--accent-glow)' }}
-              onClick={() => tracks.length > 0 && playContext(tracks, 0, album)}
+              style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--accent-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--accent-glow)', cursor: 'pointer', border: 'none' }}
+              onClick={() => playContext(tracks, 0, album)}
             >
-              ▶
+              <Play size={24} fill="currentColor" />
             </button>
           </div>
         </div>
@@ -129,8 +130,12 @@ const AlbumPage: FC = () => {
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-glass-hover)'}
               onMouseLeave={(e) => e.currentTarget.style.background = isThisTrackPlaying ? 'var(--bg-glass)' : 'transparent'}
             >
-              <div style={{ color: isThisTrackPlaying ? 'var(--accent-primary)' : 'var(--text-muted)' }}>
-                {isThisTrackPlaying && isPlaying ? '▶' : track.track_number}
+              <div className="track-number">
+                {isThisTrackPlaying && isPlaying ? (
+                  <div className="playing-indicator" style={{ background: 'var(--primary-color)', width: '16px', height: '16px', borderRadius: '50%' }} />
+                ) : (
+                  <span>{track.track_number}</span>
+                )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <div style={{ fontWeight: isThisTrackPlaying ? 600 : 400, color: isThisTrackPlaying ? 'var(--accent-primary)' : 'var(--text-primary)' }}>

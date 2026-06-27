@@ -1,4 +1,5 @@
 import type { FC, MouseEvent } from 'react';
+import { Heart } from 'lucide-react';
 import { useHearts } from '../context/HeartsContext';
 
 interface Props {
@@ -33,8 +34,16 @@ const HeartButton: FC<Props> = ({ entityType, entityId, size = 18 }) => {
         justifyContent: 'center'
       }}
       title={active ? "Unheart" : "Heart"}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.color = '#ff3b30';
+        e.currentTarget.style.transform = 'scale(1.2)';
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.color = 'var(--text-muted)';
+        e.currentTarget.style.transform = 'scale(1)';
+      }}
     >
-      {active ? '♥' : '♡'}
+      <Heart size={size} fill={active ? 'currentColor' : 'none'} strokeWidth={active ? 0 : 2} />
     </button>
   );
 };

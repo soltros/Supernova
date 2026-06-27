@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { useParams } from 'react-router-dom';
+import { Play } from 'lucide-react';
 import { apiService } from '../services/api';
 import { usePlayer } from '../context/PlayerContext';
 import AlbumCard from '../components/AlbumCard';
@@ -99,13 +100,12 @@ const ArtistPage: FC = () => {
             style={{ 
               width: '56px', height: '56px', 
               borderRadius: '50%', 
-              background: 'var(--primary-color)', 
-              color: 'black', 
+              background: 'var(--accent-primary)', 
+              color: 'white', 
               display: 'flex', alignItems: 'center', justifyContent: 'center', 
-              fontSize: '24px',
               border: 'none',
               cursor: 'pointer',
-              boxShadow: '0 8px 16px rgba(0,0,0,0.3)',
+              boxShadow: 'var(--accent-glow)',
               transition: 'var(--transition-fast)'
             }}
             onClick={() => {
@@ -116,7 +116,7 @@ const ArtistPage: FC = () => {
             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
           >
-            ▶
+            <Play size={28} fill="currentColor" />
           </button>
         </div>
 

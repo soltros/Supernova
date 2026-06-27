@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { Mic2 } from 'lucide-react';
 import type { Artist } from '../types';
 import { apiService } from '../services/api';
 
@@ -60,8 +61,10 @@ const ArtistsPage: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '64px', color: 'var(--text-secondary)' }}>
-            <div style={{ fontSize: '64px', marginBottom: '16px', opacity: 0.2 }}>🎤</div>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-secondary)', padding: '64px' }}>
+            <div style={{ marginBottom: '16px', opacity: 0.2 }}>
+              <Mic2 size={64} />
+            </div>
             <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)' }}>No Artists Found</h3>
             <p>Your library doesn't contain any artists yet.</p>
           </div>

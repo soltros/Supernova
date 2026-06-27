@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { ListMusic, Trash2, Play } from 'lucide-react';
 import { apiService } from '../services/api';
 import type { Playlist, Track, Album } from '../types';
 import { usePlayer } from '../context/PlayerContext';
@@ -164,10 +165,10 @@ export const PlaylistsPage: React.FC = () => {
                 <h2 style={{ fontSize: '42px', fontWeight: 900, margin: '8px 0 0 0', letterSpacing: '-1px' }}>{selectedPlaylist.name}</h2>
               </div>
               <button 
-                style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--accent-primary)', color: 'white', fontSize: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', paddingLeft: '4px', boxShadow: 'var(--accent-glow)' }}
+                style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--accent-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--accent-glow)', cursor: 'pointer', border: 'none' }}
                 onClick={() => tracks.length > 0 && playContext(tracks, 0, { id: selectedPlaylist.id, title: selectedPlaylist.name, artist_id: '', release_year: 0, cover_art_path: '' } as Album)}
               >
-                ▶
+                <Play size={24} fill="currentColor" />
               </button>
             </div>
             
@@ -211,8 +212,9 @@ export const PlaylistsPage: React.FC = () => {
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600, fontSize: '13px' }}
                     onMouseEnter={(e) => e.currentTarget.style.color = '#ff4444'}
                     onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                    title="Remove from playlist"
                   >
-                    Remove
+                    <Trash2 size={16} />
                   </button>
                 </div>
               ))}
@@ -221,7 +223,9 @@ export const PlaylistsPage: React.FC = () => {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-secondary)' }}>
-            <div style={{ fontSize: '64px', marginBottom: '16px', opacity: 0.2 }}>🎵</div>
+            <div style={{ marginBottom: '16px', opacity: 0.2 }}>
+              <ListMusic size={64} />
+            </div>
             <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)' }}>Select a playlist</h3>
             <p>Choose a playlist from the sidebar to view its tracks</p>
           </div>

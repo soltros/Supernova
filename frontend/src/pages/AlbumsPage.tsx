@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Album } from '../types';
+import { Disc3 } from 'lucide-react';
 import { apiService } from '../services/api';
 import AlbumCard from '../components/AlbumCard';
 
@@ -33,8 +34,10 @@ const AlbumsPage: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '64px', color: 'var(--text-secondary)' }}>
-            <div style={{ fontSize: '64px', marginBottom: '16px', opacity: 0.2 }}>💿</div>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-secondary)' }}>
+            <div style={{ marginBottom: '16px', opacity: 0.2 }}>
+              <Disc3 size={64} />
+            </div>
             <h3 style={{ fontSize: '24px', fontWeight: 600, color: 'var(--text-primary)' }}>No Albums Found</h3>
             <p>Your library doesn't contain any albums yet.</p>
           </div>

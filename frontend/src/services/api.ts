@@ -11,7 +11,14 @@ const getHeaders = () => {
 };
 
 const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-  const response = await fetch(url, options);
+  const mergedOptions = {
+    ...options,
+    headers: {
+      ...getHeaders(),
+      ...options.headers,
+    },
+  };
+  const response = await fetch(url, mergedOptions);
   if (response.status === 401) {
     // Phantom User fix: If the backend explicitly rejects our token, wipe state and reload
     localStorage.removeItem('sn_user');

@@ -300,12 +300,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-left: 4px;
   box-shadow: 0 8px 16px rgba(255,255,255,0.1);
 }
 
 .play-btn.playing {
-  padding-left: 0; /* center pause icon */
 }
 
 .play-btn:hover {

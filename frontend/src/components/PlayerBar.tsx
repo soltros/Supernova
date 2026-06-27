@@ -1,5 +1,6 @@
 import type { FC, MouseEvent, ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -75,12 +76,12 @@ const PlayerBar: FC = () => {
       
       {/* Center: Playback Controls & Interactive Progress */}
       <div className="player-controls" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '400px' }}>
-        <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-          <button className="control-btn" onClick={playPrev}>⏮</button>
+        <div style={{ display: 'flex', gap: '24px', alignItems: 'center', marginBottom: '8px' }}>
+          <button className="control-btn" onClick={playPrev}><SkipBack size={20} fill="currentColor" /></button>
           <button className={`control-btn play-btn ${isPlaying ? 'playing' : ''}`} onClick={togglePlay}>
-            {isPlaying ? '⏸' : '▶'}
+            {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
           </button>
-          <button className="control-btn" onClick={playNext}>⏭</button>
+          <button className="control-btn" onClick={playNext}><SkipForward size={20} fill="currentColor" /></button>
         </div>
         
         {/* Floating Progress Bar underneath controls */}
@@ -106,8 +107,8 @@ const PlayerBar: FC = () => {
       
       {/* Right Side: Interactive Volume Slider */}
       <div className="volume-controls">
-        <span style={{ cursor: 'pointer', fontSize: '18px' }} onClick={() => changeVolume(volume === 0 ? 1 : 0)}>
-          {volume === 0 ? '🔇' : '🔊'}
+        <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => changeVolume(volume === 0 ? 1 : 0)}>
+          {volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </span>
         <input 
           type="range" 

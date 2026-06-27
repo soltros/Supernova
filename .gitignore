@@ -21,3 +21,4 @@ backend/supernova
 # Project specific
 ~/.supernova
 ui.png
+.env
