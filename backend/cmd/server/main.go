@@ -16,6 +16,11 @@ import (
 )
 
 func main() {
+	// Attempt to load .env file if it exists (useful for local development)
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, relying on system environment variables.")
+	}
+
 	log.Println("Booting Supernova Media Server...")
 
 	// 1. Read Environment Variables (these are provided by our docker-compose.yml)
