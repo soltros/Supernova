@@ -8,6 +8,7 @@ import HeartsPage from './pages/HeartsPage';
 import { PlaylistsPage } from './pages/PlaylistsPage';
 import { LoginPage } from './pages/LoginPage';
 import ArtistsPage from './pages/ArtistsPage';
+import ArtistPage from './pages/ArtistPage';
 import AlbumsPage from './pages/AlbumsPage';
 import SettingsPage from './pages/SettingsPage';
 import { HeartsProvider } from './context/HeartsContext';
@@ -34,6 +35,7 @@ function AppContent() {
           <Routes>
             <Route path="/" element={<LibraryPage />} />
             <Route path="/album/:id" element={<AlbumPage />} />
+            <Route path="/artist/:id" element={<ArtistPage />} />
             <Route path="/hearts" element={<HeartsPage />} />
             
             <Route path="/artists" element={<ArtistsPage />} />

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { usePlayer } from '../context/PlayerContext';
 import HeartButton from '../components/HeartButton';
@@ -132,8 +132,21 @@ const AlbumPage: FC = () => {
               <div style={{ color: isThisTrackPlaying ? 'var(--accent-primary)' : 'var(--text-muted)' }}>
                 {isThisTrackPlaying && isPlaying ? '▶' : track.track_number}
               </div>
-              <div style={{ fontWeight: isThisTrackPlaying ? 600 : 400, color: isThisTrackPlaying ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
-                {track.title}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontWeight: isThisTrackPlaying ? 600 : 400, color: isThisTrackPlaying ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
+                  {track.title}
+                </div>
+                {track.artist_id && (
+                  <Link 
+                    to={`/artist/${track.artist_id}`}
+                    style={{ fontSize: '12px', color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' }}
+                    onClick={(e) => e.stopPropagation()} // Prevent playing the track when clicking the artist
+                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                  >
+                    {track.artist_name}
+                  </Link>
+                )}
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', alignItems: 'center' }}>
                 <HeartButton entityType="track" entityId={track.id} />

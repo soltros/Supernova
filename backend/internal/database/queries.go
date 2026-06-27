@@ -63,9 +63,22 @@ func (r *Repository) GetUnenrichedArtists(ctx context.Context, limit int) ([]mod
 }
 
 // GetAlbums returns all albums in the library sorted alphabetically, with pagination.
-func (r *Repository) GetAlbums(ctx context.Context, limit, offset int) ([]models.Album, error) {
-	query := `SELECT id, title, release_year, musicbrainz_id, cover_art_path FROM albums ORDER BY title ASC LIMIT ? OFFSET ?`
-	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+func (r *Repository) GetAlbums(ctx context.Context, artistID string, limit, offset int) ([]models.Album, error) {
+	query := `
+		SELECT a.id, a.title, a.release_year, a.musicbrainz_id, a.cover_art_path, art.id, art.name
+		FROM albums a
+		LEFT JOIN album_artists aa ON a.id = aa.album_id AND aa.role = 'primary'
+		LEFT JOIN artists art ON aa.artist_id = art.id
+	`
+	args := []any{}
+	if artistID != "" {
+		query += ` WHERE aa.artist_id = ?`
+		args = append(args, artistID)
+	}
+	query += ` ORDER BY a.title ASC LIMIT ? OFFSET ?`
+	args = append(args, limit, offset)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +87,15 @@ func (r *Repository) GetAlbums(ctx context.Context, limit, offset int) ([]models
 	var albums []models.Album
 	for rows.Next() {
 		var a models.Album
-		if err := rows.Scan(&a.ID, &a.Title, &a.ReleaseYear, &a.MusicBrainzID, &a.CoverArtPath); err != nil {
+		var artID, artName *string
+		if err := rows.Scan(&a.ID, &a.Title, &a.ReleaseYear, &a.MusicBrainzID, &a.CoverArtPath, &artID, &artName); err != nil {
 			return nil, err
+		}
+		if artID != nil {
+			a.ArtistID = *artID
+		}
+		if artName != nil {
+			a.ArtistName = *artName
 		}
 		albums = append(albums, a)
 	}
@@ -87,15 +107,33 @@ func (r *Repository) GetAlbums(ctx context.Context, limit, offset int) ([]models
 }
 
 // GetTracks returns tracks from the library. It can optionally be filtered by a specific album.
-func (r *Repository) GetTracks(ctx context.Context, albumID string, limit, offset int) ([]models.Track, error) {
-	query := `SELECT id, album_id, title, track_number, disc_number, duration_ms, format, bitrate FROM tracks`
+func (r *Repository) GetTracks(ctx context.Context, albumID string, artistID string, limit, offset int) ([]models.Track, error) {
+	query := `
+		SELECT t.id, t.album_id, t.title, t.track_number, t.disc_number, t.duration_ms, t.format, t.bitrate, art.id, art.name
+		FROM tracks t
+		LEFT JOIN track_artists ta ON t.id = ta.track_id
+		LEFT JOIN artists art ON ta.artist_id = art.id
+	`
 	args := []any{}
 	
+	where := []string{}
 	if albumID != "" {
-		query += ` WHERE album_id = ?`
+		where = append(where, `t.album_id = ?`)
 		args = append(args, albumID)
 	}
-	query += ` ORDER BY disc_number ASC, track_number ASC LIMIT ? OFFSET ?`
+	if artistID != "" {
+		where = append(where, `ta.artist_id = ?`)
+		args = append(args, artistID)
+	}
+
+	if len(where) > 0 {
+		query += " WHERE " + where[0]
+		if len(where) > 1 {
+			query += " AND " + where[1]
+		}
+	}
+
+	query += ` GROUP BY t.id ORDER BY t.disc_number ASC, t.track_number ASC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -107,8 +145,15 @@ func (r *Repository) GetTracks(ctx context.Context, albumID string, limit, offse
 	var tracks []models.Track
 	for rows.Next() {
 		var t models.Track
-		if err := rows.Scan(&t.ID, &t.AlbumID, &t.Title, &t.TrackNumber, &t.DiscNumber, &t.DurationMs, &t.Format, &t.Bitrate); err != nil {
+		var artID, artName *string
+		if err := rows.Scan(&t.ID, &t.AlbumID, &t.Title, &t.TrackNumber, &t.DiscNumber, &t.DurationMs, &t.Format, &t.Bitrate, &artID, &artName); err != nil {
 			return nil, err
+		}
+		if artID != nil {
+			t.ArtistID = *artID
+		}
+		if artName != nil {
+			t.ArtistName = *artName
 		}
 		tracks = append(tracks, t)
 	}
@@ -194,11 +239,24 @@ func (r *Repository) GetTrackByID(ctx context.Context, id string) (*models.Track
 
 // GetAlbumByID fetches a single album by its ID.
 func (r *Repository) GetAlbumByID(ctx context.Context, id string) (*models.Album, error) {
-	query := `SELECT id, title, release_year, musicbrainz_id, cover_art_path FROM albums WHERE id = ?`
+	query := `
+		SELECT a.id, a.title, a.release_year, a.musicbrainz_id, a.cover_art_path, art.id, art.name
+		FROM albums a
+		LEFT JOIN album_artists aa ON a.id = aa.album_id AND aa.role = 'primary'
+		LEFT JOIN artists art ON aa.artist_id = art.id
+		WHERE a.id = ?
+	`
 	var a models.Album
-	err := r.db.QueryRowContext(ctx, query, id).Scan(&a.ID, &a.Title, &a.ReleaseYear, &a.MusicBrainzID, &a.CoverArtPath)
+	var artID, artName *string
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&a.ID, &a.Title, &a.ReleaseYear, &a.MusicBrainzID, &a.CoverArtPath, &artID, &artName)
 	if err != nil {
 		return nil, err
+	}
+	if artID != nil {
+		a.ArtistID = *artID
+	}
+	if artName != nil {
+		a.ArtistName = *artName
 	}
 	return &a, nil
 }

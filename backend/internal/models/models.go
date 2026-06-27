@@ -36,6 +36,8 @@ type Album struct {
 	ReleaseYear   int    `json:"release_year"`
 	MusicBrainzID string `json:"musicbrainz_id"`
 	CoverArtPath  string `json:"cover_art_path"`
+	ArtistID      string `json:"artist_id,omitempty"`
+	ArtistName    string `json:"artist_name,omitempty"`
 }
 
 // Track represents a row in the tracks table for JSON API responses
@@ -49,6 +51,8 @@ type Track struct {
 	FilePath    string `json:"-"`
 	Format      string `json:"format"`
 	Bitrate     int    `json:"bitrate"`
+	ArtistID    string `json:"artist_id,omitempty"`
+	ArtistName  string `json:"artist_name,omitempty"`
 }
 
 // Heart represents a user's favorite track, album, or artist

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
 import type { Playlist, Track, Album } from '../types';
 import { usePlayer } from '../context/PlayerContext';
@@ -188,12 +189,25 @@ export const PlaylistsPage: React.FC = () => {
                 >
                   <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                     <span style={{ color: 'var(--text-secondary)', width: '24px', fontWeight: 600 }}>{index + 1}</span>
-                    <span 
-                      style={{ color: 'white', fontWeight: 600, cursor: 'pointer' }}
-                      onClick={() => playContext(tracks, index, { id: selectedPlaylist.id, title: selectedPlaylist.name, artist_id: '', release_year: 0, cover_art_path: '' } as Album)}
-                    >
-                      {track.title}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span 
+                        style={{ color: 'white', fontWeight: 600, cursor: 'pointer' }}
+                        onClick={() => playContext(tracks, index, { id: selectedPlaylist.id, title: selectedPlaylist.name, artist_id: '', release_year: 0, cover_art_path: '' } as Album)}
+                      >
+                        {track.title}
+                      </span>
+                      {track.artist_id && (
+                        <Link 
+                          to={`/artist/${track.artist_id}`}
+                          style={{ fontSize: '12px', color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' }}
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                        >
+                          {track.artist_name}
+                        </Link>
+                      )}
+                    </div>
                   </div>
                   <button 
                     onClick={() => handleRemoveTrack(track.id)}

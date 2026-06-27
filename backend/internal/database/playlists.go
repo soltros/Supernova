@@ -118,10 +118,13 @@ func (r *Repository) GetPlaylistTracks(ctx context.Context, userID, playlistID s
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT t.id, t.album_id, t.title, t.track_number, t.disc_number, t.duration_ms, t.format, t.bitrate
+		SELECT t.id, t.album_id, t.title, t.track_number, t.disc_number, t.duration_ms, t.format, t.bitrate, art.id, art.name
 		FROM tracks t
 		JOIN playlist_tracks pt ON t.id = pt.track_id
+		LEFT JOIN track_artists ta ON t.id = ta.track_id
+		LEFT JOIN artists art ON ta.artist_id = art.id
 		WHERE pt.playlist_id = ?
+		GROUP BY pt.position, t.id
 		ORDER BY pt.position ASC
 	`, playlistID)
 	if err != nil {
@@ -132,8 +135,15 @@ func (r *Repository) GetPlaylistTracks(ctx context.Context, userID, playlistID s
 	var tracks []models.Track
 	for rows.Next() {
 		var t models.Track
-		if err := rows.Scan(&t.ID, &t.AlbumID, &t.Title, &t.TrackNumber, &t.DiscNumber, &t.DurationMs, &t.Format, &t.Bitrate); err != nil {
+		var artID, artName *string
+		if err := rows.Scan(&t.ID, &t.AlbumID, &t.Title, &t.TrackNumber, &t.DiscNumber, &t.DurationMs, &t.Format, &t.Bitrate, &artID, &artName); err != nil {
 			return nil, err
+		}
+		if artID != nil {
+			t.ArtistID = *artID
+		}
+		if artName != nil {
+			t.ArtistName = *artName
 		}
 		tracks = append(tracks, t)
 	}

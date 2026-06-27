@@ -3,6 +3,8 @@ export interface Album {
   title: string;
   release_year: number;
   cover_art_path: string;
+  artist_id?: string;
+  artist_name?: string;
 }
 
 export interface Artist {
@@ -22,6 +24,8 @@ export interface Track {
   duration_ms: number;
   format: string;
   bitrate: number;
+  artist_id?: string;
+  artist_name?: string;
 }
 
 export interface User {

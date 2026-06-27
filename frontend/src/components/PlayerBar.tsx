@@ -1,4 +1,5 @@
 import type { FC, MouseEvent, ChangeEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { usePlayer } from '../context/PlayerContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
@@ -52,9 +53,23 @@ const PlayerBar: FC = () => {
             <div className={`track-art-small ${isPlaying ? 'playing' : ''}`}></div>
           )}
         </div>
-        <div className="track-details">
-          <h4>{currentTrack ? currentTrack.title : 'No Track Playing'}</h4>
-          <p>{currentAlbum ? currentAlbum.title : 'Select a track to begin'}</p>
+        <div className="track-details" style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+          <h4 style={{ margin: 0, textOverflow: 'ellipsis', overflow: 'hidden' }}>{currentTrack ? currentTrack.title : 'No Track Playing'}</h4>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {currentTrack?.artist_id ? (
+              <Link to={`/artist/${currentTrack.artist_id}`} style={{ color: 'var(--text-muted)', fontSize: '13px', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}>
+                {currentTrack.artist_name}
+              </Link>
+            ) : currentAlbum?.artist_id ? (
+              <Link to={`/artist/${currentAlbum.artist_id}`} style={{ color: 'var(--text-muted)', fontSize: '13px', textDecoration: 'none', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}>
+                {currentAlbum.artist_name}
+              </Link>
+            ) : null}
+            {(currentTrack?.artist_id || currentAlbum?.artist_id) && <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>•</span>}
+            <span style={{ color: 'var(--text-muted)', fontSize: '12px', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+              {currentAlbum ? currentAlbum.title : 'Select a track to begin'}
+            </span>
+          </div>
         </div>
       </div>
       

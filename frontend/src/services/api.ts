@@ -42,8 +42,10 @@ export const apiService = {
     if (!response.ok) throw new Error('Failed to login');
     return response.json();
   },
-  fetchAlbums: async (limit: number = 50, offset: number = 0): Promise<Album[]> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/albums?limit=${limit}&offset=${offset}`);
+  fetchAlbums: async (limit: number = 50, offset: number = 0, artistId?: string): Promise<Album[]> => {
+    let url = `${API_BASE_URL}/api/albums?limit=${limit}&offset=${offset}`;
+    if (artistId) url += `&artist_id=${artistId}`;
+    const response = await fetchWithAuth(url);
     if (!response.ok) throw new Error('Failed to fetch albums');
     return response.json();
   },
@@ -60,8 +62,17 @@ export const apiService = {
     return response.json();
   },
 
-  fetchTracks: async (albumId: string, limit: number = 50, offset: number = 0): Promise<Track[]> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/tracks?album_id=${albumId}&limit=${limit}&offset=${offset}`);
+  fetchArtistById: async (id: string): Promise<Artist> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/artists/${id}`);
+    if (!response.ok) throw new Error('Failed to fetch artist');
+    return response.json();
+  },
+
+  fetchTracks: async (albumId?: string, limit: number = 50, offset: number = 0, artistId?: string): Promise<Track[]> => {
+    let url = `${API_BASE_URL}/api/tracks?limit=${limit}&offset=${offset}`;
+    if (albumId) url += `&album_id=${albumId}`;
+    if (artistId) url += `&artist_id=${artistId}`;
+    const response = await fetchWithAuth(url);
     if (!response.ok) throw new Error('Failed to fetch tracks');
     return response.json();
   },

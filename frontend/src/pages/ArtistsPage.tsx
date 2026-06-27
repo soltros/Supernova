@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import type { Artist } from '../types';
 import { apiService } from '../services/api';
 
@@ -28,7 +29,8 @@ const ArtistsPage: React.FC = () => {
         ) : artists.length > 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '24px' }}>
             {artists.map(artist => (
-              <div 
+              <Link 
+                to={`/artist/${artist.id}`}
                 key={artist.id} 
                 style={{ 
                   background: 'var(--bg-glass)', 
@@ -39,7 +41,9 @@ const ArtistsPage: React.FC = () => {
                   flexDirection: 'column', 
                   alignItems: 'center',
                   transition: 'var(--transition-fast)',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  textDecoration: 'none',
+                  color: 'var(--text-primary)'
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.background = 'var(--bg-glass-hover)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.background = 'var(--bg-glass)'; }}
@@ -52,7 +56,7 @@ const ArtistsPage: React.FC = () => {
                   )}
                 </div>
                 <h3 style={{ fontSize: '16px', fontWeight: 700, textAlign: 'center' }}>{artist.name}</h3>
-              </div>
+              </Link>
             ))}
           </div>
         ) : (

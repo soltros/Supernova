@@ -47,7 +47,7 @@ func (s *Server) routes() {
 
 	// Public read-only library routes
 	s.mux.HandleFunc("GET /api/artists", s.handleGetArtists())
-	s.mux.HandleFunc("GET /api/artists/{id}/info", s.handleGetArtistInfo())
+	s.mux.HandleFunc("GET /api/artists/{id}", s.handleGetArtistByID())
 	s.mux.HandleFunc("GET /api/albums", s.handleGetAlbums())
 	s.mux.HandleFunc("GET /api/albums/{id}", s.handleGetAlbumByID())
 	s.mux.HandleFunc("GET /api/tracks", s.handleGetTracks())
@@ -110,24 +110,24 @@ func (s *Server) handleGetArtists() http.HandlerFunc {
 	}
 }
 
-func (s *Server) handleGetArtistInfo() http.HandlerFunc {
+func (s *Server) handleGetArtistByID() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		
-		// 1. Get the artist name from DB
-		// (Assume we have a GetArtistByID in repo, but for now we might need to fetch it)
-		// Wait, do we have GetArtistByID? Let's check or just fetch the first track for the artist and get the name.
-		// Wait, I shouldn't guess. Let me implement a quick way to get artist name.
-		
-		// 2. Fetch from LastFM
-		// info, err := s.lastfm.GetArtistInfo(artistName)
+		artist, err := s.repo.GetArtistByID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "artist not found", http.StatusNotFound)
+			return
+		}
+		json.NewEncoder(w).Encode(artist)
 	}
 }
 
 func (s *Server) handleGetAlbums() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		artistID := r.URL.Query().Get("artist_id")
 		limit, offset := parsePagination(r)
-		albums, err := s.repo.GetAlbums(r.Context(), limit, offset)
+		
+		albums, err := s.repo.GetAlbums(r.Context(), artistID, limit, offset)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -151,9 +151,10 @@ func (s *Server) handleGetAlbumByID() http.HandlerFunc {
 func (s *Server) handleGetTracks() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		albumID := r.URL.Query().Get("album_id")
+		artistID := r.URL.Query().Get("artist_id")
 		limit, offset := parsePagination(r)
 		
-		tracks, err := s.repo.GetTracks(r.Context(), albumID, limit, offset)
+		tracks, err := s.repo.GetTracks(r.Context(), albumID, artistID, limit, offset)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
