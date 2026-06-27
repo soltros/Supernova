@@ -128,7 +128,7 @@ func (c *LastFmClient) Scrobble(sessionKey, artist, track string, timestamp int6
 // postAuthenticated handles the boilerplate of signing and executing a write request
 func (c *LastFmClient) postAuthenticated(params map[string]string) error {
 	apiSig := c.generateSignature(params)
-	
+
 	form := url.Values{}
 	for k, v := range params {
 		form.Add(k, v)
@@ -154,4 +154,208 @@ func (c *LastFmClient) postAuthenticated(params map[string]string) error {
 	}
 
 	return nil
+}
+
+// AlbumInfoResponse represents the Last.fm album.getInfo response
+type AlbumInfoResponse struct {
+	Album struct {
+		Name   string `json:"name"`
+		Artist string `json:"artist"`
+		Mbid   string `json:"mbid"`
+		Image  []struct {
+			URL  string `json:"#text"`
+			Size string `json:"size"`
+		} `json:"image"`
+		Tracks struct {
+			Track []struct {
+				Name     string `json:"name"`
+				Duration string `json:"duration"` // Returned as string seconds often
+			} `json:"track"`
+		} `json:"tracks"`
+	} `json:"album"`
+	Error   int    `json:"error"`
+	Message string `json:"message"`
+}
+
+// TrackInfoResponse represents the Last.fm track.getInfo response
+type TrackInfoResponse struct {
+	Track struct {
+		Name     string `json:"name"`
+		Mbid     string `json:"mbid"`
+		Duration string `json:"duration"` // milliseconds
+		Album    struct {
+			Title string `json:"title"`
+			Image []struct {
+				URL  string `json:"#text"`
+				Size string `json:"size"`
+			} `json:"image"`
+		} `json:"album"`
+	} `json:"track"`
+	Error   int    `json:"error"`
+	Message string `json:"message"`
+}
+
+// TopAlbumsResponse represents the Last.fm tag.getTopAlbums response
+type TopAlbumsResponse struct {
+	Albums struct {
+		Album []struct {
+			Name  string `json:"name"`
+			Mbid  string `json:"mbid"`
+			Image []struct {
+				URL  string `json:"#text"`
+				Size string `json:"size"`
+			} `json:"image"`
+			Artist struct {
+				Name string `json:"name"`
+				Mbid string `json:"mbid"`
+			} `json:"artist"`
+		} `json:"album"`
+	} `json:"albums"`
+	Error   int    `json:"error"`
+	Message string `json:"message"`
+}
+
+// TopTracksResponse represents the Last.fm tag.getTopTracks response
+type TopTracksResponse struct {
+	Tracks struct {
+		Track []struct {
+			Name     string `json:"name"`
+			Duration string `json:"duration"`
+			Mbid     string `json:"mbid"`
+			Artist   struct {
+				Name string `json:"name"`
+				Mbid string `json:"mbid"`
+			} `json:"artist"`
+		} `json:"track"`
+	} `json:"tracks"`
+	Error   int    `json:"error"`
+	Message string `json:"message"`
+}
+
+// GetAlbumInfo fetches album metadata and tracklist
+func (c *LastFmClient) GetAlbumInfo(artist, album, mbid string, autocorrect int) (*AlbumInfoResponse, error) {
+	params := url.Values{}
+	params.Add("method", "album.getinfo")
+	if mbid != "" {
+		params.Add("mbid", mbid)
+	} else {
+		params.Add("artist", artist)
+		params.Add("album", album)
+	}
+	if autocorrect > 0 {
+		params.Add("autocorrect", "1")
+	}
+	params.Add("api_key", c.apiKey)
+	params.Add("format", "json")
+
+	reqURL := fmt.Sprintf("%s?%s", lastFmBaseURL, params.Encode())
+	resp, err := c.client.Get(reqURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var data AlbumInfoResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+	if data.Error > 0 {
+		return nil, fmt.Errorf("last.fm api error %d: %s", data.Error, data.Message)
+	}
+	return &data, nil
+}
+
+// GetTrackInfo fetches track metadata
+func (c *LastFmClient) GetTrackInfo(artist, track, mbid string, autocorrect int) (*TrackInfoResponse, error) {
+	params := url.Values{}
+	params.Add("method", "track.getinfo")
+	if mbid != "" {
+		params.Add("mbid", mbid)
+	} else {
+		params.Add("artist", artist)
+		params.Add("track", track)
+	}
+	if autocorrect > 0 {
+		params.Add("autocorrect", "1")
+	}
+	params.Add("api_key", c.apiKey)
+	params.Add("format", "json")
+
+	reqURL := fmt.Sprintf("%s?%s", lastFmBaseURL, params.Encode())
+	resp, err := c.client.Get(reqURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var data TrackInfoResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+	if data.Error > 0 {
+		return nil, fmt.Errorf("last.fm api error %d: %s", data.Error, data.Message)
+	}
+	return &data, nil
+}
+
+// GetTopAlbumsByTag fetches top albums for a tag
+func (c *LastFmClient) GetTopAlbumsByTag(tag string, limit, page int) (*TopAlbumsResponse, error) {
+	params := url.Values{}
+	params.Add("method", "tag.gettopalbums")
+	params.Add("tag", tag)
+	if limit > 0 {
+		params.Add("limit", fmt.Sprintf("%d", limit))
+	}
+	if page > 0 {
+		params.Add("page", fmt.Sprintf("%d", page))
+	}
+	params.Add("api_key", c.apiKey)
+	params.Add("format", "json")
+
+	reqURL := fmt.Sprintf("%s?%s", lastFmBaseURL, params.Encode())
+	resp, err := c.client.Get(reqURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var data TopAlbumsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+	if data.Error > 0 {
+		return nil, fmt.Errorf("last.fm api error %d: %s", data.Error, data.Message)
+	}
+	return &data, nil
+}
+
+// GetTopTracksByTag fetches top tracks for a tag
+func (c *LastFmClient) GetTopTracksByTag(tag string, limit, page int) (*TopTracksResponse, error) {
+	params := url.Values{}
+	params.Add("method", "tag.gettoptracks")
+	params.Add("tag", tag)
+	if limit > 0 {
+		params.Add("limit", fmt.Sprintf("%d", limit))
+	}
+	if page > 0 {
+		params.Add("page", fmt.Sprintf("%d", page))
+	}
+	params.Add("api_key", c.apiKey)
+	params.Add("format", "json")
+
+	reqURL := fmt.Sprintf("%s?%s", lastFmBaseURL, params.Encode())
+	resp, err := c.client.Get(reqURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var data TopTracksResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+	if data.Error > 0 {
+		return nil, fmt.Errorf("last.fm api error %d: %s", data.Error, data.Message)
+	}
+	return &data, nil
 }
