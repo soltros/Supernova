@@ -77,6 +77,12 @@ export const apiService = {
     return response.json();
   },
 
+  fetchDashboard: async (): Promise<{ recently_added_albums: Album[], recently_played_tracks: Track[], favorite_tracks: Track[] }> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/dashboard`);
+    if (!response.ok) throw new Error('Failed to fetch dashboard');
+    return response.json();
+  },
+
   // Hearts API
   fetchHearts: async (): Promise<{ entity_id: string }[]> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts`, { headers: getHeaders() });

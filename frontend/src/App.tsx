@@ -2,7 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import PlayerBar from './components/PlayerBar';
-import LibraryPage from './pages/LibraryPage';
+import HomePage from './pages/HomePage';
 import AlbumPage from './pages/AlbumPage';
 import HeartsPage from './pages/HeartsPage';
 import { PlaylistsPage } from './pages/PlaylistsPage';
@@ -12,6 +12,8 @@ import ArtistPage from './pages/ArtistPage';
 import AlbumsPage from './pages/AlbumsPage';
 import SettingsPage from './pages/SettingsPage';
 import { HeartsProvider } from './context/HeartsContext';
+import { PlaylistsProvider } from './context/PlaylistsContext';
+import { PlayerProvider } from './context/PlayerContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 import './index.css';
@@ -26,27 +28,31 @@ function AppContent() {
 
   return (
     <HeartsProvider>
-      <div className="app-container">
-        <Sidebar />
-        
-        <main className="main-content">
-          <TopBar />
-          
-          <Routes>
-            <Route path="/" element={<LibraryPage />} />
-            <Route path="/album/:id" element={<AlbumPage />} />
-            <Route path="/artist/:id" element={<ArtistPage />} />
-            <Route path="/hearts" element={<HeartsPage />} />
+      <PlaylistsProvider>
+        <PlayerProvider>
+          <div className="app-container">
+            <Sidebar />
             
-            <Route path="/artists" element={<ArtistsPage />} />
-            <Route path="/albums" element={<AlbumsPage />} />
-            <Route path="/playlists" element={<PlaylistsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-          </Routes>
-        </main>
+            <main className="main-content">
+              <TopBar />
+              
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/album/:id" element={<AlbumPage />} />
+                <Route path="/artist/:id" element={<ArtistPage />} />
+                <Route path="/hearts" element={<HeartsPage />} />
+                
+                <Route path="/artists" element={<ArtistsPage />} />
+                <Route path="/albums" element={<AlbumsPage />} />
+                <Route path="/playlists" element={<PlaylistsPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+              </Routes>
+            </main>
 
-        <PlayerBar />
-      </div>
+            <PlayerBar />
+          </div>
+        </PlayerProvider>
+      </PlaylistsProvider>
     </HeartsProvider>
   );
 }

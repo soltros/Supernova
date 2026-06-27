@@ -1,9 +1,11 @@
 import type { FC } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePlaylists } from '../context/PlaylistsContext';
 
 const Sidebar: FC = () => {
   const { logout } = useAuth();
+  const { playlists } = usePlaylists();
 
   return (
     <aside className="sidebar">
@@ -14,7 +16,7 @@ const Sidebar: FC = () => {
       <nav className="nav-menu">
         {/* NavLink automatically injects an 'active' class when the URL matches */}
         <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} end>
-          Library
+          Home
         </NavLink>
         <NavLink to="/hearts" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           Hearts
@@ -28,6 +30,21 @@ const Sidebar: FC = () => {
         <NavLink to="/playlists" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           Playlists
         </NavLink>
+        {playlists.length > 0 && (
+          <div style={{ marginLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '1px solid var(--border-glass)', paddingLeft: '8px' }}>
+            {playlists.map(playlist => (
+              <NavLink 
+                key={playlist.id}
+                to="/playlists" 
+                state={{ selectedPlaylistId: playlist.id }}
+                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                style={{ fontSize: '13px', padding: '8px 12px', opacity: 0.8 }}
+              >
+                {playlist.name}
+              </NavLink>
+            ))}
+          </div>
+        )}
         <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           Settings
         </NavLink>

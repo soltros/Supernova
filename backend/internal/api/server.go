@@ -61,6 +61,9 @@ func (s *Server) routes() {
 	
 	// Streaming route leveraging Go 1.22 path variables
 	s.mux.HandleFunc("GET /api/stream/{id}", s.handleStreamTrack())
+
+	// Dashboard route
+	s.mux.HandleFunc("GET /api/dashboard", s.requireAuth(s.handleGetDashboard()))
 	
 	// Art Delivery
 	s.mux.HandleFunc("GET /api/art/album/{id}", s.handleGetAlbumArt())
@@ -198,5 +201,22 @@ func (s *Server) handleGetRecentScrobbles() http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(tracks)
+	}
+}
+
+func (s *Server) handleGetDashboard() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, ok := r.Context().Value(userIDKey).(string)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		dashboard, err := s.repo.GetDashboard(r.Context(), userID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(dashboard)
 	}
 }

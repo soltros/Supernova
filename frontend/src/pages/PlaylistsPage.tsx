@@ -1,40 +1,36 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { apiService } from '../services/api';
 import type { Playlist, Track, Album } from '../types';
 import { usePlayer } from '../context/PlayerContext';
+import { usePlaylists } from '../context/PlaylistsContext';
 
 export const PlaylistsPage: React.FC = () => {
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const { playlists, createPlaylist, deletePlaylist, refreshPlaylists } = usePlaylists();
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [newPlaylistName, setNewPlaylistName] = useState('');
-  const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const loading = false;
   const { playContext } = usePlayer();
-
-  const loadPlaylists = async () => {
-    try {
-      const data = await apiService.fetchPlaylists();
-      setPlaylists(data || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const location = useLocation();
 
   useEffect(() => {
-    loadPlaylists();
-  }, []);
+    const state = location.state as { selectedPlaylistId?: string };
+    if (state?.selectedPlaylistId) {
+      const playlist = playlists.find(p => p.id === state.selectedPlaylistId);
+      if (playlist) {
+        handleSelectPlaylist(playlist);
+      }
+    }
+  }, [location.state, playlists]);
 
   const handleCreatePlaylist = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPlaylistName.trim()) return;
     try {
-      await apiService.createPlaylist(newPlaylistName.trim());
+      await createPlaylist(newPlaylistName.trim());
       setNewPlaylistName('');
-      loadPlaylists();
     } catch (err) {
       console.error(err);
     }
@@ -52,12 +48,11 @@ export const PlaylistsPage: React.FC = () => {
 
   const handleDeletePlaylist = async (id: string) => {
     try {
-      await apiService.deletePlaylist(id);
+      await deletePlaylist(id);
       if (selectedPlaylist?.id === id) {
         setSelectedPlaylist(null);
         setTracks([]);
       }
-      loadPlaylists();
     } catch (err) {
       console.error(err);
     }
@@ -86,9 +81,11 @@ export const PlaylistsPage: React.FC = () => {
     if (!file) return;
     try {
       await apiService.importPlaylists(file);
-      loadPlaylists();
+      await refreshPlaylists();
+      alert('Playlists imported successfully!');
     } catch (err) {
       console.error(err);
+      alert('Failed to import playlists.');
     }
   };
 
