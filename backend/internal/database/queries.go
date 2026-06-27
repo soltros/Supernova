@@ -30,6 +30,38 @@ func (r *Repository) GetArtists(ctx context.Context, limit, offset int) ([]model
 	return artists, nil
 }
 
+func (r *Repository) GetArtistByID(ctx context.Context, id string) (models.Artist, error) {
+	query := `SELECT id, name, musicbrainz_id, image_url, bio FROM artists WHERE id = ?`
+	var a models.Artist
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&a.ID, &a.Name, &a.MusicBrainzID, &a.ImageURL, &a.Bio)
+	return a, err
+}
+
+func (r *Repository) UpdateArtistInfo(ctx context.Context, id, imageUrl, bio string) error {
+	query := `UPDATE artists SET image_url = ?, bio = ? WHERE id = ?`
+	_, err := r.db.ExecContext(ctx, query, imageUrl, bio, id)
+	return err
+}
+
+func (r *Repository) GetUnenrichedArtists(ctx context.Context, limit int) ([]models.Artist, error) {
+	query := `SELECT id, name, musicbrainz_id, image_url, bio FROM artists WHERE image_url = '' OR image_url IS NULL LIMIT ?`
+	rows, err := r.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var artists []models.Artist
+	for rows.Next() {
+		var a models.Artist
+		if err := rows.Scan(&a.ID, &a.Name, &a.MusicBrainzID, &a.ImageURL, &a.Bio); err != nil {
+			return nil, err
+		}
+		artists = append(artists, a)
+	}
+	return artists, nil
+}
+
 // GetAlbums returns all albums in the library sorted alphabetically, with pagination.
 func (r *Repository) GetAlbums(ctx context.Context, limit, offset int) ([]models.Album, error) {
 	query := `SELECT id, title, release_year, musicbrainz_id, cover_art_path FROM albums ORDER BY title ASC LIMIT ? OFFSET ?`

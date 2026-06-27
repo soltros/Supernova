@@ -48,12 +48,12 @@ func main() {
 	// (Last.fm keys will be pulled from ENV if the user wants rich bios/scrobbling)
 	lastfmKey := os.Getenv("LASTFM_API_KEY")
 	lastfmSecret := os.Getenv("LASTFM_API_SECRET")
-	_ = external.NewLastFmClient(lastfmKey, lastfmSecret) // Available for future injection
+	lastfmClient := external.NewLastFmClient(lastfmKey, lastfmSecret)
 
 	mbClient := external.NewMusicBrainzClient("SupernovaMediaServer", "1.0.0", "admin@supernova.local")
 
 	// 5. Initialize the Background Enricher
-	enricher := scanner.NewEnricher(repo, mbClient)
+	enricher := scanner.NewEnricher(repo, mbClient, lastfmClient)
 	ctx, cancelEnricher := context.WithCancel(context.Background())
 	defer cancelEnricher()
 	enricher.Start(ctx)
@@ -78,7 +78,7 @@ func main() {
 	}()
 
 	// 8. Initialize the HTTP API Server
-	apiServer := api.NewServer(repo)
+	apiServer := api.NewServer(repo, lastfmClient)
 
 	// Configure the HTTP Server with sensible production timeouts
 	srv := &http.Server{

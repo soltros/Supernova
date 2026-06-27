@@ -6,18 +6,21 @@ import (
 	"strconv"
 
 	"github.com/soltros/Supernova/internal/database"
+	"github.com/soltros/Supernova/internal/external"
 	"github.com/soltros/Supernova/internal/models"
 )
 
 type Server struct {
-	repo *database.Repository
-	mux  *http.ServeMux
+	repo   *database.Repository
+	lastfm *external.LastFmClient
+	mux    *http.ServeMux
 }
 
-func NewServer(repo *database.Repository) *Server {
+func NewServer(repo *database.Repository, lastfm *external.LastFmClient) *Server {
 	s := &Server{
-		repo: repo,
-		mux:  http.NewServeMux(),
+		repo:   repo,
+		lastfm: lastfm,
+		mux:    http.NewServeMux(),
 	}
 	s.routes()
 	return s
@@ -44,6 +47,7 @@ func (s *Server) routes() {
 
 	// Public read-only library routes
 	s.mux.HandleFunc("GET /api/artists", s.handleGetArtists())
+	s.mux.HandleFunc("GET /api/artists/{id}/info", s.handleGetArtistInfo())
 	s.mux.HandleFunc("GET /api/albums", s.handleGetAlbums())
 	s.mux.HandleFunc("GET /api/albums/{id}", s.handleGetAlbumByID())
 	s.mux.HandleFunc("GET /api/tracks", s.handleGetTracks())
@@ -103,6 +107,20 @@ func (s *Server) handleGetArtists() http.HandlerFunc {
 			return
 		}
 		json.NewEncoder(w).Encode(artists)
+	}
+}
+
+func (s *Server) handleGetArtistInfo() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		
+		// 1. Get the artist name from DB
+		// (Assume we have a GetArtistByID in repo, but for now we might need to fetch it)
+		// Wait, do we have GetArtistByID? Let's check or just fetch the first track for the artist and get the name.
+		// Wait, I shouldn't guess. Let me implement a quick way to get artist name.
+		
+		// 2. Fetch from LastFM
+		// info, err := s.lastfm.GetArtistInfo(artistName)
 	}
 }
 

@@ -14,14 +14,16 @@ import (
 type Enricher struct {
 	repo     *database.Repository
 	mbClient *external.MusicBrainzClient
+	lastfm   *external.LastFmClient
 	trigger  chan struct{}
 }
 
 // NewEnricher initializes the background daemon.
-func NewEnricher(repo *database.Repository, mbClient *external.MusicBrainzClient) *Enricher {
+func NewEnricher(repo *database.Repository, mbClient *external.MusicBrainzClient, lastfm *external.LastFmClient) *Enricher {
 	return &Enricher{
 		repo:     repo,
 		mbClient: mbClient,
+		lastfm:   lastfm,
 		trigger:  make(chan struct{}, 1),
 	}
 }
@@ -63,7 +65,8 @@ func (e *Enricher) processQueue(ctx context.Context) {
 		}
 		
 		if len(albums) == 0 {
-			log.Println("Enricher finished processing all pending albums. Sleeping.")
+			// If no albums need MBID enrichment, check for missing artist data via LastFM
+			e.processArtistQueue(ctx)
 			return
 		}
 
@@ -96,6 +99,55 @@ func (e *Enricher) processQueue(ctx context.Context) {
 					log.Printf("No MusicBrainz data found for album: %s", a.AlbumTitle)
 				}
 			}
+		}
+	}
+}
+
+// processArtistQueue iterates over the database finding artists missing LastFM imagery/bios
+func (e *Enricher) processArtistQueue(ctx context.Context) {
+	for {
+		artists, err := e.repo.GetUnenrichedArtists(ctx, 10) // Small batches for LastFM
+		if err != nil {
+			log.Printf("Enricher DB error: %v", err)
+			return
+		}
+
+		if len(artists) == 0 {
+			log.Println("Enricher finished processing all pending artists. Sleeping.")
+			return
+		}
+
+		for _, a := range artists {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			// If LastFM isn't configured, mark as NOT_FOUND to avoid infinite loops
+			if e.lastfm == nil {
+				_ = e.repo.UpdateArtistInfo(ctx, a.ID, "NOT_FOUND", "")
+				continue
+			}
+
+			info, err := e.lastfm.GetArtistInfo(a.Name)
+			if err != nil || info == nil || len(info.Artist.Image) == 0 {
+				log.Printf("No LastFM data found for artist: %s", a.Name)
+				_ = e.repo.UpdateArtistInfo(ctx, a.ID, "NOT_FOUND", "")
+				continue
+			}
+
+			// Find the largest image (usually last in array)
+			imgURL := ""
+			for _, img := range info.Artist.Image {
+				if img.URL != "" {
+					imgURL = img.URL
+				}
+			}
+
+			bio := info.Artist.Bio.Summary
+			_ = e.repo.UpdateArtistInfo(ctx, a.ID, imgURL, bio)
+			log.Printf("Successfully enriched artist via LastFM: %s", a.Name)
 		}
 	}
 }
