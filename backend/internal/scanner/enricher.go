@@ -150,8 +150,12 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 			}
 
 			bio := info.Artist.Bio.Summary
-			_ = e.repo.UpdateArtistInfo(ctx, a.ID, imgURL, bio)
-			log.Printf("Successfully enriched artist via LastFM: %s", a.Name)
+			err = e.repo.UpdateArtistInfo(ctx, a.ID, imgURL, bio)
+			if err != nil {
+				log.Printf("Failed to update artist info in DB for %s: %v", a.Name, err)
+			} else {
+				log.Printf("Successfully enriched artist via LastFM: %s", a.Name)
+			}
 		}
 	}
 }

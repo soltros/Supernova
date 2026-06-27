@@ -84,7 +84,11 @@ func (c *LastFmClient) generateSignature(params map[string]string) string {
 			keys = append(keys, k)
 		}
 	}
-	sort.Strings(keys) // Must be alphabetical
+	// Must be strictly alphabetical according to UTF-8/ASCII byte values,
+	// which is required by Last.fm (e.g., artist[10] must come before artist[1]).
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i] < keys[j]
+	})
 
 	var sigStr string
 	for _, k := range keys {
