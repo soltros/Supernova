@@ -104,7 +104,7 @@ const PlayerBar: FC = () => {
       <div className="player-controls-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, gap: '8px' }}>
         <div className="player-controls" style={{ display: 'flex', alignItems: 'center', gap: '24px', justifyContent: 'center' }}>
           {currentTrack && (
-            <div style={{ position: 'absolute', transform: 'translateX(-120px)' }}>
+            <div className="heart-btn-wrapper">
               <HeartButton entityType="track" entityId={currentTrack.id} />
             </div>
           )}

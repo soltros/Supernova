@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
@@ -21,6 +22,7 @@ import './App.css';
 
 function AppContent() {
   const { user } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   if (!user) {
     return <LoginPage />;
@@ -31,10 +33,10 @@ function AppContent() {
       <PlaylistsProvider>
         <PlayerProvider>
           <div className="app-container">
-            <Sidebar />
+            <Sidebar isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
             
             <main className="main-content">
-              <TopBar />
+              <TopBar onMenuClick={() => setMobileMenuOpen(true)} />
               
               <Routes>
                 <Route path="/" element={<HomePage />} />

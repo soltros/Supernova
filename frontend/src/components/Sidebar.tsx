@@ -3,12 +3,14 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePlaylists } from '../context/PlaylistsContext';
 
-const Sidebar: FC = () => {
+const Sidebar: FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen, onClose }) => {
   const { logout } = useAuth();
   const { playlists } = usePlaylists();
 
   return (
-    <aside className="sidebar">
+    <>
+      {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
+      <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="logo-container">
         <div className="logo-icon"></div>
         <h1 className="text-gradient">Supernova</h1>
@@ -61,6 +63,7 @@ const Sidebar: FC = () => {
         </button>
       </div>
     </aside>
+    </>
   );
 };
 
