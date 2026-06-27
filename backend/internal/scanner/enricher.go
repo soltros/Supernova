@@ -145,6 +145,10 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 				}
 			}
 
+			if imgURL == "" {
+				imgURL = "NOT_FOUND"
+			}
+
 			bio := info.Artist.Bio.Summary
 			_ = e.repo.UpdateArtistInfo(ctx, a.ID, imgURL, bio)
 			log.Printf("Successfully enriched artist via LastFM: %s", a.Name)
