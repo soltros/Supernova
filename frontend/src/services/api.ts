@@ -29,7 +29,10 @@ export const apiService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
     });
-    if (!response.ok) throw new Error('Failed to register');
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(errorMsg || 'Failed to register');
+    }
     return response.json();
   },
 
@@ -39,7 +42,10 @@ export const apiService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
     });
-    if (!response.ok) throw new Error('Failed to login');
+    if (!response.ok) {
+      const errorMsg = await response.text();
+      throw new Error(errorMsg || 'Failed to login');
+    }
     return response.json();
   },
   fetchAlbums: async (limit: number = 50, offset: number = 0, artistId?: string): Promise<Album[]> => {
