@@ -1,7 +1,7 @@
 
 services:
   backend:
-    build: ./backend
+    image: ghcr.io/soltros/supernova-backend:latest
     container_name: supernova-backend
     ports:
       - "8080:8080"
@@ -18,7 +18,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    image: ghcr.io/soltros/supernova-frontend:latest
     container_name: supernova-frontend
     ports:
       # Changed to 5174 to permanently bypass the old corrupted Service Worker cache on 5173
