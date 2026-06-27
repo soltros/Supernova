@@ -97,9 +97,15 @@ export const apiService = {
   },
 
   // Hearts API
-  fetchHearts: async (): Promise<{ entity_id: string }[]> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts`, { headers: getHeaders() });
+  fetchHearts: async (): Promise<{ id: string, entity_type: string, entity_id: string }[]> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts`);
     if (!response.ok) throw new Error('Failed to fetch hearts');
+    return response.json();
+  },
+
+  fetchHeartDetails: async (): Promise<{ tracks: Track[], albums: Album[] }> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts/details`);
+    if (!response.ok) throw new Error('Failed to fetch heart details');
     return response.json();
   },
 

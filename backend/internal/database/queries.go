@@ -299,6 +299,84 @@ func (r *Repository) GetAllHearts(ctx context.Context, userID string) ([]models.
 	return hearts, nil
 }
 
+// GetHeartDetails retrieves the detailed track and album metadata for a user's favorites
+func (r *Repository) GetHeartDetails(ctx context.Context, userID string) ([]models.Track, []models.Album, error) {
+	// 1. Fetch tracks
+	queryTracks := `
+		SELECT t.id, t.album_id, t.title, t.track_number, t.disc_number, t.duration_ms, t.format, t.bitrate, art.id, art.name
+		FROM tracks t
+		JOIN hearts h ON t.id = h.entity_id AND h.entity_type = 'track'
+		LEFT JOIN track_artists ta ON t.id = ta.track_id
+		LEFT JOIN artists art ON ta.artist_id = art.id
+		WHERE h.user_id = ?
+		GROUP BY t.id
+		ORDER BY h.created_at DESC
+	`
+	rowsT, err := r.db.QueryContext(ctx, queryTracks, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rowsT.Close()
+
+	var tracks []models.Track
+	for rowsT.Next() {
+		var t models.Track
+		var artID, artName *string
+		if err := rowsT.Scan(&t.ID, &t.AlbumID, &t.Title, &t.TrackNumber, &t.DiscNumber, &t.DurationMs, &t.Format, &t.Bitrate, &artID, &artName); err != nil {
+			return nil, nil, err
+		}
+		if artID != nil {
+			t.ArtistID = *artID
+		}
+		if artName != nil {
+			t.ArtistName = *artName
+		}
+		tracks = append(tracks, t)
+	}
+
+	// 2. Fetch albums
+	queryAlbums := `
+		SELECT a.id, a.title, a.release_year, a.musicbrainz_id, a.cover_art_path, art.id, art.name
+		FROM albums a
+		JOIN hearts h ON a.id = h.entity_id AND h.entity_type = 'album'
+		LEFT JOIN album_artists aa ON a.id = aa.album_id AND aa.role = 'primary'
+		LEFT JOIN artists art ON aa.artist_id = art.id
+		WHERE h.user_id = ?
+		GROUP BY a.id
+		ORDER BY h.created_at DESC
+	`
+	rowsA, err := r.db.QueryContext(ctx, queryAlbums, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rowsA.Close()
+
+	var albums []models.Album
+	for rowsA.Next() {
+		var a models.Album
+		var artID, artName *string
+		if err := rowsA.Scan(&a.ID, &a.Title, &a.ReleaseYear, &a.MusicBrainzID, &a.CoverArtPath, &artID, &artName); err != nil {
+			return nil, nil, err
+		}
+		if artID != nil {
+			a.ArtistID = *artID
+		}
+		if artName != nil {
+			a.ArtistName = *artName
+		}
+		albums = append(albums, a)
+	}
+
+	if tracks == nil {
+		tracks = []models.Track{}
+	}
+	if albums == nil {
+		albums = []models.Album{}
+	}
+
+	return tracks, albums, nil
+}
+
 // ExportHearts performs a robust JOIN to export permanent file_paths rather than temporary UUIDs
 func (r *Repository) ExportHearts(ctx context.Context, userID string) ([]models.HeartBackup, error) {
 	query := `

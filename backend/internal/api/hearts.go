@@ -21,6 +21,29 @@ func (s *Server) handleGetHearts() http.HandlerFunc {
 	}
 }
 
+// handleGetHeartDetails fetches the fully populated tracks and albums that the user has hearted
+func (s *Server) handleGetHeartDetails() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID := r.Context().Value(userIDKey).(string)
+
+		tracks, albums, err := s.repo.GetHeartDetails(r.Context(), userID)
+		if err != nil {
+			http.Error(w, "failed to get heart details", http.StatusInternalServerError)
+			return
+		}
+
+		response := struct {
+			Tracks []models.Track `json:"tracks"`
+			Albums []models.Album `json:"albums"`
+		}{
+			Tracks: tracks,
+			Albums: albums,
+		}
+
+		json.NewEncoder(w).Encode(response)
+	}
+}
+
 // handleAddHeart adds a new heart, letting the DB securely generate the UUID
 func (s *Server) handleAddHeart() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

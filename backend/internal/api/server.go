@@ -54,6 +54,7 @@ func (s *Server) routes() {
 	
 	// Protected User Data routes
 	s.mux.HandleFunc("GET /api/hearts", s.requireAuth(s.handleGetHearts()))
+	s.mux.HandleFunc("GET /api/hearts/details", s.requireAuth(s.handleGetHeartDetails()))
 	s.mux.HandleFunc("POST /api/hearts", s.requireAuth(s.handleAddHeart()))
 	s.mux.HandleFunc("DELETE /api/hearts", s.requireAuth(s.handleRemoveHeart()))
 	s.mux.HandleFunc("GET /api/hearts/export", s.requireAuth(s.handleExportHearts()))

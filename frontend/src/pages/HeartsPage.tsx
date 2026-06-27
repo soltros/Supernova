@@ -1,66 +1,155 @@
+import { useState, useEffect } from 'react';
 import type { FC, ChangeEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useHearts } from '../context/HeartsContext';
+import { usePlayer } from '../context/PlayerContext';
 import { apiService } from '../services/api';
+import AlbumCard from '../components/AlbumCard';
+import HeartButton from '../components/HeartButton';
+import type { Album, Track } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
+const formatTime = (ms: number) => {
+  const seconds = Math.floor(ms / 1000);
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+};
+
 const HeartsPage: FC = () => {
   const { heartedIds, refreshHearts } = useHearts();
+  const { playContext, currentTrack, isPlaying } = usePlayer();
+  
+  const [loading, setLoading] = useState(true);
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [albums, setAlbums] = useState<Album[]>([]);
+
+  useEffect(() => {
+    apiService.fetchHeartDetails()
+      .then(data => {
+        setTracks(data.tracks || []);
+        setAlbums(data.albums || []);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Failed to load heart details:", err);
+        setLoading(false);
+      });
+  }, [heartedIds]); // Re-fetch when hearts change so it auto-updates
 
   const handleExport = () => {
-    // Native browser download directly from the backend
     window.open(`${API_BASE_URL}/api/hearts/export`, '_blank');
   };
 
   const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
-    
     try {
       await apiService.importHearts(file);
-      alert("Successfully imported backup!");
-      refreshHearts(); // Sync the UI with the new database hearts
+      refreshHearts();
     } catch (err) {
       console.error(err);
       alert("Failed to import backup. Ensure it is a valid Supernova JSON backup.");
     }
-    
-    // Clear input so we can upload the same file again if needed
     e.target.value = '';
   };
 
+  const renderTrackRow = (track: Track, index: number, contextTracks: Track[], contextId: string) => {
+    const isCurrentlyPlaying = currentTrack?.id === track.id;
+    return (
+      <div 
+        key={track.id + index}
+        className="track-row"
+        onDoubleClick={() => playContext(contextTracks, index, { id: contextId, title: 'Favorite Tracks', release_year: 0, cover_art_path: '', artist_id: '', artist_name: '' } as Album)}
+      >
+        <div className="track-number">
+          {isCurrentlyPlaying && isPlaying ? (
+            <div className="playing-indicator" style={{ background: 'var(--primary-color)', width: '16px', height: '16px', borderRadius: '50%' }} />
+          ) : (
+            <span>{index + 1}</span>
+          )}
+        </div>
+        <div className="track-title-cell" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="track-title-text" style={{ color: isCurrentlyPlaying ? 'var(--primary-color)' : 'var(--text-primary)' }}>
+            {track.title}
+          </div>
+          {track.artist_id && (
+            <Link to={`/artist/${track.artist_id}`} className="track-artist-link">
+              {track.artist_name || 'Unknown Artist'}
+            </Link>
+          )}
+        </div>
+        <div className="track-actions">
+          <HeartButton entityType="track" entityId={track.id} />
+        </div>
+        <div className="track-duration">{formatTime(track.duration_ms)}</div>
+      </div>
+    );
+  };
+
+  if (loading) {
+    return <div className="content-scroll"><div style={{ padding: '32px' }}><p>Loading Hearts...</p></div></div>;
+  }
+
   return (
     <div className="content-scroll">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '32px', fontWeight: 800 }}>Your Hearts</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+        <div>
+          <h1 style={{ fontSize: '40px', fontWeight: 800, margin: '0 0 8px 0', letterSpacing: '-1px' }}>Your Hearts</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '18px', margin: 0 }}>
+            <strong style={{ color: 'var(--text-primary)' }}>{heartedIds.size}</strong> total favorites
+          </p>
+        </div>
         
         <div style={{ display: 'flex', gap: '12px' }}>
-          {/* Hidden File Input for Import */}
-          <input 
-            type="file" 
-            id="import-upload" 
-            accept=".json" 
-            style={{ display: 'none' }} 
-            onChange={handleImport}
-          />
+          <input type="file" id="import-upload" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
           <label htmlFor="import-upload" style={{ background: 'var(--bg-glass)', border: '1px solid var(--border-glass-bright)', cursor: 'pointer', padding: '12px 24px', borderRadius: '12px', color: 'var(--text-primary)', fontWeight: 600, transition: 'var(--transition-fast)' }} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-glass-hover)'} onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-glass)'}>
             ↓ Import Backup
           </label>
-          
           <button onClick={handleExport} style={{ background: 'var(--accent-gradient)', padding: '12px 24px', borderRadius: '12px', border: 'none', color: 'white', fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--accent-glow)' }}>
             ↑ Export Backup
           </button>
         </div>
       </div>
 
-      <div style={{ background: 'var(--bg-glass)', padding: '32px', borderRadius: '24px', border: '1px solid var(--border-glass-bright)', boxShadow: 'var(--shadow-drop)' }}>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '18px' }}>
-          You have <strong style={{ color: 'var(--text-primary)', fontSize: '24px', margin: '0 4px' }}>{heartedIds.size}</strong> total hearts.
-        </p>
-        <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '16px' }}>
-          * In a future update, this page will beautifully list all your hearted tracks and albums. For now, you can freely backup and restore your collection!
-        </p>
-      </div>
+      {albums.length === 0 && tracks.length === 0 && (
+        <div style={{ padding: '48px', textAlign: 'center', background: 'var(--bg-glass)', borderRadius: '24px', border: '1px solid var(--border-glass-bright)' }}>
+          <p style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>You haven't hearted anything yet!</p>
+        </div>
+      )}
+
+      {albums.length > 0 && (
+        <section style={{ marginBottom: '48px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            Albums
+            <span style={{ fontSize: '14px', padding: '4px 12px', background: 'var(--bg-glass)', borderRadius: '24px', color: 'var(--text-secondary)' }}>{albums.length}</span>
+          </h2>
+          <div className="grid-container">
+            {albums.map(album => (
+              <AlbumCard key={album.id} album={album} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tracks.length > 0 && (
+        <section>
+          <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            Tracks
+            <span style={{ fontSize: '14px', padding: '4px 12px', background: 'var(--bg-glass)', borderRadius: '24px', color: 'var(--text-secondary)' }}>{tracks.length}</span>
+          </h2>
+          <div className="track-list">
+            <div className="track-list-header">
+              <div className="track-number">#</div>
+              <div className="track-title-cell">TITLE</div>
+              <div className="track-actions"></div>
+              <div className="track-duration">TIME</div>
+            </div>
+            {tracks.map((track, i) => renderTrackRow(track, i, tracks, 'favorites'))}
+          </div>
+        </section>
+      )}
     </div>
   );
 };
