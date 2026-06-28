@@ -75,7 +75,6 @@ const PlayerBar: FC = () => {
       {/* Left Side: Now Playing Metadata */}
       <div 
         className="now-playing" 
-        style={{ display: 'flex', alignItems: 'center', gap: '16px', width: '30%', minWidth: '200px', cursor: 'pointer' }}
         onClick={() => !isMobileExpanded && setIsMobileExpanded(true)}
       >
         <div className="album-art-container" style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
@@ -137,10 +136,9 @@ const PlayerBar: FC = () => {
       {/* Center: Playback Controls & Progress Bar */}
       <div 
         className="player-controls-container" 
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, maxWidth: '600px', gap: '8px', margin: '0 16px' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="player-controls" style={{ display: 'flex', alignItems: 'center', gap: '24px', justifyContent: 'center' }}>
+        <div className="player-controls">
           <button className="control-btn" onClick={playPrev}><SkipBack size={20} fill="currentColor" /></button>
           <button 
             className={`control-btn play-btn ${isPlaying ? 'playing' : ''}`} 
@@ -176,7 +174,6 @@ const PlayerBar: FC = () => {
       {/* Right Side: Interactive Volume Slider */}
       <div 
         className="volume-controls" 
-        style={{ width: '30%', minWidth: '150px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' }}
         onClick={(e) => e.stopPropagation()}
       >
         <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => changeVolume(volume === 0 ? 1 : 0)}>

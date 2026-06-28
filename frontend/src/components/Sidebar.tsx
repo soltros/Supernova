@@ -17,19 +17,19 @@ const Sidebar: FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen, onClo
       </div>
       <nav className="nav-menu">
         {/* NavLink automatically injects an 'active' class when the URL matches */}
-        <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} end>
+        <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose} end>
           Home
         </NavLink>
-        <NavLink to="/hearts" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <NavLink to="/hearts" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
           Hearts
         </NavLink>
-        <NavLink to="/artists" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <NavLink to="/artists" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
           Artists
         </NavLink>
-        <NavLink to="/albums" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <NavLink to="/albums" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
           Albums
         </NavLink>
-        <NavLink to="/playlists" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <NavLink to="/playlists" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
           Playlists
         </NavLink>
         {playlists.length > 0 && (
@@ -41,13 +41,14 @@ const Sidebar: FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen, onClo
                 state={{ selectedPlaylistId: playlist.id }}
                 className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                 style={{ fontSize: '13px', padding: '8px 12px', opacity: 0.8 }}
+                onClick={onClose}
               >
                 {playlist.name}
               </NavLink>
             ))}
           </div>
         )}
-        <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
           Settings
         </NavLink>
       </nav>
