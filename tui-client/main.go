@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os/exec"
+	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -16,8 +19,30 @@ const baseURL = "http://localhost:8080/api"
 var jwtToken string
 var app *tview.Application
 var pages *tview.Pages
-var statusText *tview.TextView
 var currentFFPlay *exec.Cmd
+
+// Supernova Colors
+var (
+	ColorPrimary   = tcell.NewHexColor(0x9d4edd) // Deep Purple
+	ColorSecondary = tcell.NewHexColor(0xff006e) // Vibrant Pink
+	ColorAccent    = tcell.NewHexColor(0x00f5d4) // Cyan/Mint
+	ColorText      = tcell.ColorWhite
+	ColorBg        = tcell.ColorDefault
+)
+
+// UI Elements
+var (
+	visualizerText *tview.TextView
+	controlsText   *tview.TextView
+	statusText     *tview.TextView
+)
+
+// State
+var (
+	isPlaying      bool
+	currentTrack   string
+	visualizerQuit chan struct{}
+)
 
 // Models
 type AuthResponse struct {
@@ -43,7 +68,14 @@ type Track struct {
 	Duration    int    `json:"duration_ms"`
 }
 
-// API Functions
+func init() {
+	// Rounded borders for elegant feel
+	tview.Borders.TopLeft = '╭'
+	tview.Borders.TopRight = '╮'
+	tview.Borders.BottomLeft = '╰'
+	tview.Borders.BottomRight = '╯'
+}
+
 func login(username, password string) error {
 	payload := map[string]string{"username": username, "password": password}
 	body, _ := json.Marshal(payload)
@@ -88,29 +120,94 @@ func formatTime(ms int) string {
 	return fmt.Sprintf("%d:%02d", m, s)
 }
 
-func playTrack(trackID, trackTitle string) {
-	if currentFFPlay != nil && currentFFPlay.Process != nil {
-		currentFFPlay.Process.Kill()
+func startVisualizer() {
+	if visualizerQuit != nil {
+		close(visualizerQuit)
 	}
+	visualizerQuit = make(chan struct{})
+	
+	bars := []rune{' ', '▂', '▃', '▄', '▅', '▆', '▇', '█'}
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-visualizerQuit:
+				app.QueueUpdateDraw(func() {
+					visualizerText.SetText("")
+				})
+				return
+			case <-ticker.C:
+				if !isPlaying {
+					continue
+				}
+				// Generate random bars
+				var out strings.Builder
+				for i := 0; i < 40; i++ {
+					out.WriteRune(bars[rand.Intn(len(bars))])
+				}
+				app.QueueUpdateDraw(func() {
+					visualizerText.SetText(fmt.Sprintf("[#00f5d4]%s[-]", out.String()))
+				})
+			}
+		}
+	}()
+}
+
+func stopVisualizer() {
+	if visualizerQuit != nil {
+		close(visualizerQuit)
+		visualizerQuit = nil
+	}
+}
+
+func playTrack(trackID, trackTitle string) {
+	stopPlayback()
 	
 	streamURL := fmt.Sprintf("%s/stream/%s", baseURL, trackID)
-	// We pass the JWT token to FFplay via HTTP headers
 	headerArg := fmt.Sprintf("Authorization: Bearer %s", jwtToken)
 	
 	currentFFPlay = exec.Command("ffplay", "-headers", headerArg, "-nodisp", "-autoexit", streamURL)
 	currentFFPlay.Start()
 
-	statusText.SetText(fmt.Sprintf(" ▶ Playing: %s ", trackTitle))
+	currentTrack = trackTitle
+	isPlaying = true
+	
+	statusText.SetText(fmt.Sprintf(" [#9d4edd]▶ Playing:[-] %s ", trackTitle))
+	updateControls()
+	startVisualizer()
 }
 
 func stopPlayback() {
 	if currentFFPlay != nil && currentFFPlay.Process != nil {
 		currentFFPlay.Process.Kill()
-		statusText.SetText(" ⏸ Stopped ")
+	}
+	isPlaying = false
+	currentTrack = ""
+	statusText.SetText(" [#ff006e]⏸ Stopped[-] ")
+	updateControls()
+	stopVisualizer()
+}
+
+func togglePause() {
+	// ffplay doesn't easily support pausing via stdin in this mode, 
+	// so for this TUI we'll just stop it. A true robust client would use mpv IPC or beep.
+	if isPlaying {
+		stopPlayback()
 	}
 }
 
-// UI Builders
+func updateControls() {
+	var playBtn, stopBtn string
+	if isPlaying {
+		playBtn = `["play"]⏸ Pause[""]`
+	} else {
+		playBtn = `["play"]▶ Play[""]`
+	}
+	stopBtn = `["stop"]⏹ Stop[""]`
+	controlsText.SetText(fmt.Sprintf("%s  |  %s", playBtn, stopBtn))
+}
+
 func buildLoginForm() *tview.Flex {
 	form := tview.NewForm()
 	
@@ -136,11 +233,10 @@ func buildLoginForm() *tview.Flex {
 		})
 
 	form.SetBorder(true).
-		SetTitle(" 🚀 Supernova TUI Login ").
-		SetTitleColor(tcell.ColorViolet).
-		SetBorderColor(tcell.ColorViolet)
+		SetTitle(" 🚀 Supernova TUI ").
+		SetTitleColor(ColorSecondary).
+		SetBorderColor(ColorPrimary)
 
-	// Center the form
 	flex := tview.NewFlex().
 		AddItem(nil, 0, 1, false).
 		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
@@ -154,19 +250,37 @@ func buildLoginForm() *tview.Flex {
 
 func loadAppUI() {
 	artistsList := tview.NewList().ShowSecondaryText(false)
-	artistsList.SetBorder(true).SetTitle(" Artists ").SetTitleColor(tcell.ColorMediumPurple).SetBorderColor(tcell.ColorDarkGray)
+	artistsList.SetBorder(true).SetTitle(" Artists ").SetTitleColor(ColorPrimary).SetBorderColor(ColorPrimary)
 
 	albumsList := tview.NewList().ShowSecondaryText(false)
-	albumsList.SetBorder(true).SetTitle(" Albums ").SetTitleColor(tcell.ColorDeepSkyBlue).SetBorderColor(tcell.ColorDarkGray)
+	albumsList.SetBorder(true).SetTitle(" Albums ").SetTitleColor(ColorSecondary).SetBorderColor(ColorSecondary)
 
 	tracksList := tview.NewList().ShowSecondaryText(false)
-	tracksList.SetBorder(true).SetTitle(" Tracks (Enter to Play) ").SetTitleColor(tcell.ColorSpringGreen).SetBorderColor(tcell.ColorDarkGray)
+	tracksList.SetBorder(true).SetTitle(" Tracks (Enter to Play) ").SetTitleColor(ColorAccent).SetBorderColor(ColorAccent)
 
-	statusText = tview.NewTextView().
-		SetDynamicColors(true).
-		SetTextAlign(tview.AlignCenter).
-		SetText(" 🎵 Ready. (Tab: Switch Panels, Ctrl+C: Quit, S: Stop) ")
-	statusText.SetBackgroundColor(tcell.ColorDarkBlue)
+	// Bottom Bar
+	bottomBar := tview.NewFlex().SetDirection(tview.FlexColumn)
+	
+	visualizerText = tview.NewTextView().SetDynamicColors(true).SetTextAlign(tview.AlignLeft)
+	statusText = tview.NewTextView().SetDynamicColors(true).SetTextAlign(tview.AlignCenter)
+	controlsText = tview.NewTextView().SetDynamicColors(true).SetRegions(true).SetTextAlign(tview.AlignRight)
+	
+	statusText.SetText(" 🎵 Ready. (Tab: Switch Panels, Mouse: Supported) ")
+	updateControls()
+
+	controlsText.SetHighlightedFunc(func(added, removed, remaining []string) {
+		if len(added) > 0 {
+			if added[0] == "play" {
+				togglePause()
+			} else if added[0] == "stop" {
+				stopPlayback()
+			}
+		}
+	})
+
+	bottomBar.AddItem(visualizerText, 0, 1, false)
+	bottomBar.AddItem(statusText, 0, 2, false)
+	bottomBar.AddItem(controlsText, 0, 1, false)
 
 	// Layout
 	mainLayout := tview.NewFlex().SetDirection(tview.FlexRow).
@@ -175,7 +289,7 @@ func loadAppUI() {
 			AddItem(albumsList, 0, 1, false).
 			AddItem(tracksList, 0, 2, false),
 		0, 1, true).
-		AddItem(statusText, 1, 1, false)
+		AddItem(bottomBar, 1, 1, false)
 
 	// Focus switching logic
 	mainLayout.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
