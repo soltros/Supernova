@@ -8,10 +8,11 @@ services:
     volumes:
       # Use a Docker managed named volume for database persistence
       - supernova-data:/root/.supernova 
-      # Mount a local 'music' directory securely (Read-Only)
-      - ${MEDIA_PATH:-./music}:/root/Music:ro 
+      # Mount the user's custom music directory into the container at the exact same path
+      - ${MEDIA_PATH:-./music}:${MEDIA_PATH:-/root/Music}:ro 
     environment:
-      - MEDIA_PATH=/root/Music
+      # Pass the custom MEDIA_PATH into the Go backend
+      - MEDIA_PATH=${MEDIA_PATH:-/root/Music}
       - DB_PATH=/root/.supernova/supernova.db
       - LASTFM_API_KEY=${LASTFM_API_KEY:-}
       - LASTFM_API_SECRET=${LASTFM_API_SECRET:-}
