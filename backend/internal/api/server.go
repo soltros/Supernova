@@ -8,19 +8,22 @@ import (
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/external"
 	"github.com/soltros/Supernova/internal/models"
+	"github.com/soltros/Supernova/internal/scanner"
 )
 
 type Server struct {
-	repo   *database.Repository
-	lastfm *external.LastFmClient
-	mux    *http.ServeMux
+	repo     *database.Repository
+	lastfm   *external.LastFmClient
+	enricher *scanner.Enricher
+	mux      *http.ServeMux
 }
 
-func NewServer(repo *database.Repository, lastfm *external.LastFmClient) *Server {
+func NewServer(repo *database.Repository, lastfm *external.LastFmClient, enricher *scanner.Enricher) *Server {
 	s := &Server{
-		repo:   repo,
-		lastfm: lastfm,
-		mux:    http.NewServeMux(),
+		repo:     repo,
+		lastfm:   lastfm,
+		enricher: enricher,
+		mux:      http.NewServeMux(),
 	}
 	s.routes()
 	return s
@@ -231,6 +234,12 @@ func (s *Server) handleResetArtists() http.HandlerFunc {
 			http.Error(w, `{"error":"failed to reset artists"}`, http.StatusInternalServerError)
 			return
 		}
+		
+		// Force the background enricher to wake up immediately
+		if s.enricher != nil {
+			s.enricher.Trigger()
+		}
+		
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"success"}`))
 	}
