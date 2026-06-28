@@ -1,6 +1,6 @@
 import type { Album, Artist, Track, AuthResponse, Playlist } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
 
 const getHeaders = () => {
   const token = localStorage.getItem('sn_token');

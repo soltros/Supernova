@@ -8,8 +8,8 @@ RUN npm run build
 
 # Stage 2: Serve frontend using a lightweight web server
 FROM nginx:alpine AS frontend
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
-# A custom nginx config would go here if we need to support react router history API
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 
