@@ -1,7 +1,7 @@
 
 services:
   backend:
-    image: ghcr.io/soltros/supernova-backend:latest
+    image: ghcr.io/soltros/supernova-backend:main
     container_name: supernova-backend
     ports:
       - "8080:8080"
@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ghcr.io/soltros/supernova-frontend:latest
+    image: ghcr.io/soltros/supernova-frontend:main
     container_name: supernova-frontend
     ports:
       - "5174:80"
