@@ -29,19 +29,24 @@ const AlbumPage: FC = () => {
   useEffect(() => {
     if (!id) return;
     
+    let isMounted = true;
     Promise.all([
       apiService.fetchAlbumById(id),
       apiService.fetchTracks(id, 100, 0)
     ])
     .then(([albumData, tracksData]) => {
+      if (!isMounted) return;
       setAlbum(albumData);
       setTracks(tracksData || []);
       setLoading(false);
     })
     .catch(err => {
+      if (!isMounted) return;
       console.error(err);
       setLoading(false);
     });
+    
+    return () => { isMounted = false; };
   }, [id]);
 
   if (loading) return <div className="content-scroll">Loading...</div>;

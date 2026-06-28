@@ -18,14 +18,21 @@ export const PlaylistsPage: React.FC = () => {
   const location = useLocation();
 
   useEffect(() => {
+    let isMounted = true;
     const state = location.state as { selectedPlaylistId?: string };
     if (state?.selectedPlaylistId) {
       const playlist = playlists.find(p => p.id === state.selectedPlaylistId);
-      if (playlist) {
-        handleSelectPlaylist(playlist);
+      if (playlist && (!selectedPlaylist || selectedPlaylist.id !== playlist.id)) {
+        setSelectedPlaylist(playlist);
+        apiService.fetchPlaylistTracks(playlist.id)
+          .then(t => {
+            if (isMounted) setTracks(t || []);
+          })
+          .catch(err => console.error(err));
       }
     }
-  }, [location.state, playlists]);
+    return () => { isMounted = false; };
+  }, [location.state, playlists, selectedPlaylist]);
 
   const handleCreatePlaylist = async (e: React.FormEvent) => {
     e.preventDefault();

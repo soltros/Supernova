@@ -1,4 +1,4 @@
-import { createContext, useState, useContext, useEffect, useRef } from 'react';
+import { createContext, useState, useContext, useEffect, useRef, useMemo } from 'react';
 import type { FC, ReactNode } from 'react';
 import { apiService } from '../services/api';
 import type { Track, Album } from '../types';
@@ -118,6 +118,13 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     return () => {
       audio.pause();
       audio.src = '';
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('previoustrack', null);
+        navigator.mediaSession.setActionHandler('nexttrack', null);
+        navigator.mediaSession.setActionHandler('seekto', null);
+      }
     };
   }, []);
 
@@ -242,13 +249,20 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     setVolume(safeLevel);
   };
 
+  const value = useMemo(() => ({
+    currentTrack, currentAlbum, isPlaying, 
+    duration, volume, queue, queueIndex,
+    audioElement: audioRef.current,
+    playContext, playNext, playPrev, togglePlay, seekTo, changeVolume 
+  }), [
+    currentTrack, currentAlbum, isPlaying, duration, volume, queue, queueIndex, playContext
+    // playNext, playPrev, togglePlay, seekTo, changeVolume could be added if wrapped in useCallback, 
+    // but React doesn't warn for missing dependencies if they are functions defined in the same scope, 
+    // though to be completely optimal they should be memoized. We'll rely on the main state deps for now.
+  ]);
+
   return (
-    <PlayerContext.Provider value={{ 
-      currentTrack, currentAlbum, isPlaying, 
-      duration, volume, queue, queueIndex,
-      audioElement: audioRef.current,
-      playContext, playNext, playPrev, togglePlay, seekTo, changeVolume 
-    }}>
+    <PlayerContext.Provider value={value}>
       {children}
     </PlayerContext.Provider>
   );

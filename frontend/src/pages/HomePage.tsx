@@ -22,17 +22,21 @@ const HomePage: FC = () => {
   const [favorites, setFavorites] = useState<Track[]>([]);
 
   useEffect(() => {
+    let isMounted = true;
     apiService.fetchDashboard()
       .then(data => {
+        if (!isMounted) return;
         setRecentlyAdded(data.recently_added_albums || []);
         setRecentlyPlayed(data.recently_played_tracks || []);
         setFavorites(data.favorite_tracks || []);
         setLoading(false);
       })
       .catch(err => {
+        if (!isMounted) return;
         console.error("Failed to load dashboard:", err);
         setLoading(false);
       });
+    return () => { isMounted = false; };
   }, []);
 
   if (loading) {

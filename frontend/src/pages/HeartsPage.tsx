@@ -31,8 +31,10 @@ const HeartsPage: FC = () => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
 
   useEffect(() => {
+    let isMounted = true;
     apiService.fetchHeartDetails()
       .then(data => {
+        if (!isMounted) return;
         setTracks(data.tracks || []);
         setAlbums(data.albums || []);
         setArtists(data.artists || []);
@@ -40,9 +42,11 @@ const HeartsPage: FC = () => {
         setLoading(false);
       })
       .catch(err => {
+        if (!isMounted) return;
         console.error("Failed to load heart details:", err);
         setLoading(false);
       });
+    return () => { isMounted = false; };
   }, []); // Run once on mount, let HeartButton handle optimistic UI locally
 
   const handleExport = () => {

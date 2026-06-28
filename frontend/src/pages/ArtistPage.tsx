@@ -29,6 +29,7 @@ const ArtistPage: FC = () => {
   useEffect(() => {
     if (!id) return;
     
+    let isMounted = true;
     setLoading(true);
     Promise.all([
       apiService.fetchArtistById(id),
@@ -36,15 +37,19 @@ const ArtistPage: FC = () => {
       apiService.fetchTracks(undefined, 50, 0, id)
     ])
       .then(([artistData, albumsData, tracksData]) => {
+        if (!isMounted) return;
         setArtist(artistData);
         setAlbums(albumsData || []);
         setTracks(tracksData || []);
         setLoading(false);
       })
       .catch(err => {
+        if (!isMounted) return;
         console.error("Failed to load artist data:", err);
         setLoading(false);
       });
+      
+    return () => { isMounted = false; };
   }, [id]);
 
   if (loading) {

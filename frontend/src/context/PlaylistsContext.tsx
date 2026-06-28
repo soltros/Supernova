@@ -1,4 +1,4 @@
-import { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import type { FC, ReactNode } from 'react';
 import { apiService } from '../services/api';
 import type { Playlist } from '../types';
@@ -15,18 +15,18 @@ const PlaylistsContext = createContext<PlaylistsContextType | undefined>(undefin
 export const PlaylistsProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
 
-  const refreshPlaylists = async () => {
+  const refreshPlaylists = useCallback(async () => {
     try {
       const data = await apiService.fetchPlaylists();
       setPlaylists(data || []);
     } catch (err) {
       console.error("Failed to fetch playlists:", err);
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshPlaylists();
-  }, []);
+  }, [refreshPlaylists]);
 
   const createPlaylist = async (name: string) => {
     const newPlaylist = await apiService.createPlaylist(name);
