@@ -168,3 +168,15 @@ func generateUUID() string {
 	b[8] = (b[8] & 0x3f) | 0x80 // Variant 10
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
+
+// ResetArtistEnrichment resets any cached/enriched artist fields so enrichment can be rerun.
+func (r *Repository) ResetArtistEnrichment() error {
+	r.writeMu.Lock()
+	defer r.writeMu.Unlock()
+
+	_, err := r.db.Exec(`
+		UPDATE artists 
+		SET enriched = 0, image_url = '', bio = ''
+	`)
+	return err
+}
