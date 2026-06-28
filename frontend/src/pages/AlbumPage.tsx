@@ -167,6 +167,7 @@ const AlbumPage: FC = () => {
         })}
       </div>
     </div>
+    </div>
   );
 };
 

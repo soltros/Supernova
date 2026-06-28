@@ -237,5 +237,6 @@ export const PlaylistsPage: React.FC = () => {
         )}
       </div>
     </div>
+    </div>
   );
 };
