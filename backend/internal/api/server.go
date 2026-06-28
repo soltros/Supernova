@@ -73,6 +73,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/scrobbles", s.requireAuth(s.handleScrobble()))
 	s.mux.HandleFunc("GET /api/scrobbles/recent", s.requireAuth(s.handleGetRecentScrobbles()))
 	
+	// Settings
+	s.mux.HandleFunc("POST /api/settings/reset-artists", s.requireAuth(s.handleResetArtists()))
 	// Playlists (Protected)
 	s.mux.HandleFunc("GET /api/playlists", s.requireAuth(s.handleGetPlaylists()))
 	s.mux.HandleFunc("POST /api/playlists", s.requireAuth(s.handleCreatePlaylist()))
@@ -219,5 +221,17 @@ func (s *Server) handleGetDashboard() http.HandlerFunc {
 			return
 		}
 		json.NewEncoder(w).Encode(dashboard)
+	}
+}
+
+func (s *Server) handleResetArtists() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		err := s.repo.ResetArtistEnrichment()
+		if err != nil {
+			http.Error(w, `{"error":"failed to reset artists"}`, http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"success"}`))
 	}
 }

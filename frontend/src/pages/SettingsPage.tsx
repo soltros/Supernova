@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { apiService } from '../services/api';
 
 const SettingsPage: React.FC = () => {
   const handleClearCache = async () => {
@@ -17,6 +18,21 @@ const SettingsPage: React.FC = () => {
     
     alert('Cache cleared successfully! Reloading...');
     window.location.reload();
+  };
+
+  const [isResetting, setIsResetting] = useState(false);
+  const handleResetArtists = async () => {
+    if (!window.confirm("Are you sure? This will clear all artist bios and images and require re-fetching from Last.fm.")) return;
+    
+    setIsResetting(true);
+    try {
+      await apiService.resetArtists();
+      alert("Artist data cleared successfully. The background scanner will re-fetch data shortly.");
+    } catch (e) {
+      alert("Failed to reset artist data.");
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   return (
@@ -38,6 +54,22 @@ const SettingsPage: React.FC = () => {
               onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 68, 68, 0.1)'}
             >
               Clear Cache & Reload
+            </button>
+          </div>
+
+          <div style={{ background: 'var(--bg-glass)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-glass)' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Metadata Refresh</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '16px' }}>
+              If artist images or biographies are broken, you can clear the database cache to force a re-fetch from Last.fm.
+            </p>
+            <button 
+              onClick={handleResetArtists}
+              disabled={isResetting}
+              style={{ background: 'rgba(236, 72, 153, 0.1)', border: '1px solid rgba(236, 72, 153, 0.2)', color: 'var(--accent-secondary)', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, transition: 'var(--transition-fast)', opacity: isResetting ? 0.5 : 1, cursor: isResetting ? 'not-allowed' : 'pointer' }}
+              onMouseEnter={(e) => { if (!isResetting) e.currentTarget.style.background = 'rgba(236, 72, 153, 0.2)' }}
+              onMouseLeave={(e) => { if (!isResetting) e.currentTarget.style.background = 'rgba(236, 72, 153, 0.1)' }}
+            >
+              {isResetting ? 'Clearing...' : 'Clear Artist Data'}
             </button>
           </div>
 

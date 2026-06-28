@@ -83,7 +83,7 @@ const HomePage: FC = () => {
         {recentlyPlayed.length > 0 && (
           <div style={{ marginBottom: '48px' }}>
             <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '16px' }}>Recently Played</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div className="track-list">
               {recentlyPlayed.map((track, index) => renderTrackRow(track, index, recentlyPlayed, 'home-recent'))}
             </div>
           </div>
@@ -103,7 +103,7 @@ const HomePage: FC = () => {
         {favorites.length > 0 && (
           <div style={{ marginBottom: '48px' }}>
             <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '16px' }}>Your Favorites</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div className="track-list">
               {favorites.map((track, index) => renderTrackRow(track, index, favorites, 'home-favorites'))}
             </div>
           </div>

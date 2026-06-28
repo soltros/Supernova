@@ -140,6 +140,15 @@ export const apiService = {
     if (!response.ok) throw new Error('Failed to import hearts');
   },
 
+  // Settings
+  resetArtists: async (): Promise<void> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/settings/reset-artists`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+    if (!response.ok) throw new Error('Failed to reset artists');
+  },
+
   // Scrobbling
   scrobbleTrack: async (trackId: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/scrobbles`, {

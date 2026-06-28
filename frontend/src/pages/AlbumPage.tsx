@@ -110,7 +110,7 @@ const AlbumPage: FC = () => {
       </div>
 
       {/* Tracklist */}
-      <div className="tracklist" style={{ padding: '0 48px' }}>
+      <div className="track-list">
         {tracks.map(track => {
           const isThisTrackPlaying = currentTrack?.id === track.id;
           return (

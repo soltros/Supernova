@@ -176,7 +176,7 @@ export const PlaylistsPage: React.FC = () => {
               </div>
             </div>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div className="track-list">
               {tracks.map((track, index) => (
                 <div 
                   key={track.id + index} 
