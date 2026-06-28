@@ -506,6 +506,10 @@
   overflow: hidden;
 }
 
+.mobile-mini-controls, .mobile-collapse-btn {
+  display: none;
+}
+
 .track-title-text {
   font-size: 15px;
   font-weight: 500;
@@ -583,23 +587,103 @@
     border-radius: 0;
     padding-bottom: 160px;
   }
-  .player-bar {
+  /* Compact Mobile Player */
+  .player-bar:not(.expanded) {
     width: calc(100% - 32px);
     bottom: 16px;
-    flex-direction: column;
-    height: auto;
-    padding: 16px;
+    height: 64px;
+    flex-direction: row;
+    padding: 8px 16px;
     gap: 12px;
+    border-radius: 32px;
+    justify-content: space-between;
+    align-items: center;
   }
-  .now-playing {
-    width: 100%;
-    justify-content: center;
+  .player-bar:not(.expanded) .now-playing {
+    width: auto;
+    flex: 1;
+    justify-content: flex-start;
   }
-  .volume-controls {
+  .player-bar:not(.expanded) .album-art-container {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .player-bar:not(.expanded) .player-controls-container {
     display: none !important;
   }
-  .player-controls-container {
+  .player-bar:not(.expanded) .mobile-mini-controls {
+    display: block;
+  }
+  
+  /* Expanded Mobile Player */
+  .player-bar.expanded {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    flex-direction: column;
+    padding: 48px 24px 24px;
+    z-index: 2000;
+    background: rgba(10, 10, 15, 0.95);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    justify-content: center;
+  }
+  .player-bar.expanded .mobile-collapse-btn {
+    display: block;
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: transparent;
+    border: none;
+    color: white;
+    padding: 8px;
+    cursor: pointer;
+  }
+  .player-bar.expanded .now-playing {
+    flex-direction: column;
     width: 100%;
+    margin-bottom: 32px;
+    align-items: center;
+  }
+  .player-bar.expanded .album-art-container {
+    width: 100% !important;
+    max-width: 320px;
+    aspect-ratio: 1/1;
+    height: auto !important;
+    margin-bottom: 32px;
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .player-bar.expanded .track-details {
+    align-items: center;
+    text-align: center;
+    white-space: normal !important;
+  }
+  .player-bar.expanded .track-details h4 {
+    font-size: 24px;
+    margin-bottom: 8px;
+    white-space: normal;
+  }
+  .player-bar.expanded .track-details span, .player-bar.expanded .track-details a {
+    font-size: 16px;
+  }
+  .player-bar.expanded .player-controls-container {
+    width: 100%;
+    display: flex !important;
+  }
+  .player-bar.expanded .heart-btn-container {
+    position: absolute;
+    right: 24px;
+    bottom: 120px;
+  }
+  
+  .volume-controls {
+    display: none !important;
   }
   .search-bar {
     width: 100%;
@@ -623,14 +707,6 @@
     background: transparent;
     border: none;
     color: white;
-  }
-  .player-bar {
-    width: calc(100% - 32px);
-    height: auto;
-    flex-direction: column;
-    padding: 24px 16px;
-    gap: 16px;
-    border-radius: 24px;
   }
   .album-header {
     flex-direction: column;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FC, MouseEvent, ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronDown } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import HeartButton from './HeartButton';
 
@@ -23,6 +23,7 @@ const PlayerBar: FC = () => {
 
   const [currentTime, setCurrentTime] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [isMobileExpanded, setIsMobileExpanded] = useState(false);
 
   useEffect(() => {
     if (!audioElement) return;
@@ -59,11 +60,25 @@ const PlayerBar: FC = () => {
   const displayDuration = duration || (currentTrack ? currentTrack.duration_ms / 1000 : 0);
 
   return (
-    <footer className="player-bar">
+    <footer className={`player-bar ${isMobileExpanded ? 'expanded' : ''}`}>
       
+      {/* Mobile Collapse Button */}
+      {isMobileExpanded && (
+        <button 
+          className="mobile-collapse-btn"
+          onClick={(e) => { e.stopPropagation(); setIsMobileExpanded(false); }}
+        >
+          <ChevronDown size={32} />
+        </button>
+      )}
+
       {/* Left Side: Now Playing Metadata */}
-      <div className="now-playing" style={{ display: 'flex', alignItems: 'center', gap: '16px', width: '30%', minWidth: '200px' }}>
-        <div style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
+      <div 
+        className="now-playing" 
+        style={{ display: 'flex', alignItems: 'center', gap: '16px', width: '30%', minWidth: '200px', cursor: 'pointer' }}
+        onClick={() => !isMobileExpanded && setIsMobileExpanded(true)}
+      >
+        <div className="album-art-container" style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
           {currentAlbum ? (
             <img 
               src={`${API_BASE_URL}/api/art/album/${currentAlbum.id}`} 
@@ -102,14 +117,29 @@ const PlayerBar: FC = () => {
         </div>
         
         {currentTrack && (
-          <div style={{ marginLeft: '8px' }}>
+          <div className="heart-btn-container" style={{ marginLeft: '8px' }} onClick={(e) => e.stopPropagation()}>
             <HeartButton entityType="track" entityId={currentTrack.id} />
           </div>
         )}
       </div>
+
+      {/* Mobile Mini Play Button (visible only in compact view) */}
+      <div className="mobile-mini-controls" onClick={(e) => e.stopPropagation()}>
+        <button 
+          className={`control-btn play-btn ${isPlaying ? 'playing' : ''}`} 
+          onClick={togglePlay}
+          style={{ width: '40px', height: '40px', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: 'transparent', color: 'var(--text-primary)' }}
+        >
+          {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+        </button>
+      </div>
       
       {/* Center: Playback Controls & Progress Bar */}
-      <div className="player-controls-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, maxWidth: '600px', gap: '8px', margin: '0 16px' }}>
+      <div 
+        className="player-controls-container" 
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, maxWidth: '600px', gap: '8px', margin: '0 16px' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="player-controls" style={{ display: 'flex', alignItems: 'center', gap: '24px', justifyContent: 'center' }}>
           <button className="control-btn" onClick={playPrev}><SkipBack size={20} fill="currentColor" /></button>
           <button 
@@ -144,7 +174,11 @@ const PlayerBar: FC = () => {
       </div>
       
       {/* Right Side: Interactive Volume Slider */}
-      <div className="volume-controls" style={{ width: '30%', minWidth: '150px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' }}>
+      <div 
+        className="volume-controls" 
+        style={{ width: '30%', minWidth: '150px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => changeVolume(volume === 0 ? 1 : 0)}>
           {volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </span>
