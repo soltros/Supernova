@@ -9,7 +9,7 @@ import (
 	"github.com/soltros/Supernova/tui-client/models"
 )
 
-const BaseURL = "http://localhost:8080/api"
+var BaseURL = "http://localhost:8080/api"
 
 var JWTToken string
 

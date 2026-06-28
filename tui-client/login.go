@@ -19,23 +19,29 @@ type loginModel struct {
 
 func initialLoginModel() loginModel {
 	m := loginModel{
-		inputs: make([]textinput.Model, 2),
+		inputs: make([]textinput.Model, 3),
 	}
 
 	var t textinput.Model
 	for i := range m.inputs {
 		t = textinput.New()
 		t.Cursor.Style = lipgloss.NewStyle().Foreground(accentColor)
-		t.CharLimit = 32
+		t.CharLimit = 64
 
 		switch i {
 		case 0:
-			t.Placeholder = "Username"
+			t.Placeholder = "http://localhost:8080/api"
+			t.Prompt = "Instance URL: "
+			t.SetValue("http://localhost:8080/api")
 			t.Focus()
 			t.PromptStyle = lipgloss.NewStyle().Foreground(primaryColor)
 			t.TextStyle = lipgloss.NewStyle().Foreground(primaryColor).Bold(true)
 		case 1:
+			t.Placeholder = "Username"
+			t.Prompt = "Username: "
+		case 2:
 			t.Placeholder = "Password"
+			t.Prompt = "Password: "
 			t.EchoMode = textinput.EchoPassword
 			t.EchoCharacter = '•'
 		}
@@ -61,9 +67,12 @@ func (m loginModel) Update(msg tea.Msg) (loginModel, tea.Cmd) {
 			s := msg.String()
 			
 			if s == "enter" && m.focusIndex == len(m.inputs) {
-				// Login action
-				username := m.inputs[0].Value()
-				password := m.inputs[1].Value()
+				instance := m.inputs[0].Value()
+				if instance != "" {
+					api.BaseURL = instance
+				}
+				username := m.inputs[1].Value()
+				password := m.inputs[2].Value()
 				if err := api.Login(username, password); err != nil {
 					m.err = err
 					return m, nil
@@ -134,5 +143,11 @@ func (m loginModel) View() string {
 		b.WriteString(lipgloss.NewStyle().Foreground(secondaryColor).Render(m.err.Error()) + "\n")
 	}
 
-	return lipgloss.Place(80, 20, lipgloss.Center, lipgloss.Center, baseStyle.Render(b.String()))
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(primaryColor).
+		Padding(1, 4).
+		Render(b.String())
+	
+	return lipgloss.Place(80, 20, lipgloss.Center, lipgloss.Center, box)
 }

@@ -50,20 +50,21 @@ func initialAppModel() appModel {
 	d := list.NewDefaultDelegate()
 	d.Styles.SelectedTitle = d.Styles.SelectedTitle.Foreground(primaryColor).BorderLeftForeground(primaryColor)
 	d.Styles.SelectedDesc = d.Styles.SelectedDesc.Foreground(primaryColor).BorderLeftForeground(primaryColor)
+	d.ShowDescription = true
 
-	al := list.New([]list.Item{}, d, 25, 20)
+	al := list.New([]list.Item{}, d, 0, 0)
 	al.Title = "Artists"
 	al.SetShowStatusBar(false)
 
-	bl := list.New([]list.Item{}, d, 25, 20)
+	bl := list.New([]list.Item{}, d, 0, 0)
 	bl.Title = "Albums"
 	bl.SetShowStatusBar(false)
 
-	tl := list.New([]list.Item{}, d, 25, 20)
+	tl := list.New([]list.Item{}, d, 0, 0)
 	tl.Title = "Tracks"
 	tl.SetShowStatusBar(false)
 
-	ql := list.New([]list.Item{}, d, 25, 20)
+	ql := list.New([]list.Item{}, d, 0, 0)
 	ql.Title = "Queue"
 	ql.SetShowStatusBar(false)
 
@@ -129,7 +130,7 @@ func (m appModel) Update(msg tea.Msg) (appModel, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		paneW := (m.width - 8) / 4
-		paneH := m.height - 5
+		paneH := m.height - 4
 		m.artistsList.SetSize(paneW, paneH)
 		m.albumsList.SetSize(paneW, paneH)
 		m.tracksList.SetSize(paneW, paneH)
@@ -194,7 +195,13 @@ func (m appModel) Update(msg tea.Msg) (appModel, tea.Cmd) {
 }
 
 func (m appModel) View() string {
-	paneStyle := lipgloss.NewStyle().Border(lipgloss.RoundedBorder())
+	paneW := (m.width - 8) / 4
+	paneH := m.height - 4
+
+	paneStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		Width(paneW).
+		Height(paneH)
 	
 	styleList := func(l list.Model, active bool) string {
 		s := paneStyle.Copy()
