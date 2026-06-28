@@ -96,7 +96,8 @@ export const PlaylistsPage: React.FC = () => {
   }
 
   return (
-    <div className="content-scroll" style={{ display: 'flex', gap: '32px', padding: '32px' }}>
+    <div className="content-scroll">
+      <div className="page-container" style={{ display: 'flex', gap: '32px' }}>
       <div style={{ flex: '1', minWidth: '320px', maxWidth: '400px' }}>
         <h2 className="section-title" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           Your Playlists

@@ -62,7 +62,7 @@ const PlayerBar: FC = () => {
     <footer className="player-bar">
       
       {/* Left Side: Now Playing Metadata */}
-      <div className="now-playing">
+      <div className="now-playing" style={{ display: 'flex', alignItems: 'center', gap: '16px', width: '30%', minWidth: '200px' }}>
         <div style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
           {currentAlbum ? (
             <img 
@@ -72,14 +72,16 @@ const PlayerBar: FC = () => {
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
                 if (e.currentTarget.nextElementSibling) {
-                  (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'block';
+                  (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
                 }
               }}
             />
-          ) : (
-            <div className={`track-art-small ${isPlaying ? 'playing' : ''}`}></div>
-          )}
+          ) : null}
+          <div className={`track-art-small ${isPlaying ? 'playing' : ''}`} style={{ display: currentAlbum ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ color: 'var(--text-muted)' }}>♪</span>
+          </div>
         </div>
+        
         <div className="track-details" style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden', whiteSpace: 'nowrap' }}>
           <h4 style={{ margin: 0, textOverflow: 'ellipsis', overflow: 'hidden' }}>{currentTrack ? currentTrack.title : 'No Track Playing'}</h4>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -98,16 +100,17 @@ const PlayerBar: FC = () => {
             </span>
           </div>
         </div>
+        
+        {currentTrack && (
+          <div style={{ marginLeft: '8px' }}>
+            <HeartButton entityType="track" entityId={currentTrack.id} />
+          </div>
+        )}
       </div>
       
       {/* Center: Playback Controls & Progress Bar */}
-      <div className="player-controls-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, gap: '8px' }}>
+      <div className="player-controls-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, maxWidth: '600px', gap: '8px', margin: '0 16px' }}>
         <div className="player-controls" style={{ display: 'flex', alignItems: 'center', gap: '24px', justifyContent: 'center' }}>
-          {currentTrack && (
-            <div className="heart-btn-wrapper">
-              <HeartButton entityType="track" entityId={currentTrack.id} />
-            </div>
-          )}
           <button className="control-btn" onClick={playPrev}><SkipBack size={20} fill="currentColor" /></button>
           <button 
             className={`control-btn play-btn ${isPlaying ? 'playing' : ''}`} 
@@ -141,7 +144,7 @@ const PlayerBar: FC = () => {
       </div>
       
       {/* Right Side: Interactive Volume Slider */}
-      <div className="volume-controls">
+      <div className="volume-controls" style={{ width: '30%', minWidth: '150px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' }}>
         <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => changeVolume(volume === 0 ? 1 : 0)}>
           {volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </span>

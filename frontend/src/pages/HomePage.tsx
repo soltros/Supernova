@@ -77,7 +77,7 @@ const HomePage: FC = () => {
 
   return (
     <div className="content-scroll">
-      <div style={{ padding: '32px' }}>
+      <div className="page-container">
         <h1 style={{ fontSize: '48px', fontWeight: 900, marginBottom: '40px', letterSpacing: '-1.5px' }}>Home</h1>
 
         {recentlyPlayed.length > 0 && (

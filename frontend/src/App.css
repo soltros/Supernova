@@ -140,6 +140,11 @@
 .content-scroll {
   flex: 1;
   overflow-y: auto;
+}
+
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
   padding: 32px;
 }
 
@@ -234,10 +239,6 @@
 }
 
 .now-playing {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  width: 300px;
 }
 
 .track-art-small {
@@ -274,11 +275,6 @@
 }
 
 .player-controls {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  flex: 1;
-  justify-content: center;
 }
 
 .control-btn {
@@ -502,7 +498,7 @@
   }
   .now-playing {
     width: 100%;
-    justify-content: space-between;
+    justify-content: center;
   }
   .volume-controls {
     display: none !important;
@@ -533,18 +529,18 @@
     border: none;
     color: white;
   }
-  .heart-btn-wrapper {
-    position: static;
-    transform: none;
+  .player-bar {
+    width: calc(100% - 32px);
+    height: auto;
+    flex-direction: column;
+    padding: 24px 16px;
+    gap: 16px;
+    border-radius: 24px;
   }
 }
 
 @media (min-width: 769px) {
   .mobile-menu-btn {
     display: none;
-  }
-  .heart-btn-wrapper {
-    position: absolute;
-    transform: translateX(-120px);
   }
 }

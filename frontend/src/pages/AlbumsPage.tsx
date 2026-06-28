@@ -22,7 +22,7 @@ const AlbumsPage: React.FC = () => {
 
   return (
     <div className="content-scroll">
-      <div style={{ padding: '32px' }}>
+      <div className="page-container">
         <h1 style={{ fontSize: '32px', fontWeight: 800, marginBottom: '32px', letterSpacing: '-1px' }}>All Albums</h1>
         
         {loading ? (

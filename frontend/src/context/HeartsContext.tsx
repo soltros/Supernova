@@ -17,7 +17,7 @@ export const HeartsProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const refreshHearts = useCallback(async () => {
     try {
       const hearts = await apiService.fetchHearts();
-      const newSet = new Set(hearts.map(h => h.entity_id));
+      const newSet = new Set((hearts || []).map(h => h.entity_id));
       setHeartedIds(newSet);
     } catch (e) {
       console.error("Failed to fetch hearts:", e);

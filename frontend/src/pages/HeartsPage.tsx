@@ -96,12 +96,14 @@ const HeartsPage: FC = () => {
   };
 
   if (loading) {
-    return <div className="content-scroll"><div style={{ padding: '32px' }}><p>Loading Hearts...</p></div></div>;
+    return (
+    <div className="content-scroll">
+      <div className="page-container"><p>Loading Hearts...</p></div></div>);
   }
 
   return (
     <div className="content-scroll">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+      <div className="page-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
           <h1 style={{ fontSize: '40px', fontWeight: 800, margin: '0 0 8px 0', letterSpacing: '-1px' }}>Your Hearts</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '18px', margin: 0 }}>

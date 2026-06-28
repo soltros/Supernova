@@ -96,7 +96,7 @@ const ArtistPage: FC = () => {
         </div>
       </div>
 
-      <div style={{ padding: '32px' }}>
+      <div className="page-container">
         {/* Play Controls & Action Bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '40px' }}>
           <button 
