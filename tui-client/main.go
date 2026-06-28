@@ -1,17 +1,28 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"os"
+	"os/exec"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
 const baseURL = "http://localhost:8080/api"
+
+var jwtToken string
+var app *tview.Application
+var pages *tview.Pages
+var statusText *tview.TextView
+var currentFFPlay *exec.Cmd
+
+// Models
+type AuthResponse struct {
+	Token string `json:"token"`
+}
 
 type Artist struct {
 	ID   string `json:"id"`
@@ -32,43 +43,42 @@ type Track struct {
 	Duration    int    `json:"duration_ms"`
 }
 
-func fetchArtists() ([]Artist, error) {
-	resp, err := http.Get(baseURL + "/artists?limit=100")
+// API Functions
+func login(username, password string) error {
+	payload := map[string]string{"username": username, "password": password}
+	body, _ := json.Marshal(payload)
+
+	resp, err := http.Post(baseURL+"/auth/login", "application/json", bytes.NewBuffer(body))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
-	var artists []Artist
-	json.Unmarshal(body, &artists)
-	return artists, nil
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("login failed: %s", resp.Status)
+	}
+
+	var authResp AuthResponse
+	json.NewDecoder(resp.Body).Decode(&authResp)
+	jwtToken = authResp.Token
+	return nil
 }
 
-func fetchAlbums(artistID string) ([]Album, error) {
-	resp, err := http.Get(baseURL + "/albums?limit=100&artist_id=" + artistID)
+func fetchAPI(endpoint string, target interface{}) error {
+	req, _ := http.NewRequest("GET", baseURL+endpoint, nil)
+	req.Header.Set("Authorization", "Bearer "+jwtToken)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
-	var albums []Album
-	json.Unmarshal(body, &albums)
-	return albums, nil
-}
-
-func fetchTracks(albumID string) ([]Track, error) {
-	resp, err := http.Get(baseURL + "/tracks?limit=100&album_id=" + albumID)
-	if err != nil {
-		return nil, err
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
-	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
-	var tracks []Track
-	json.Unmarshal(body, &tracks)
-	return tracks, nil
+	return json.NewDecoder(resp.Body).Decode(target)
 }
 
 func formatTime(ms int) string {
@@ -78,26 +88,97 @@ func formatTime(ms int) string {
 	return fmt.Sprintf("%d:%02d", m, s)
 }
 
-func main() {
-	app := tview.NewApplication()
+func playTrack(trackID, trackTitle string) {
+	if currentFFPlay != nil && currentFFPlay.Process != nil {
+		currentFFPlay.Process.Kill()
+	}
+	
+	streamURL := fmt.Sprintf("%s/stream/%s", baseURL, trackID)
+	// We pass the JWT token to FFplay via HTTP headers
+	headerArg := fmt.Sprintf("Authorization: Bearer %s", jwtToken)
+	
+	currentFFPlay = exec.Command("ffplay", "-headers", headerArg, "-nodisp", "-autoexit", streamURL)
+	currentFFPlay.Start()
 
+	statusText.SetText(fmt.Sprintf(" ▶ Playing: %s ", trackTitle))
+}
+
+func stopPlayback() {
+	if currentFFPlay != nil && currentFFPlay.Process != nil {
+		currentFFPlay.Process.Kill()
+		statusText.SetText(" ⏸ Stopped ")
+	}
+}
+
+// UI Builders
+func buildLoginForm() *tview.Flex {
+	form := tview.NewForm()
+	
+	usernameInput := tview.NewInputField().SetLabel("Username: ").SetFieldWidth(30)
+	passwordInput := tview.NewInputField().SetLabel("Password: ").SetFieldWidth(30).SetMaskCharacter('*')
+
+	form.AddFormItem(usernameInput).
+		AddFormItem(passwordInput).
+		AddButton("Login", func() {
+			user := usernameInput.GetText()
+			pass := passwordInput.GetText()
+			if err := login(user, pass); err != nil {
+				usernameInput.SetText("")
+				passwordInput.SetText("")
+				usernameInput.SetTitle(" Login Failed ")
+				return
+			}
+			loadAppUI()
+			pages.SwitchToPage("App")
+		}).
+		AddButton("Quit", func() {
+			app.Stop()
+		})
+
+	form.SetBorder(true).
+		SetTitle(" 🚀 Supernova TUI Login ").
+		SetTitleColor(tcell.ColorViolet).
+		SetBorderColor(tcell.ColorViolet)
+
+	// Center the form
+	flex := tview.NewFlex().
+		AddItem(nil, 0, 1, false).
+		AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
+			AddItem(nil, 0, 1, false).
+			AddItem(form, 11, 1, true).
+			AddItem(nil, 0, 1, false), 50, 1, true).
+		AddItem(nil, 0, 1, false)
+
+	return flex
+}
+
+func loadAppUI() {
 	artistsList := tview.NewList().ShowSecondaryText(false)
-	artistsList.SetBorder(true).SetTitle("Artists (Press Tab to switch)").SetTitleColor(tcell.ColorYellow)
+	artistsList.SetBorder(true).SetTitle(" Artists ").SetTitleColor(tcell.ColorMediumPurple).SetBorderColor(tcell.ColorDarkGray)
 
 	albumsList := tview.NewList().ShowSecondaryText(false)
-	albumsList.SetBorder(true).SetTitle("Albums").SetTitleColor(tcell.ColorGreen)
+	albumsList.SetBorder(true).SetTitle(" Albums ").SetTitleColor(tcell.ColorDeepSkyBlue).SetBorderColor(tcell.ColorDarkGray)
 
 	tracksList := tview.NewList().ShowSecondaryText(false)
-	tracksList.SetBorder(true).SetTitle("Tracks").SetTitleColor(tcell.ColorBlue)
+	tracksList.SetBorder(true).SetTitle(" Tracks (Enter to Play) ").SetTitleColor(tcell.ColorSpringGreen).SetBorderColor(tcell.ColorDarkGray)
+
+	statusText = tview.NewTextView().
+		SetDynamicColors(true).
+		SetTextAlign(tview.AlignCenter).
+		SetText(" 🎵 Ready. (Tab: Switch Panels, Ctrl+C: Quit, S: Stop) ")
+	statusText.SetBackgroundColor(tcell.ColorDarkBlue)
 
 	// Layout
-	flex := tview.NewFlex().
-		AddItem(artistsList, 0, 1, true).
-		AddItem(albumsList, 0, 1, false).
-		AddItem(tracksList, 0, 2, false)
+	mainLayout := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(tview.NewFlex().
+			AddItem(artistsList, 0, 1, true).
+			AddItem(albumsList, 0, 1, false).
+			AddItem(tracksList, 0, 2, false),
+		0, 1, true).
+		AddItem(statusText, 1, 1, false)
 
 	// Focus switching logic
-	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	mainLayout.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyTab {
 			if artistsList.HasFocus() {
 				app.SetFocus(albumsList)
@@ -108,21 +189,19 @@ func main() {
 			}
 			return nil
 		}
-		if event.Key() == tcell.KeyCtrlC {
-			app.Stop()
+		if event.Rune() == 's' || event.Rune() == 'S' {
+			stopPlayback()
+			return nil
 		}
 		return event
 	})
 
-	// Load Initial Data
-	artists, err := fetchArtists()
-	if err != nil {
-		fmt.Println("Error connecting to Supernova backend:", err)
-		os.Exit(1)
-	}
-
-	for _, artist := range artists {
-		artistsList.AddItem(artist.Name, artist.ID, 0, nil)
+	// Fetch Data
+	var artists []Artist
+	if err := fetchAPI("/artists?limit=1000", &artists); err == nil {
+		for _, artist := range artists {
+			artistsList.AddItem(artist.Name, artist.ID, 0, nil)
+		}
 	}
 
 	// Handlers
@@ -132,13 +211,15 @@ func main() {
 		if secondaryText == "" {
 			return
 		}
-		albums, _ := fetchAlbums(secondaryText)
-		for _, album := range albums {
-			title := fmt.Sprintf("%s (%d)", album.Title, album.Year)
-			if album.Year == 0 {
-				title = album.Title
+		var albums []Album
+		if err := fetchAPI("/albums?limit=1000&artist_id="+secondaryText, &albums); err == nil {
+			for _, album := range albums {
+				title := fmt.Sprintf("%s (%d)", album.Title, album.Year)
+				if album.Year == 0 {
+					title = album.Title
+				}
+				albumsList.AddItem(title, album.ID, 0, nil)
 			}
-			albumsList.AddItem(title, album.ID, 0, nil)
 		}
 	})
 
@@ -147,25 +228,32 @@ func main() {
 		if secondaryText == "" {
 			return
 		}
-		tracks, _ := fetchTracks(secondaryText)
-		for _, track := range tracks {
-			title := fmt.Sprintf("%d. %s [%s]", track.TrackNumber, track.Title, formatTime(track.Duration))
-			tracksList.AddItem(title, track.ID, 0, nil)
+		var tracks []Track
+		if err := fetchAPI("/tracks?limit=1000&album_id="+secondaryText, &tracks); err == nil {
+			for _, track := range tracks {
+				title := fmt.Sprintf("%d. %s [%s]", track.TrackNumber, track.Title, formatTime(track.Duration))
+				tracksList.AddItem(title, track.ID, 0, nil)
+			}
 		}
 	})
 
 	tracksList.SetSelectedFunc(func(index int, mainText string, secondaryText string, shortcut rune) {
-		// Just a modal for demonstration
-		modal := tview.NewModal().
-			SetText(fmt.Sprintf("Playing:\n\n%s\n\nStream URL: %s/stream/%s", mainText, baseURL, secondaryText)).
-			AddButtons([]string{"Close"}).
-			SetDoneFunc(func(buttonIndex int, buttonLabel string) {
-				app.SetRoot(flex, true).SetFocus(tracksList)
-			})
-		app.SetRoot(modal, false).SetFocus(modal)
+		playTrack(secondaryText, mainText)
 	})
 
-	if err := app.SetRoot(flex, true).Run(); err != nil {
+	pages.AddPage("App", mainLayout, true, false)
+}
+
+func main() {
+	app = tview.NewApplication()
+	pages = tview.NewPages()
+
+	loginForm := buildLoginForm()
+	pages.AddPage("Login", loginForm, true, true)
+
+	if err := app.SetRoot(pages, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
+
+	stopPlayback()
 }
