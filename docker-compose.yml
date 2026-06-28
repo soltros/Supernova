@@ -10,7 +10,7 @@ services:
       # Use a Docker managed named volume for database persistence
       - supernova-data:/root/.supernova 
       # Mount a local 'music' directory securely (Read-Only)
-      - ./music:/root/Music:ro 
+      - ${MEDIA_PATH:-./music}:/root/Music:ro 
     environment:
       - MEDIA_PATH=/root/Music
       - DB_PATH=/root/.supernova/supernova.db
