@@ -58,14 +58,7 @@ const ArtistPage: FC = () => {
   return (
     <div className="content-scroll">
       {/* Artist Header */}
-      <div style={{ 
-        position: 'relative',
-        height: '300px', 
-        display: 'flex', 
-        alignItems: 'flex-end', 
-        padding: '32px',
-        overflow: 'hidden'
-      }}>
+      <div className="artist-header">
         {/* Background Blur Image */}
         {artist.image_url && artist.image_url !== 'NOT_FOUND' && (
           <div style={{
@@ -79,8 +72,8 @@ const ArtistPage: FC = () => {
           }} />
         )}
         
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'flex-end', gap: '32px', width: '100%' }}>
-          <div style={{ width: '200px', height: '200px', borderRadius: '50%', background: 'var(--bg-secondary)', overflow: 'hidden', boxShadow: '0 16px 32px rgba(0,0,0,0.5)', flexShrink: 0 }}>
+        <div className="artist-header-content">
+          <div className="artist-avatar-container">
              {artist.image_url && artist.image_url !== 'NOT_FOUND' ? (
                 <img src={artist.image_url} alt={artist.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
@@ -89,9 +82,9 @@ const ArtistPage: FC = () => {
                 </div>
               )}
           </div>
-          <div style={{ flexGrow: 1 }}>
-            <p style={{ fontSize: '14px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px', color: 'var(--text-primary)' }}>Verified Artist</p>
-            <h1 style={{ fontSize: '64px', fontWeight: 900, marginBottom: '16px', letterSpacing: '-2px', lineHeight: 1 }}>{artist.name}</h1>
+          <div className="artist-header-text">
+            <p className="artist-verified">Verified Artist</p>
+            <h1 className="artist-title">{artist.name}</h1>
           </div>
         </div>
       </div>

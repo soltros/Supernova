@@ -357,6 +357,101 @@
   box-shadow: var(--shadow-drop), var(--accent-glow);
 }
 
+/* --- Album Header --- */
+.album-header {
+  position: relative;
+  display: flex;
+  padding: 64px 48px 48px;
+  gap: 40px;
+  align-items: flex-end;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border-glass);
+  margin-bottom: 24px;
+}
+
+.album-cover-container {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  flex-shrink: 0;
+  margin: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 48px rgba(0,0,0,0.6);
+  z-index: 1;
+}
+
+.album-header-text {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  z-index: 1;
+  padding-bottom: 12px;
+}
+
+.album-title {
+  font-size: 64px;
+  font-weight: 900;
+  margin: 8px 0;
+  letter-spacing: -2px;
+  line-height: 1.1;
+}
+
+.album-meta {
+  color: var(--text-secondary);
+  font-size: 16px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --- Artist Header --- */
+.artist-header {
+  position: relative;
+  height: 300px;
+  display: flex;
+  align-items: flex-end;
+  padding: 32px;
+  overflow: hidden;
+}
+.artist-header-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 32px;
+  width: 100%;
+}
+.artist-avatar-container {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+  overflow: hidden;
+  box-shadow: 0 16px 32px rgba(0,0,0,0.5);
+  flex-shrink: 0;
+}
+.artist-header-text {
+  flex-grow: 1;
+}
+.artist-verified {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+.artist-title {
+  font-size: 64px;
+  font-weight: 900;
+  margin-bottom: 16px;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
 /* --- Track List --- */
 .track-list {
   display: flex;
@@ -536,6 +631,49 @@
     padding: 24px 16px;
     gap: 16px;
     border-radius: 24px;
+  }
+  .album-header {
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 16px;
+    gap: 24px;
+    text-align: center;
+  }
+  .album-cover-container {
+    width: 200px;
+    height: 200px;
+  }
+  .album-header-text {
+    align-items: center;
+  }
+  .album-title {
+    font-size: 32px !important;
+  }
+  .track-actions {
+    opacity: 1; /* Always show actions on mobile */
+  }
+  .track-duration {
+    display: none; /* Hide duration on mobile to save space */
+  }
+  .track-row {
+    padding: 12px 8px;
+  }
+  .artist-header {
+    height: auto;
+    padding: 32px 16px;
+  }
+  .artist-header-content {
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+  }
+  .artist-avatar-container {
+    width: 150px;
+    height: 150px;
+  }
+  .artist-title {
+    font-size: 36px;
   }
 }
 

@@ -50,30 +50,25 @@ const AlbumPage: FC = () => {
   return (
     <div className="content-scroll" style={{ padding: 0 }}>
       {/* Cinematic Hero Section */}
-      <div style={{ 
-        position: 'relative', 
-        padding: '64px 48px 48px', 
-        display: 'flex', 
-        gap: '40px', 
-        marginBottom: '24px',
-        alignItems: 'flex-end',
-        borderBottom: '1px solid var(--border-glass)'
-      }}>
-        {/* Dynamic Blurred Background */}
+      <div className="album-header">
+        {/* Background Blur */}
         <div style={{
           position: 'absolute',
-          top: 0, left: 0, right: 0, bottom: 0,
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
           backgroundImage: `url(${API_BASE_URL}/api/art/album/${album.id})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          filter: 'blur(80px) saturate(2)',
+          filter: 'blur(100px) saturate(2)',
           opacity: 0.25,
           zIndex: 0,
           maskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)',
           WebkitMaskImage: 'linear-gradient(to bottom, black 40%, transparent 100%)'
         }} />
         
-        <div style={{ position: 'relative', width: '280px', height: '280px', flexShrink: 0, margin: 0, borderRadius: '16px', overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.6)', zIndex: 1 }}>
+        <div className="album-cover-container">
           <img 
             src={`${API_BASE_URL}/api/art/album/${album.id}`}
             alt={album.title}
@@ -89,10 +84,10 @@ const AlbumPage: FC = () => {
             <span style={{ fontSize: '96px', fontWeight: 800 }}>{album.title.charAt(0)}</span>
           </div>
         </div>
-        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', zIndex: 1, paddingBottom: '12px' }}>
+        <div className="album-header-text">
           <span style={{ textTransform: 'uppercase', fontSize: '13px', fontWeight: 800, letterSpacing: '2px', color: 'var(--text-secondary)' }}>Album</span>
-          <h1 style={{ fontSize: '64px', fontWeight: 900, margin: '8px 0', letterSpacing: '-2px', lineHeight: 1.1 }}>{album.title}</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '16px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h1 className="album-title">{album.title}</h1>
+          <p className="album-meta">
             <span style={{ color: 'var(--text-primary)' }}>{album.release_year > 0 ? album.release_year : 'Unknown Year'}</span>
             <span>•</span>
             <span>{tracks.length} tracks</span>
@@ -117,20 +112,8 @@ const AlbumPage: FC = () => {
           return (
             <div 
               key={track.id} 
-              className="track-row"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '40px 1fr 40px 100px',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                alignItems: 'center',
-                cursor: 'pointer',
-                background: isThisTrackPlaying ? 'var(--bg-glass)' : 'transparent',
-                transition: 'background 0.2s'
-              }}
+              className={`track-row ${isThisTrackPlaying ? 'playing' : ''}`}
               onClick={() => playContext(tracks, tracks.findIndex(t => t.id === track.id), album)}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-glass-hover)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = isThisTrackPlaying ? 'var(--bg-glass)' : 'transparent'}
             >
               <div className="track-number">
                 {isThisTrackPlaying && isPlaying ? (
@@ -139,14 +122,15 @@ const AlbumPage: FC = () => {
                   <span>{track.track_number}</span>
                 )}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ fontWeight: isThisTrackPlaying ? 600 : 400, color: isThisTrackPlaying ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
+              <div className="track-title-cell">
+                <div className="track-title-text" style={{ color: isThisTrackPlaying ? 'var(--primary-color)' : 'var(--text-primary)' }}>
                   {track.title}
                 </div>
-                {track.artist_id && (
+                {track.artist_name && track.artist_name !== album.artist_name && (
                   <Link 
                     to={`/artist/${track.artist_id}`}
-                    style={{ fontSize: '12px', color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s' }}
+                    className="track-artist-link"
+                    style={{ fontSize: '13px', color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.2s', marginTop: '2px' }}
                     onClick={(e) => e.stopPropagation()} // Prevent playing the track when clicking the artist
                     onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
                     onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
@@ -155,11 +139,11 @@ const AlbumPage: FC = () => {
                   </Link>
                 )}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', alignItems: 'center' }}>
+              <div className="track-actions">
                 <HeartButton entityType="track" entityId={track.id} />
                 <AddToPlaylistMenu trackId={track.id} />
               </div>
-              <div style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: '13px' }}>
+              <div className="track-duration">
                 {formatTime(track.duration_ms)}
               </div>
             </div>
