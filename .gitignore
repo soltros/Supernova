@@ -22,3 +22,19 @@ backend/supernova
 ~/.supernova
 ui.png
 .env
+/dev-screenshots
+
+# Local Data
+music/
+data/
+cache/
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.mp3
+*.flac
+*.m4a
+*.ogg
+*.wav

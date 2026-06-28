@@ -1,0 +1,34 @@
+.git/
+.github/
+.vscode/
+.idea/
+
+# Local Test Data
+music/
+data/
+cache/
+.supernova/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+
+# Media Files
+*.mp3
+*.flac
+*.m4a
+*.ogg
+*.wav
+
+# Compiled binaries
+supernova-backend
+supernova-frontend
+supernova-tui
+supernova-desktop
+*.exe
+
+# Environment
+.env

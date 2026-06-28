@@ -1,3 +1,4 @@
+version: '3.8'
 
 services:
   backend:
@@ -6,26 +7,28 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # Persist the SQLite database and image cache across container restarts
-      - /home/derrik/.supernova:/root/.supernova 
-      # Mount the host machine's music folder securely (Read-Only)
-      - /home/derrik/Music:/root/Music:ro 
+      # Use a Docker managed named volume for database persistence
+      - supernova-data:/root/.supernova 
+      # Mount a local 'music' directory securely (Read-Only)
+      - ./music:/root/Music:ro 
     environment:
       - MEDIA_PATH=/root/Music
       - DB_PATH=/root/.supernova/supernova.db
-      - LASTFM_API_KEY=${LASTFM_API_KEY}
-      - LASTFM_API_SECRET=${LASTFM_API_SECRET}
+      - LASTFM_API_KEY=${LASTFM_API_KEY:-}
+      - LASTFM_API_SECRET=${LASTFM_API_SECRET:-}
     restart: unless-stopped
 
   frontend:
     image: ghcr.io/soltros/supernova-frontend:latest
     container_name: supernova-frontend
     ports:
-      # Changed to 5174 to permanently bypass the old corrupted Service Worker cache on 5173
       - "5174:80"
     environment:
-      # Instruct the frontend to connect to the backend container
       - VITE_API_URL=http://localhost:8080
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  supernova-data:
+    description: "Managed volume for Supernova database and image cache"
