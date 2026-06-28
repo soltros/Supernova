@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/soltros/Supernova/internal/database"
@@ -159,6 +160,25 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 				log.Printf("Failed to update artist info in DB for %s: %v", a.Name, err)
 			} else {
 				log.Printf("Successfully enriched artist via LastFM: %s", a.Name)
+			}
+			
+			// Additionally fetch top tracks to update local track popularity
+			topTracks, err := e.lastfm.GetArtistTopTracks(a.Name)
+			if err == nil && topTracks != nil {
+				for _, track := range topTracks.Toptracks.Track {
+					// We'll use listeners as a proxy for popularity
+					var popularity int
+					if track.Listeners != "" {
+						fmt.Sscanf(track.Listeners, "%d", &popularity)
+					} else {
+						fmt.Sscanf(track.Playcount, "%d", &popularity)
+					}
+					
+					if popularity > 0 {
+						_ = e.repo.UpdateArtistTracksPopularity(ctx, a.ID, track.Name, popularity)
+					}
+				}
+				log.Printf("Updated top tracks popularity for artist: %s", a.Name)
 			}
 		}
 	}

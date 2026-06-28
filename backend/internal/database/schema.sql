@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS tracks (
     format TEXT,
     bitrate INTEGER,
     file_path TEXT UNIQUE NOT NULL,
+    popularity INTEGER DEFAULT 0,
     FOREIGN KEY (album_id) REFERENCES albums (id) ON DELETE CASCADE
 );
 

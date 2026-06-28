@@ -73,6 +73,40 @@ func (c *LastFmClient) GetArtistInfo(artistName string) (*ArtistInfoResponse, er
 	return &data, nil
 }
 
+type ArtistTopTracksResponse struct {
+	Toptracks struct {
+		Track []struct {
+			Name       string `json:"name"`
+			Playcount  string `json:"playcount"`
+			Listeners  string `json:"listeners"`
+		} `json:"track"`
+	} `json:"toptracks"`
+}
+
+// GetArtistTopTracks fetches the most popular tracks for a given artist globally.
+func (c *LastFmClient) GetArtistTopTracks(artistName string) (*ArtistTopTracksResponse, error) {
+	params := url.Values{}
+	params.Add("method", "artist.gettoptracks")
+	params.Add("artist", artistName)
+	params.Add("api_key", c.apiKey)
+	params.Add("format", "json")
+	params.Add("limit", "100")
+
+	reqURL := fmt.Sprintf("%s?%s", lastFmBaseURL, params.Encode())
+	resp, err := c.client.Get(reqURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var data ArtistTopTracksResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+
+	return &data, nil
+}
+
 // --- 2. SCROBBLING (Authenticated Write Operations) ---
 
 // generateSignature creates an MD5 signature. Last.fm requires this for all write operations (like scrobbling)

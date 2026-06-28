@@ -133,7 +133,11 @@ func (r *Repository) GetTracks(ctx context.Context, albumID string, artistID str
 		}
 	}
 
-	query += ` GROUP BY t.id ORDER BY t.disc_number ASC, t.track_number ASC LIMIT ? OFFSET ?`
+	if artistID != "" && albumID == "" {
+		query += ` GROUP BY t.id ORDER BY t.popularity DESC, t.disc_number ASC, t.track_number ASC LIMIT ? OFFSET ?`
+	} else {
+		query += ` GROUP BY t.id ORDER BY t.disc_number ASC, t.track_number ASC LIMIT ? OFFSET ?`
+	}
 	args = append(args, limit, offset)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -162,6 +166,21 @@ func (r *Repository) GetTracks(ctx context.Context, albumID string, artistID str
 		return []models.Track{}, nil
 	}
 	return tracks, nil
+}
+
+// UpdateArtistTracksPopularity updates the global popularity score for an artist's tracks
+func (r *Repository) UpdateArtistTracksPopularity(ctx context.Context, artistID string, title string, popularity int) error {
+	// We match by track title (case-insensitive approximation) and artist ID
+	query := `
+		UPDATE tracks 
+		SET popularity = ? 
+		WHERE title COLLATE NOCASE = ? 
+		AND id IN (
+			SELECT track_id FROM track_artists WHERE artist_id = ?
+		)
+	`
+	_, err := r.db.ExecContext(ctx, query, popularity, title, artistID)
+	return err
 }
 
 // UnenrichedAlbum is a DTO for the background worker

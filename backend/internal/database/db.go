@@ -58,5 +58,8 @@ func Init(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("failed to execute schema migrations: %w", err)
 	}
 
+	// Add popularity column to existing DBs safely
+	db.Exec("ALTER TABLE tracks ADD COLUMN popularity INTEGER DEFAULT 0;")
+
 	return &DB{db}, nil
 }
