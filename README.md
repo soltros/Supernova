@@ -1,52 +1,83 @@
 # Supernova Music
 
-![Supernova](https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=1200&h=400&fit=crop)
+Supernova is a self-hosted, lightning-fast audiophile music server designed for massive local music libraries. It acts as an open-source, high-fidelity alternative to streaming platforms, focusing on raw performance, direct streaming, and uncompromising offline playback.
 
-Supernova is a lightning-fast, highly-concurrent audiophile music server. It acts as a self-hosted alternative to Spotify or Apple Music, specifically designed for massive, high-fidelity local music libraries (FLAC, ALAC, MP3). 
+Built with a highly-concurrent Go backend and a Progressive Web App (PWA) React frontend.
 
-Built with a pure-Go backend and a React (Vite) Progressive Web App frontend.
+## Core Features
 
-## Key Features
-
-- **Blazing Fast Scanning:** Utilizes a highly-concurrent 10-worker pool to scan and extract ID3 metadata from 10,000+ tracks in seconds.
+- **Concurrent Library Scanning:** Leverages a tunable Go worker pool to extract ID3 metadata, album art, and audio parameters from tens of thousands of files (FLAC, ALAC, MP3, OPUS, M4A) in seconds.
 - **Pure-Go Architecture:** Powered by `ncruces/go-sqlite3` (WASM-based SQLite) for zero CGO dependencies and true cross-platform compilation.
-- **Audiophile Streaming:** Raw HTTP range-request streaming for lossless audio, with dynamic real-time `ffmpeg` transcoding (MP3/Opus) for low-bandwidth mobile streaming.
-- **Progressive Web App (PWA):** Installs directly to your Desktop, iOS, or Android homescreen. Includes a Service Worker for instant offline UI booting.
-- **Internal Scrobbling:** An intelligent, scrub-proof playback engine that accurately logs your listen history.
-- **Hearts System:** Secure, cascading SQLite relational architecture to favorite tracks and albums, with robust export/import capabilities.
+- **Audiophile Streaming:** Raw HTTP range-request streaming for lossless audio directly from your filesystem. 
+- **Last.fm Enrichment:** A background daemon automatically fetches missing artist bios, high-resolution imagery, and global popularity rankings without blocking the user interface.
+- **Scrub-Proof Scrobbling:** An internal playback engine calculates true listen thresholds, accurately logging your playback history independently of external services.
+- **Hearts & Playlists System:** Full relational schema to favorite tracks, albums, and artists. Supports custom user playlists, ordering, and robust JSON export/import data portability.
+- **Progressive Web App (PWA):** Installs directly to your Desktop, iOS, or Android homescreen as a standalone native-feeling application.
 
-## Architecture
-
-- **Backend:** Go 1.22+, `net/http` standard library (no bloatware frameworks), SQLite WAL mode for extreme concurrency.
-- **Frontend:** React 18, Vite, TypeScript, standard CSS (Glassmorphism design).
-- **Metadata:** `dhowden/tag` for parsing audio tags, `golang.org/x/image/draw` for highly optimized embedded cover art extraction and resizing.
-
-## Getting Started (Local Development)
+## Getting Started
 
 ### Prerequisites
 - Go 1.22+
 - Node.js 20+
-- FFmpeg (must be installed on your system path for transcoding)
 
-### Backend
+### Backend Development
+The backend is a monolithic Go binary holding the SQLite database and static file servers.
 ```bash
 cd backend
 go run cmd/server/main.go
 ```
-*The backend runs on `http://localhost:8080` and stores your library in `~/.supernova`.*
+*The backend binds to `http://localhost:8080` and provisions its SQLite database at `~/.supernova/supernova.db`.*
 
-### Frontend
+### Frontend Development
+The frontend is a Vite-powered React Single Page Application (SPA).
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-*The frontend runs on `http://localhost:5173`.*
+*The frontend binds to `http://localhost:5173`.*
 
-## Docker Deployment
+## Building Custom Clients
 
-Supernova is completely containerized.
+Supernova exposes a strictly typed RESTful JSON API. If you wish to build a native mobile app, a terminal UI, or an integration on top of Supernova, refer to the routing specifications below.
 
-```bash
-docker-compose up -d
+### Authentication
+Supernova uses JWT (JSON Web Tokens) for authentication. Most routes (except library discovery) require an `Authorization` header.
+```http
+Authorization: Bearer <your_jwt_token>
 ```
+
+### Core API Routes
+
+#### Public Library (Read-Only)
+- `GET /api/artists` - Returns a paginated list of all artists (`?limit=50&offset=0`).
+- `GET /api/artists/{id}` - Returns specific artist metadata, including Last.fm enriched bios and imagery.
+- `GET /api/albums` - Returns a paginated list of albums.
+- `GET /api/albums/{id}` - Returns specific album data.
+- `GET /api/tracks` - Returns tracks, optionally filtered by `?album_id=` or `?artist_id=`. Note: When querying by `artist_id`, Supernova automatically sorts the tracks by global popularity.
+
+#### Streaming & Media
+- `GET /api/stream/{id}` - The core audio streaming endpoint. Supports HTTP Range Requests for seeking and buffering. Can be injected directly into `<audio src="...">` tags.
+- `GET /api/art/album/{id}` - Serves extracted and highly-optimized embedded cover art.
+
+#### Authentication
+- `POST /api/auth/register` - Registers a new user. Accepts JSON `{ "username", "password" }`.
+- `POST /api/auth/login` - Authenticates a user and returns the JWT token.
+
+#### User Data (Requires Auth)
+- `GET /api/dashboard` - Returns personalized layout data (recently added albums, recently played tracks, and favorite tracks).
+- `GET /api/hearts` / `POST /api/hearts` / `DELETE /api/hearts` - Manage user favorites. Accepts `{ "entity_type", "entity_id" }`.
+- `GET /api/hearts/details` - Returns hydrated track/album models for all of a user's hearted items.
+
+#### Playlists (Requires Auth)
+- `GET /api/playlists` - List user playlists.
+- `POST /api/playlists` - Create a new playlist.
+- `DELETE /api/playlists/{id}` - Delete a playlist.
+- `GET /api/playlists/{id}/tracks` - Retrieve tracks for a specific playlist.
+- `POST /api/playlists/{id}/tracks` - Add a track to a playlist.
+- `DELETE /api/playlists/{id}/tracks/{trackId}` - Remove a track.
+- `GET /api/playlists/export` / `POST /api/playlists/import` - JSON portability endpoints.
+
+#### Scrobbling (Requires Auth)
+- `POST /api/scrobbles` - Log a completed listen. Accepts `{ "track_id", "duration_listened_ms" }`.
+- `GET /api/scrobbles/recent` - Retrieve chronological listening history.
