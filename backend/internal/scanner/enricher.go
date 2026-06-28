@@ -98,6 +98,10 @@ func (e *Enricher) processQueue(ctx context.Context) {
 					_ = e.repo.UpdateMBIDs(ctx, a.AlbumID, "NOT_FOUND", a.ArtistID, "")
 					log.Printf("No MusicBrainz data found for album: %s", a.AlbumTitle)
 				}
+			} else {
+				// Prevent infinite loop on API/network errors by marking it with a failure flag
+				_ = e.repo.UpdateMBIDs(ctx, a.AlbumID, "ERROR", a.ArtistID, "")
+				log.Printf("MusicBrainz API error for album %s: %v", a.AlbumTitle, err)
 			}
 		}
 	}
