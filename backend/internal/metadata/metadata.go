@@ -17,13 +17,13 @@ import (
 	"golang.org/x/image/draw"
 )
 
-// getArtCacheDir resolves the ~/.supernova/art_cache directory
+// getArtCacheDir resolves the directory for storing extracted/resized cover art
 func getArtCacheDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = "."
+	path := os.Getenv("ART_CACHE_PATH")
+	if path == "" {
+		// Default to ./data/art_cache to stay in the same data folder as the default SQLite db
+		path = filepath.Join(".", "data", "art_cache")
 	}
-	path := filepath.Join(home, ".supernova", "art_cache")
 	os.MkdirAll(path, 0755)
 	return path
 }
