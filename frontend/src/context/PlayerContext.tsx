@@ -75,6 +75,16 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         if (accumulatedPlayTimeRef.current >= threshold) {
           hasScrobbledRef.current = true;
           apiService.scrobbleTrack(activeTrack.id).catch(e => console.error("Scrobble failed:", e));
+          
+          // Last.fm Scrobbling integration
+          const lastfmSession = localStorage.getItem('lastfm_session');
+          if (lastfmSession) {
+            // Timestamp should be when the track started playing
+            const timestamp = Math.floor(Date.now() / 1000) - Math.floor(accumulatedPlayTimeRef.current);
+            const artist = activeTrack.artist_name || 'Unknown Artist';
+            apiService.scrobbleToLastFm(lastfmSession, artist, activeTrack.title, timestamp)
+              .catch(e => console.error("Last.fm scrobble failed:", e));
+          }
         }
       }
     });
@@ -87,9 +97,17 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
     audio.addEventListener('play', () => {
       setIsPlaying(true);
-      // Sync media session API when audio actually starts playing
       if ('mediaSession' in navigator) {
         navigator.mediaSession.playbackState = 'playing';
+      }
+      
+      // Last.fm Now Playing integration
+      const lastfmSession = localStorage.getItem('lastfm_session');
+      const activeTrack = queueRef.current[queueIndexRef.current];
+      if (lastfmSession && activeTrack && accumulatedPlayTimeRef.current < 5) {
+        const artist = activeTrack.artist_name || 'Unknown Artist';
+        apiService.updateNowPlayingToLastFm(lastfmSession, artist, activeTrack.title)
+          .catch(e => console.error("Last.fm now playing failed:", e));
       }
     });
     

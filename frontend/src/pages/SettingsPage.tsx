@@ -5,8 +5,29 @@ import { apiService } from '../services/api';
 const SettingsPage: React.FC = () => {
   const [plugins, setPlugins] = useState<any[]>([]);
   const [scanStatus, setScanStatus] = useState<{status: string, files_scanned: number}>({ status: 'idle', files_scanned: 0 });
+  const [lastfmSession, setLastfmSession] = useState<string | null>(localStorage.getItem('lastfm_session'));
 
   useEffect(() => {
+    // Handle Last.fm OAuth callback
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    if (token) {
+      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/plugins/lastfm/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.session_key) {
+          localStorage.setItem('lastfm_session', data.session_key);
+          setLastfmSession(data.session_key);
+          window.history.replaceState({}, document.title, '/settings');
+        }
+      })
+      .catch(console.error);
+    }
+
     apiService.getPlugins()
       .then(data => setPlugins(data))
       .catch(err => console.error('Failed to load plugins', err));
@@ -123,6 +144,51 @@ const SettingsPage: React.FC = () => {
               )}
             </div>
           </div>
+
+          {plugins.some(p => p.id === 'lastfm' && p.enabled) && (
+            <div style={{ background: 'var(--bg-glass)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-glass)' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '20px', height: '20px', borderRadius: '4px', background: '#ba0000', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, fontSize: '12px' }}>
+                  L
+                </div>
+                Last.fm Scrobbling
+              </h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '16px' }}>
+                Connect your Last.fm account to automatically track your listening history.
+              </p>
+              {lastfmSession ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '10px 16px', borderRadius: '8px' }}>
+                    <CheckCircle color="#10b981" size={18} />
+                    <span style={{ color: '#10b981', fontWeight: 600, fontSize: '14px' }}>Connected & Scrobbling</span>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      localStorage.removeItem('lastfm_session');
+                      setLastfmSession(null);
+                    }}
+                    style={{ background: 'transparent', border: '1px solid var(--border-glass)', color: 'var(--text-primary)', padding: '10px 16px', borderRadius: '8px', fontWeight: 600, transition: 'var(--transition-fast)' }}
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => {
+                    // Redirect to Last.fm OAuth
+                    const apiKey = "YOUR_API_KEY"; // In a real app this comes from backend config
+                    const cb = window.location.origin + "/settings";
+                    window.location.href = `http://www.last.fm/api/auth/?api_key=${apiKey}&cb=${encodeURIComponent(cb)}`;
+                  }}
+                  style={{ background: 'rgba(186, 0, 0, 0.1)', border: '1px solid rgba(186, 0, 0, 0.2)', color: '#ba0000', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, transition: 'var(--transition-fast)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(186, 0, 0, 0.2)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(186, 0, 0, 0.1)'}
+                >
+                  Connect Account
+                </button>
+              )}
+            </div>
+          )}
 
           <div style={{ background: 'var(--bg-glass)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-glass)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Metadata Refresh</h3>

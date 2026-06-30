@@ -197,6 +197,24 @@ export const apiService = {
     });
     if (!response.ok) throw new Error('Failed to scrobble track');
   },
+
+  scrobbleToLastFm: async (sessionKey: string, artist: string, track: string, timestamp: number): Promise<void> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/lastfm/scrobble`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ session_key: sessionKey, artist, track, timestamp })
+    });
+    if (!response.ok) throw new Error('Failed to scrobble to Last.fm');
+  },
+
+  updateNowPlayingToLastFm: async (sessionKey: string, artist: string, track: string): Promise<void> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/lastfm/nowplaying`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ session_key: sessionKey, artist, track })
+    });
+    if (!response.ok) throw new Error('Failed to update now playing to Last.fm');
+  },
   
   getRecentScrobbles: async (): Promise<Track[]> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/scrobbles/recent`, { headers: getHeaders() });
