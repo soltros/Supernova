@@ -146,7 +146,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }
 
     audioRef.current.pause();
-    audioRef.current.src = `${API_BASE_URL}/api/stream/${track.id}`;
+    audioRef.current.src = (track as any).stream_url ? (track as any).stream_url : `${API_BASE_URL}/api/stream/${track.id}`;
     
     try {
       playPromiseRef.current = audioRef.current.play();
@@ -162,7 +162,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         artist: album.title, // In the future we will use the track's actual primary artist
         album: album.title,
         artwork: [
-          { src: `${API_BASE_URL}/api/art/album/${album.id}`, sizes: '500x500', type: 'image/jpeg' }
+          { src: (album as any).cover_art_url ? (album as any).cover_art_url : `${API_BASE_URL}/api/art/album/${album.id}`, sizes: '500x500', type: 'image/jpeg' }
         ]
       });
     }

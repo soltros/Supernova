@@ -82,7 +82,7 @@ const PlayerBar: FC = () => {
         <div className="album-art-container" style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
           {currentAlbum ? (
             <img 
-              src={`${API_BASE_URL}/api/art/album/${currentAlbum.id}`} 
+              src={(currentAlbum as any).cover_art_url ? (currentAlbum as any).cover_art_url : `${API_BASE_URL}/api/art/album/${currentAlbum.id}`} 
               alt="art"
               className={`track-art-small ${isPlaying ? 'playing' : ''}`}
               onError={(e) => {
