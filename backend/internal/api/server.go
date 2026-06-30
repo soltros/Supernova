@@ -15,14 +15,16 @@ type Server struct {
 	repo     *database.Repository
 	lastfm   *external.LastFmClient
 	enricher *scanner.Enricher
+	scanner  *scanner.Scanner
 	mux      *http.ServeMux
 }
 
-func NewServer(repo *database.Repository, lastfm *external.LastFmClient, enricher *scanner.Enricher) *Server {
+func NewServer(repo *database.Repository, lastfm *external.LastFmClient, enricher *scanner.Enricher, mediaScanner *scanner.Scanner) *Server {
 	s := &Server{
 		repo:     repo,
 		lastfm:   lastfm,
 		enricher: enricher,
+		scanner:  mediaScanner,
 		mux:      http.NewServeMux(),
 	}
 	s.routes()

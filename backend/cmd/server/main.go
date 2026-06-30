@@ -84,7 +84,7 @@ func main() {
 	}()
 
 	// 8. Initialize the HTTP API Server
-	apiServer := api.NewServer(repo, lastfmClient, enricher)
+	apiServer := api.NewServer(repo, lastfmClient, enricher, mediaScanner)
 
 	// Configure the HTTP Server with sensible production timeouts
 	srv := &http.Server{
