@@ -157,6 +157,14 @@ export const apiService = {
     if (!response.ok) throw new Error('Failed to scan library');
   },
 
+  getPlugins: async (): Promise<any[]> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins`, {
+      headers: getHeaders()
+    });
+    if (!response.ok) throw new Error('Failed to fetch plugins');
+    return response.json();
+  },
+
   // Scrobbling
   scrobbleTrack: async (trackId: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/scrobbles`, {

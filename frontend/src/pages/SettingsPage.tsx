@@ -1,7 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { CheckCircle, XCircle } from 'lucide-react';
 import { apiService } from '../services/api';
 
 const SettingsPage: React.FC = () => {
+  const [plugins, setPlugins] = useState<any[]>([]);
+
+  useEffect(() => {
+    apiService.getPlugins()
+      .then(data => setPlugins(data))
+      .catch(err => console.error('Failed to load plugins', err));
+  }, []);
+
   const handleClearCache = async () => {
     if ('serviceWorker' in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
@@ -41,6 +50,29 @@ const SettingsPage: React.FC = () => {
         <h1 style={{ fontSize: '32px', fontWeight: 800, marginBottom: '32px', letterSpacing: '-1px' }}>Settings</h1>
         
         <div style={{ display: 'grid', gap: '24px', maxWidth: '600px' }}>
+          
+          <div style={{ background: 'var(--bg-glass)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-glass)' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px' }}>Installed Plugins</h3>
+            {plugins.length === 0 ? (
+              <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>No plugins are currently registered in the backend.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {plugins.map(p => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-glass)', opacity: p.enabled ? 1 : 0.6 }}>
+                    {p.enabled ? <CheckCircle color="#10b981" size={24} /> : <XCircle color="var(--text-muted)" size={24} />}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <strong style={{ color: 'var(--text-primary)' }}>{p.name}</strong>
+                        {p.enabled && <span style={{ fontSize: '10px', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '2px 6px', borderRadius: '4px', fontWeight: 700, textTransform: 'uppercase' }}>Active</span>}
+                      </div>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '4px' }}>{p.description}</p>
+                      {!p.enabled && <p style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '6px' }}>Enable by setting <code style={{ background: 'rgba(0,0,0,0.2)', padding: '2px 4px', borderRadius: '4px' }}>SUPERNOVA_PLUGIN_{p.id.toUpperCase()}=true</code></p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           
           <div style={{ background: 'var(--bg-glass)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-glass)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Application Cache</h3>

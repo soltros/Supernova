@@ -8,24 +8,27 @@ import (
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/external"
 	"github.com/soltros/Supernova/internal/models"
+	"github.com/soltros/Supernova/internal/plugins"
 	"github.com/soltros/Supernova/internal/scanner"
 )
 
 type Server struct {
-	repo     *database.Repository
-	lastfm   *external.LastFmClient
-	enricher *scanner.Enricher
-	scanner  *scanner.Scanner
-	mux      *http.ServeMux
+	repo          *database.Repository
+	lastfm        *external.LastFmClient
+	enricher      *scanner.Enricher
+	scanner       *scanner.Scanner
+	pluginManager *plugins.Manager
+	mux           *http.ServeMux
 }
 
-func NewServer(repo *database.Repository, lastfm *external.LastFmClient, enricher *scanner.Enricher, mediaScanner *scanner.Scanner) *Server {
+func NewServer(repo *database.Repository, lastfm *external.LastFmClient, enricher *scanner.Enricher, mediaScanner *scanner.Scanner, pluginManager *plugins.Manager) *Server {
 	s := &Server{
-		repo:     repo,
-		lastfm:   lastfm,
-		enricher: enricher,
-		scanner:  mediaScanner,
-		mux:      http.NewServeMux(),
+		repo:          repo,
+		lastfm:        lastfm,
+		enricher:      enricher,
+		scanner:       mediaScanner,
+		pluginManager: pluginManager,
+		mux:           http.NewServeMux(),
 	}
 	s.routes()
 	return s
@@ -89,6 +92,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("DELETE /api/playlists/{id}/tracks/{trackId}", s.requireAuth(s.handleRemoveTrackFromPlaylist()))
 	s.mux.HandleFunc("GET /api/playlists/export", s.requireAuth(s.handleExportPlaylists()))
 	s.mux.HandleFunc("POST /api/playlists/import", s.requireAuth(s.handleImportPlaylists()))
+	
+	// Plugins
+	s.mux.HandleFunc("GET /api/plugins", s.requireAuth(s.handleGetPlugins()))
 	
 	s.mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "version": "1.0"})
@@ -258,5 +264,20 @@ func (s *Server) handleScanLibrary() http.HandlerFunc {
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"success"}`))
+	}
+}
+
+// handleGetPlugins returns the list of registered plugins and their status
+func (s *Server) handleGetPlugins() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.pluginManager == nil {
+			json.NewEncoder(w).Encode([]plugins.PluginInfo{})
+			return
+		}
+		manifest := s.pluginManager.GetManifest()
+		if manifest == nil {
+			manifest = []plugins.PluginInfo{}
+		}
+		json.NewEncoder(w).Encode(manifest)
 	}
 }

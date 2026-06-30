@@ -13,6 +13,7 @@ import (
 	"github.com/soltros/Supernova/internal/api"
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/external"
+	"github.com/soltros/Supernova/internal/plugins"
 	"github.com/soltros/Supernova/internal/scanner"
 )
 
@@ -84,7 +85,10 @@ func main() {
 	}()
 
 	// 8. Initialize the HTTP API Server
-	apiServer := api.NewServer(repo, lastfmClient, enricher, mediaScanner)
+	pluginManager := plugins.InitManager()
+	pluginManager.Start()
+	
+	apiServer := api.NewServer(repo, lastfmClient, enricher, mediaScanner, pluginManager)
 
 	// Configure the HTTP Server with sensible production timeouts
 	srv := &http.Server{
