@@ -176,11 +176,10 @@ func (s *Scanner) processFile(path string) {
 	}
 	meta.FilePath = path 
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// Insert into SQLite instantly. We'll enhance this track in the background later.
-	if err := s.repo.UpsertTrack(ctx, meta); err != nil {
+	// We use a background context because UpsertTrack acquires a global write mutex
+	// and we don't want workers timing out while waiting in the lock queue.
+	if err := s.repo.UpsertTrack(context.Background(), meta); err != nil {
 		log.Printf("DB Insert Failed (%s): %v", filepath.Base(path), err)
 	}
 }
