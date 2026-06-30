@@ -4,11 +4,22 @@ import { apiService } from '../services/api';
 
 const SettingsPage: React.FC = () => {
   const [plugins, setPlugins] = useState<any[]>([]);
+  const [scanStatus, setScanStatus] = useState<{status: string, files_scanned: number}>({ status: 'idle', files_scanned: 0 });
 
   useEffect(() => {
     apiService.getPlugins()
       .then(data => setPlugins(data))
       .catch(err => console.error('Failed to load plugins', err));
+      
+    // Poll scan progress
+    const checkProgress = () => {
+      apiService.getScanProgress()
+        .then(data => setScanStatus(data))
+        .catch(() => {});
+    };
+    checkProgress();
+    const interval = setInterval(checkProgress, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleClearCache = async () => {
@@ -92,18 +103,25 @@ const SettingsPage: React.FC = () => {
           <div style={{ background: 'var(--bg-glass)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-glass)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Library Management</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '16px' }}>
-              Manually trigger a full rescan of your media directory. Use this if music you dragged into Supernova isn't showing up.
+              Manually trigger a full rescan of your media directory.
             </p>
-            <button 
-              onClick={() => {
-                apiService.scanLibrary().then(() => alert("Library scan started in the background. Your music will appear shortly."));
-              }}
-              style={{ background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.2)', color: 'var(--accent-primary)', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, transition: 'var(--transition-fast)' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(139, 92, 246, 0.2)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)'}
-            >
-              Scan Library
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <button 
+                onClick={() => {
+                  apiService.scanLibrary().catch(console.error);
+                }}
+                disabled={scanStatus.status === 'scanning'}
+                style={{ background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.2)', color: 'var(--accent-primary)', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, transition: 'var(--transition-fast)', opacity: scanStatus.status === 'scanning' ? 0.5 : 1 }}
+              >
+                {scanStatus.status === 'scanning' ? 'Scanning...' : 'Scan Library'}
+              </button>
+              {scanStatus.status === 'scanning' && (
+                <span style={{ color: 'var(--text-secondary)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div className="loader" style={{ width: '16px', height: '16px', borderWidth: '2px', borderColor: 'rgba(255,255,255,0.1)', borderTopColor: 'var(--accent-primary)' }}></div>
+                  Processed {scanStatus.files_scanned} files...
+                </span>
+              )}
+            </div>
           </div>
 
           <div style={{ background: 'var(--bg-glass)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-glass)' }}>

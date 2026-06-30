@@ -81,6 +81,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/scrobbles", s.requireAuth(s.handleScrobble()))
 	s.mux.HandleFunc("GET /api/scrobbles/recent", s.requireAuth(s.handleGetRecentScrobbles()))
 	
+	// Scanning
+	s.mux.HandleFunc("POST /api/scan", s.requireAuth(s.handleScanLibrary()))
+	s.mux.HandleFunc("GET /api/scan/progress", s.requireAuth(s.handleScanStatus()))
+	
 	// Settings
 	s.mux.HandleFunc("POST /api/settings/reset-artists", s.requireAuth(s.handleResetArtists()))
 	// Playlists (Protected)
@@ -96,6 +100,10 @@ func (s *Server) routes() {
 	// Plugins
 	s.mux.HandleFunc("GET /api/plugins", s.requireAuth(s.handleGetPlugins()))
 	
+	if s.pluginManager != nil {
+		s.pluginManager.SetupPluginRoutes(s.mux)
+	}
+
 	s.mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "version": "1.0"})
 	})
@@ -264,6 +272,21 @@ func (s *Server) handleScanLibrary() http.HandlerFunc {
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"success"}`))
+	}
+}
+
+// handleScanStatus returns the current scanning status
+func (s *Server) handleScanStatus() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		status := "idle"
+		scanned := 0
+		if s.scanner != nil {
+			status, scanned = s.scanner.GetStatus()
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"status": status,
+			"files_scanned": scanned,
+		})
 	}
 }
 

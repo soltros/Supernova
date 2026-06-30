@@ -18,8 +18,12 @@ import (
 type Scanner struct {
 	mediaPath string
 	watcher   *fsnotify.Watcher
-	repo      *database.Repository
-	enricher  *Enricher
+	repo         *database.Repository
+	enricher     *Enricher
+	
+	stateMu      sync.RWMutex
+	status       string // "idle", "scanning"
+	filesScanned int
 }
 
 // New creates a new Scanner instance and initializes the file watcher.
@@ -30,15 +34,32 @@ func New(mediaPath string, repo *database.Repository, enricher *Enricher) (*Scan
 	}
 
 	return &Scanner{
-		mediaPath: mediaPath,
-		watcher:   watcher,
-		repo:      repo,
-		enricher:  enricher,
+		mediaPath:    mediaPath,
+		watcher:      watcher,
+		repo:         repo,
+		enricher:     enricher,
+		status:       "idle",
+		filesScanned: 0,
 	}, nil
 }
 
 // FullScan recursively walks the media directory using a high-performance Worker Pool.
 func (s *Scanner) FullScan() error {
+	s.stateMu.Lock()
+	if s.status == "scanning" {
+		s.stateMu.Unlock()
+		return nil // Already scanning
+	}
+	s.status = "scanning"
+	s.filesScanned = 0
+	s.stateMu.Unlock()
+
+	defer func() {
+		s.stateMu.Lock()
+		s.status = "idle"
+		s.stateMu.Unlock()
+	}()
+
 	log.Printf("Starting highly concurrent library scan at: %s", s.mediaPath)
 	startTime := time.Now()
 
@@ -54,6 +75,9 @@ func (s *Scanner) FullScan() error {
 			defer wg.Done()
 			for path := range jobs {
 				s.processFile(path)
+				s.stateMu.Lock()
+				s.filesScanned++
+				s.stateMu.Unlock()
 			}
 		}()
 	}
@@ -88,6 +112,13 @@ func (s *Scanner) FullScan() error {
 	}
 
 	return err
+}
+
+// GetStatus returns the current scanning state
+func (s *Scanner) GetStatus() (string, int) {
+	s.stateMu.RLock()
+	defer s.stateMu.RUnlock()
+	return s.status, s.filesScanned
 }
 
 // Watch starts listening for real-time file system events (adds, deletes, renames)

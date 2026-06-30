@@ -157,6 +157,14 @@ export const apiService = {
     if (!response.ok) throw new Error('Failed to scan library');
   },
 
+  getScanProgress: async (): Promise<{status: string, files_scanned: number}> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/scan/progress`, {
+      headers: getHeaders()
+    });
+    if (!response.ok) throw new Error('Failed to fetch scan progress');
+    return response.json();
+  },
+
   getPlugins: async (): Promise<any[]> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins`, {
       headers: getHeaders()
