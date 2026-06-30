@@ -165,6 +165,21 @@ export const apiService = {
     return response.json();
   },
 
+  getLyrics: async (artist: string, track: string, album: string, durationSec: number): Promise<any> => {
+    const params = new URLSearchParams({
+      artist_name: artist,
+      track_name: track,
+      album_name: album,
+      duration: durationSec.toString()
+    });
+    // This goes through the backend plugin to avoid CORS and allow caching/rate-limiting
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/lrclib/lyrics?${params}`, {
+      headers: getHeaders()
+    });
+    if (!response.ok) throw new Error('Lyrics not found');
+    return response.json();
+  },
+
   // Scrobbling
   scrobbleTrack: async (trackId: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/scrobbles`, {

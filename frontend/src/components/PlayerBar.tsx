@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { FC, MouseEvent, ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronDown } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronDown, Mic2 } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import HeartButton from './HeartButton';
+import LyricsOverlay from './LyricsOverlay';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -24,6 +25,7 @@ const PlayerBar: FC = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const [progress, setProgress] = useState(0);
   const [isMobileExpanded, setIsMobileExpanded] = useState(false);
+  const [showLyrics, setShowLyrics] = useState(false);
 
   useEffect(() => {
     if (!audioElement) return;
@@ -171,29 +173,42 @@ const PlayerBar: FC = () => {
         </div>
       </div>
       
-      {/* Right Side: Interactive Volume Slider */}
+      {/* Right Side: Interactive Volume Slider & Extra Controls */}
       <div 
         className="volume-controls" 
         onClick={(e) => e.stopPropagation()}
+        style={{ display: 'flex', alignItems: 'center', gap: '16px' }}
       >
-        <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => changeVolume(volume === 0 ? 1 : 0)}>
-          {volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
-        </span>
-        <input 
-          type="range" 
-          min="0" 
-          max="1" 
-          step="0.01" 
-          value={volume} 
-          onChange={handleVolumeChange}
-          style={{
-            width: '100px',
-            cursor: 'pointer',
-            accentColor: 'var(--accent-primary)'
-          }}
-        />
+        <button 
+          className="control-btn" 
+          onClick={() => setShowLyrics(true)}
+          title="Lyrics"
+          style={{ padding: '8px', opacity: showLyrics ? 1 : 0.7 }}
+        >
+          <Mic2 size={20} color={showLyrics ? "var(--accent-primary)" : "currentColor"} />
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => changeVolume(volume === 0 ? 1 : 0)}>
+            {volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
+          </span>
+          <input 
+            type="range" 
+            min="0" 
+            max="1" 
+            step="0.01" 
+            value={volume} 
+            onChange={handleVolumeChange}
+            style={{
+              width: '100px',
+              cursor: 'pointer',
+              accentColor: 'var(--accent-primary)'
+            }}
+          />
+        </div>
       </div>
       
+      <LyricsOverlay isOpen={showLyrics} onClose={() => setShowLyrics(false)} />
     </footer>
   );
 };
