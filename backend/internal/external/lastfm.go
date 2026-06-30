@@ -152,12 +152,12 @@ func (c *LastFmClient) UpdateNowPlaying(sessionKey, artist, track string) error 
 // This should be called after a track has played for at least 50% of its duration, or 4 minutes.
 func (c *LastFmClient) Scrobble(sessionKey, artist, track string, timestamp int64) error {
 	params := map[string]string{
-		"method":    "track.scrobble",
-		"artist":    artist,
-		"track":     track,
-		"timestamp": fmt.Sprintf("%d", timestamp),
-		"api_key":   c.apiKey,
-		"sk":        sessionKey,
+		"method":       "track.scrobble",
+		"artist[0]":    artist,
+		"track[0]":     track,
+		"timestamp[0]": fmt.Sprintf("%d", timestamp),
+		"api_key":      c.apiKey,
+		"sk":           sessionKey,
 	}
 
 	return c.postAuthenticated(params)
