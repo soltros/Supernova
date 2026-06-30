@@ -397,3 +397,50 @@ func (c *LastFmClient) GetTopTracksByTag(tag string, limit, page int) (*TopTrack
 	}
 	return &data, nil
 }
+
+// ScrapeArtistImage fetches the real artist image from Last.fm's HTML, bypassing their API limitation
+func (c *LastFmClient) ScrapeArtistImage(artistName string) string {
+	reqURL := "https://www.last.fm/music/" + url.PathEscape(artistName)
+	req, err := http.NewRequest("GET", reqURL, nil)
+	if err != nil {
+		return ""
+	}
+	// Mimic a browser to avoid simple bot blocks
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+	
+	resp, err := c.client.Do(req)
+	if err != nil || resp.StatusCode != 200 {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+	body := string(bodyBytes)
+
+	// Simple string matching to find the og:image meta tag
+	startStr := `property="og:image"`
+	idx := strings.Index(body, startStr)
+	if idx == -1 {
+		return ""
+	}
+	body = body[idx:]
+	contentIdx := strings.Index(body, `content="`)
+	if contentIdx == -1 {
+		return ""
+	}
+	body = body[contentIdx+9:]
+	endIdx := strings.Index(body, `"`)
+	if endIdx == -1 {
+		return ""
+	}
+	imgURL := body[:endIdx]
+	
+	// If it returns the default star even in og:image, reject it
+	if strings.Contains(imgURL, "2a96cbd8b46e442fc41c2b86b821562f") {
+		return ""
+	}
+	return imgURL
+}

@@ -58,6 +58,23 @@ const SettingsPage: React.FC = () => {
           </div>
 
           <div style={{ background: 'var(--bg-glass)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-glass)' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Library Management</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '16px' }}>
+              Manually trigger a full rescan of your media directory. Use this if music you dragged into Supernova isn't showing up.
+            </p>
+            <button 
+              onClick={() => {
+                apiService.scanLibrary().then(() => alert("Library scan started in the background. Your music will appear shortly."));
+              }}
+              style={{ background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.2)', color: 'var(--accent-primary)', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, transition: 'var(--transition-fast)' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(139, 92, 246, 0.2)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)'}
+            >
+              Scan Library
+            </button>
+          </div>
+
+          <div style={{ background: 'var(--bg-glass)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-glass)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Metadata Refresh</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '16px' }}>
               If artist images or biographies are broken, you can clear the database cache to force a re-fetch from Last.fm.

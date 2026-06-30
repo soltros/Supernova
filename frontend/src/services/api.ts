@@ -149,6 +149,14 @@ export const apiService = {
     if (!response.ok) throw new Error('Failed to reset artists');
   },
 
+  scanLibrary: async (): Promise<void> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/scan`, {
+      method: 'POST',
+      headers: getHeaders()
+    });
+    if (!response.ok) throw new Error('Failed to scan library');
+  },
+
   // Scrobbling
   scrobbleTrack: async (trackId: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/scrobbles`, {

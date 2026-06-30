@@ -103,6 +103,18 @@ func (s *Scanner) Watch() {
 					info, err := os.Stat(event.Name)
 					if err == nil && info.IsDir() {
 						s.watcher.Add(event.Name)
+						// Recursively scan in case the user dragged a folder that already contains files
+						filepath.WalkDir(event.Name, func(p string, d os.DirEntry, err error) error {
+							if err == nil && d.IsDir() {
+								s.watcher.Add(p)
+							} else if err == nil && isAudioFile(p) {
+								s.processFile(p)
+							}
+							return nil
+						})
+						if s.enricher != nil {
+							s.enricher.Trigger()
+						}
 					} else if isAudioFile(event.Name) {
 						s.processFile(event.Name)
 						if s.enricher != nil {

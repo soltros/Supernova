@@ -244,3 +244,17 @@ func (s *Server) handleResetArtists() http.HandlerFunc {
 		w.Write([]byte(`{"status":"success"}`))
 	}
 }
+
+// handleScanLibrary triggers a full library rescan
+func (s *Server) handleScanLibrary() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.scanner != nil {
+			go func() {
+				// Fire and forget
+				_ = s.scanner.FullScan()
+			}()
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"success"}`))
+	}
+}

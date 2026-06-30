@@ -145,8 +145,16 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 			// Find the largest image (usually last in array)
 			imgURL := ""
 			for _, img := range info.Artist.Image {
-				if img.URL != "" {
+				if img.URL != "" && !strings.Contains(img.URL, "2a96cbd8b46e442fc41c2b86b821562f") {
 					imgURL = img.URL
+				}
+			}
+
+			// If we didn't find a valid image, try scraping the Last.fm website directly
+			if imgURL == "" {
+				scrapedImage := e.lastfm.ScrapeArtistImage(a.Name)
+				if scrapedImage != "" {
+					imgURL = scrapedImage
 				}
 			}
 
