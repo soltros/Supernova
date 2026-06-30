@@ -5,10 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"strings"
 
-	"github.com/soltros/Supernova/internal/models"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -178,7 +176,6 @@ func (p *SubsonicPlugin) handleGetArtist(w http.ResponseWriter, r *http.Request)
 			"artist":   artist.Name,
 			"artistId": artist.ID,
 			"coverArt": al.ID,
-			"year":     al.Year,
 		})
 	}
 
@@ -215,7 +212,6 @@ func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) 
 			"artist":   t.ArtistName,
 			"track":    t.TrackNumber,
 			"discNumber": t.DiscNumber,
-			"year":     album.Year,
 			"coverArt": album.ID,
 			"duration": t.DurationMs / 1000,
 			"path":     t.FilePath,
