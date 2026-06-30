@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"strings"
 )
@@ -31,12 +32,12 @@ func Register(p Plugin) {
 }
 
 // Start checks environment variables and initializes enabled plugins
-func (m *Manager) Start() {
+func (m *Manager) Start(config PluginConfig) {
 	for id, p := range m.registry {
 		envKey := "SUPERNOVA_PLUGIN_" + strings.ToUpper(id)
 		if strings.ToLower(os.Getenv(envKey)) == "true" {
 			log.Printf("Starting plugin: %s (%s)", p.Name(), id)
-			err := p.Init()
+			err := p.Init(config)
 			if err != nil {
 				log.Printf("Failed to initialize plugin %s: %v", id, err)
 				m.enabled[id] = false
@@ -45,6 +46,15 @@ func (m *Manager) Start() {
 			}
 		} else {
 			m.enabled[id] = false
+		}
+	}
+}
+
+// SetupPluginRoutes allows all enabled plugins to register their API endpoints
+func (m *Manager) SetupPluginRoutes(mux *http.ServeMux) {
+	for id, p := range m.registry {
+		if m.enabled[id] {
+			p.SetupRoutes(mux)
 		}
 	}
 }

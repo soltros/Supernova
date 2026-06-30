@@ -34,7 +34,7 @@ func (p *LRCLibPlugin) Description() string {
 	return "Fetches time-synced lyrics from LRCLib for the currently playing track."
 }
 
-func (p *LRCLibPlugin) Init() error {
+func (p *LRCLibPlugin) Init(config plugins.PluginConfig) error {
 	p.client = &http.Client{
 		Timeout: 5 * time.Second,
 	}

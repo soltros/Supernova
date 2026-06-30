@@ -1,11 +1,21 @@
 package plugins
 
+import (
+	"net/http"
+	"github.com/soltros/Supernova/internal/database"
+)
+
+type PluginConfig struct {
+	Repo *database.Repository
+}
+
 // Plugin defines the standard interface for all Supernova plugins
 type Plugin interface {
 	ID() string
 	Name() string
 	Description() string
-	Init() error
+	Init(config PluginConfig) error
+	SetupRoutes(mux *http.ServeMux)
 }
 
 // PluginInfo is used to serialize plugin metadata for the frontend

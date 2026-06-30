@@ -15,6 +15,7 @@ import (
 	"github.com/soltros/Supernova/internal/external"
 	"github.com/soltros/Supernova/internal/plugins"
 	_ "github.com/soltros/Supernova/internal/plugins/lrclib"
+	_ "github.com/soltros/Supernova/internal/plugins/subsonic"
 	"github.com/soltros/Supernova/internal/scanner"
 )
 
@@ -87,7 +88,9 @@ func main() {
 
 	// 8. Initialize the HTTP API Server
 	pluginManager := plugins.InitManager()
-	pluginManager.Start()
+	pluginManager.Start(plugins.PluginConfig{
+		Repo: repo,
+	})
 	
 	apiServer := api.NewServer(repo, lastfmClient, enricher, mediaScanner, pluginManager)
 
