@@ -30,8 +30,20 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
     setLyricsData(null);
     setSyncedLines([]);
 
+    // Ensure required metadata exists before calling the API
+    if (!currentTrack.artist_name || !currentTrack.title || !currentAlbum.title || currentTrack.duration_ms == null) {
+      setError("Track metadata incomplete");
+      setLoading(false);
+      return;
+    }
+
     // Fetch lyrics via plugin API
-    apiService.getLyrics(currentTrack.artist_name, currentTrack.title, currentAlbum.title, currentTrack.duration_ms / 1000)
+    apiService.getLyrics(
+      currentTrack.artist_name,
+      currentTrack.title,
+      currentAlbum.title,
+      currentTrack.duration_ms / 1000
+    )
       .then(data => {
         setLyricsData(data);
         if (data.syncedLyrics) {

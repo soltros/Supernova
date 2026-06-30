@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Play, Search, Radio } from 'lucide-react';
-import { apiService } from '../services/api';
 import { usePlayer } from '../context/PlayerContext';
 
 const RadioPage: React.FC = () => {
