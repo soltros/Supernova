@@ -6,14 +6,15 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # Use a Docker managed named volume for database persistence
-      - supernova-data:/root/.supernova 
+      # Separate the database and the cache into two different Docker volumes
+      - supernova-db:/root/.supernova/db
+      - supernova-cache:/root/.supernova/art_cache
       # Mount the user's custom music directory into the container at the exact same path
       - ${MEDIA_PATH:-./music}:${MEDIA_PATH:-/root/Music}:ro 
     environment:
       # Pass the custom MEDIA_PATH into the Go backend
       - MEDIA_PATH=${MEDIA_PATH:-/root/Music}
-      - DB_PATH=/root/.supernova/supernova.db
+      - DB_PATH=/root/.supernova/db/supernova.db
       - LASTFM_API_KEY=${LASTFM_API_KEY:-}
       - LASTFM_API_SECRET=${LASTFM_API_SECRET:-}
     restart: unless-stopped
@@ -30,4 +31,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  supernova-data:
+  supernova-db:
+  supernova-cache:
