@@ -63,6 +63,7 @@ func (p *SubsonicPlugin) writeResponse(w http.ResponseWriter, r *http.Request, d
 	response := map[string]interface{}{
 		"status":  "ok",
 		"version": "1.16.1",
+		"type":    "supernova",
 	}
 	
 	for k, v := range data {
@@ -142,23 +143,39 @@ func (p *SubsonicPlugin) handleGetIndexes(w http.ResponseWriter, r *http.Request
 
 func (p *SubsonicPlugin) handleGetArtists(w http.ResponseWriter, r *http.Request) {
 	// Modern clients use getArtists (returns ID3 tags, grouped differently)
-	artists, _ := p.repo.GetArtists(context.Background(), 1000, 0)
-	var list []map[string]interface{}
+	artists, err := p.repo.GetArtists(context.Background(), 1000, 0)
+	if err != nil {
+		p.writeError(w, r, 0, "Database error")
+		return
+	}
+
+	indexMap := make(map[string][]map[string]interface{})
 	for _, a := range artists {
-		list = append(list, map[string]interface{}{
+		if a.Name == "" {
+			continue
+		}
+		letter := strings.ToUpper(string(a.Name[0]))
+		if letter < "A" || letter > "Z" {
+			letter = "#"
+		}
+		indexMap[letter] = append(indexMap[letter], map[string]interface{}{
 			"id":   a.ID,
 			"name": a.Name,
+		})
+	}
+
+	var indexes []map[string]interface{}
+	for letter, items := range indexMap {
+		indexes = append(indexes, map[string]interface{}{
+			"name":   letter,
+			"artist": items,
 		})
 	}
 	
 	p.writeResponse(w, r, map[string]interface{}{
 		"artists": map[string]interface{}{
-			"index": []map[string]interface{}{
-				{
-					"name": "All",
-					"artist": list,
-				},
-			},
+			"ignoredArticles": "",
+			"index": indexes,
 		},
 	})
 }
@@ -189,8 +206,67 @@ func (p *SubsonicPlugin) handleGetArtist(w http.ResponseWriter, r *http.Request)
 }
 
 func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request) {
-	// In Subsonic, getMusicDirectory is often used interchangeably with getAlbum
-	p.handleGetAlbum(w, r)
+	id := r.URL.Query().Get("id")
+	
+	// First check if it's an artist
+	artist, err := p.repo.GetArtistByID(context.Background(), id)
+	if err == nil && artist != nil {
+		// It's an artist, return their albums as directories
+		albums, _ := p.repo.GetAlbumsByArtistID(context.Background(), id)
+		var children []map[string]interface{}
+		for _, album := range albums {
+			children = append(children, map[string]interface{}{
+				"id":       album.ID,
+				"parent":   id,
+				"isDir":    true,
+				"title":    album.Title,
+				"album":    album.Title,
+				"artist":   artist.Name,
+				"coverArt": album.ID,
+			})
+		}
+		p.writeResponse(w, r, map[string]interface{}{
+			"directory": map[string]interface{}{
+				"id":    id,
+				"name":  artist.Name,
+				"child": children,
+			},
+		})
+		return
+	}
+
+	// Try as an album
+	album, err := p.repo.GetAlbumByID(context.Background(), id)
+	if err == nil && album != nil {
+		tracks, _ := p.repo.GetTracksByAlbumID(context.Background(), id)
+		var children []map[string]interface{}
+		for _, track := range tracks {
+			children = append(children, map[string]interface{}{
+				"id":          track.ID,
+				"parent":      id,
+				"isDir":       false,
+				"title":       track.Title,
+				"album":       album.Title,
+				"artist":      track.ArtistName,
+				"track":       track.TrackNumber,
+				"duration":    track.DurationMs / 1000,
+				"path":        track.FilePath,
+				"coverArt":    album.ID,
+				"contentType": "audio/" + track.Format,
+				"suffix":      track.Format,
+			})
+		}
+		p.writeResponse(w, r, map[string]interface{}{
+			"directory": map[string]interface{}{
+				"id":    id,
+				"name":  album.Title,
+				"child": children,
+			},
+		})
+		return
+	}
+
+	p.writeError(w, r, 70, "The requested data was not found.")
 }
 
 func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
