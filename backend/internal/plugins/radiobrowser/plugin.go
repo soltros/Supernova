@@ -3,7 +3,6 @@ package radiobrowser
 import (
 	"encoding/json"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/soltros/Supernova/internal/database"

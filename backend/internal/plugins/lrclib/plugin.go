@@ -1,7 +1,6 @@
 package lrclib
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
