@@ -45,6 +45,19 @@ func (p *LastFmPlugin) SetupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/plugins/lastfm/scrobble", p.handleScrobble)
 	mux.HandleFunc("POST /api/plugins/lastfm/session", p.handleGetSession)
 	mux.HandleFunc("POST /api/plugins/lastfm/nowplaying", p.handleNowPlaying)
+	mux.HandleFunc("GET /api/plugins/lastfm/auth-url", p.handleGetAuthUrl)
+}
+
+func (p *LastFmPlugin) handleGetAuthUrl(w http.ResponseWriter, r *http.Request) {
+	cb := r.URL.Query().Get("cb")
+	// Note: in a real environment, the API key is passed into the client from os.Getenv
+	apiKey := "YOUR_API_KEY" // TODO: Use real API key
+	
+	url := "http://www.last.fm/api/auth/?api_key=" + apiKey + "&cb=" + cb
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"url": url,
+	})
 }
 
 func (p *LastFmPlugin) handleNowPlaying(w http.ResponseWriter, r *http.Request) {
