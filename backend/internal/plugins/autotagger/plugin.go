@@ -56,9 +56,11 @@ func (p *AutoTaggerPlugin) runTaggingJob() {
 	rows, err := db.QueryContext(ctx, `
 		SELECT t.file_path, t.id, t.duration_ms, t.format, t.bitrate, a.cover_art_path 
 		FROM tracks t
-		JOIN albums a ON t.album_id = a.id
-		JOIN artists ar ON a.artist_id = ar.id
+		LEFT JOIN albums a ON t.album_id = a.id
+		LEFT JOIN track_artists ta ON t.id = ta.track_id
+		LEFT JOIN artists ar ON ta.artist_id = ar.id
 		WHERE ar.name = 'Unknown Artist' OR a.title = 'Unknown Album' OR t.title LIKE 'Track %'
+		GROUP BY t.id
 	`)
 	if err != nil {
 		log.Printf("[AutoTagger] Failed to query tracks: %v\n", err)
