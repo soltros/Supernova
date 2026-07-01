@@ -183,7 +183,7 @@ func (p *SubsonicPlugin) handleGetArtists(w http.ResponseWriter, r *http.Request
 func (p *SubsonicPlugin) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	artist, err := p.repo.GetArtistByID(context.Background(), id)
-	if err != nil || artist == nil {
+	if err != nil {
 		p.writeError(w, r, 70, "Artist not found")
 		return
 	}
@@ -241,7 +241,7 @@ func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.
 
 	// Try as an album
 	album, err := p.repo.GetAlbumByID(context.Background(), id)
-	if err == nil && album != nil {
+	if err == nil {
 		tracks, _ := p.repo.GetTracksByAlbumID(context.Background(), id)
 		var children []map[string]interface{}
 		for _, track := range tracks {
@@ -276,7 +276,7 @@ func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.
 func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	album, err := p.repo.GetAlbumByID(context.Background(), id)
-	if err != nil || album == nil {
+	if err != nil {
 		p.writeError(w, r, 70, "Album not found")
 		return
 	}
@@ -318,7 +318,7 @@ func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) 
 func (p *SubsonicPlugin) handleStream(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	track, err := p.repo.GetTrackByID(context.Background(), id)
-	if err != nil || track == nil {
+	if err != nil {
 		http.Error(w, "Not found", 404)
 		return
 	}
