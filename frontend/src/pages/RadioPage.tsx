@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, Search, Radio } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 
@@ -9,6 +9,16 @@ const RadioPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [recentStations, setRecentStations] = useState<any[]>([]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('recentRadioStations');
+    if (stored) {
+      try {
+        setRecentStations(JSON.parse(stored));
+      } catch (e) { /* ignore */ }
+    }
+  }, []);
 
   const { internalPlay } = usePlayer() as any;
 
@@ -80,6 +90,10 @@ const RadioPage: React.FC = () => {
     if (internalPlay) {
       internalPlay(mockTrack, mockAlbum);
     }
+
+    const newRecents = [station, ...recentStations.filter(s => s.stationuuid !== station.stationuuid)].slice(0, 20);
+    setRecentStations(newRecents);
+    localStorage.setItem('recentRadioStations', JSON.stringify(newRecents));
   };
 
   return (
@@ -125,6 +139,46 @@ const RadioPage: React.FC = () => {
         {error && (
           <div style={{ color: '#ff4444', marginBottom: '24px', padding: '16px', background: 'rgba(255,68,68,0.1)', borderRadius: '12px' }}>
             {error}
+          </div>
+        )}
+
+        {stations.length === 0 && recentStations.length > 0 && !loading && !error && (
+          <div style={{ marginBottom: '48px' }}>
+            <h2 className="section-title">Recently Played Stations</h2>
+            <div className="grid-container" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
+              {recentStations.map(station => (
+                <div key={`recent-${station.stationuuid}`} className="card" onClick={() => playStation(station)}>
+                  <div className="card-image-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', padding: '24px' }}>
+                    {station.favicon ? (
+                      <img 
+                        src={station.favicon} 
+                        alt={station.name} 
+                        className="card-image"
+                        style={{ objectFit: 'contain', width: '100px', height: '100px', borderRadius: '8px' }}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          if (e.currentTarget.nextElementSibling) {
+                            (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'block';
+                          }
+                        }}
+                      />
+                    ) : null}
+                    <div style={{ display: station.favicon ? 'none' : 'block' }}>
+                      <Radio size={48} color="var(--text-muted)" />
+                    </div>
+                    <div className="play-overlay">
+                      <button className="play-btn">
+                        <Play size={24} fill="currentColor" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="card-info">
+                    <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</h3>
+                    <p className="card-subtitle">{station.country || 'Unknown Location'} • {station.tags ? station.tags.split(',')[0] : 'Radio'}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
