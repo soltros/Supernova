@@ -214,7 +214,7 @@ func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.
 	
 	// First check if it's an artist
 	artist, err := p.repo.GetArtistByID(context.Background(), id)
-	if err == nil && artist != nil {
+	if err == nil {
 		// It's an artist, return their albums as directories
 		albums, _ := p.repo.GetAlbumsByArtistID(context.Background(), id)
 		var children []map[string]interface{}

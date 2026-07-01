@@ -180,3 +180,54 @@ func (r *Repository) ResetArtistEnrichment() error {
 	`)
 	return err
 }
+
+// GetAlbumsByArtistID returns all albums for a given artist ID
+func (r *Repository) GetAlbumsByArtistID(ctx context.Context, artistID string) ([]models.Album, error) {
+	query := `
+		SELECT DISTINCT a.id, a.title, a.release_year, a.musicbrainz_id, a.cover_art_path
+		FROM albums a
+		JOIN album_artists aa ON a.id = aa.album_id
+		WHERE aa.artist_id = ?
+		ORDER BY a.release_year DESC, a.title ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, artistID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var albums []models.Album
+	for rows.Next() {
+		var album models.Album
+		if err := rows.Scan(&album.ID, &album.Title, &album.ReleaseYear, &album.MusicBrainzID, &album.CoverArtPath); err != nil {
+			return nil, err
+		}
+		albums = append(albums, album)
+	}
+	return albums, rows.Err()
+}
+
+// GetTracksByAlbumID returns all tracks for a given album ID
+func (r *Repository) GetTracksByAlbumID(ctx context.Context, albumID string) ([]models.Track, error) {
+	query := `
+		SELECT t.id, t.album_id, t.title, t.track_number, t.disc_number, t.duration_ms, t.file_path, t.format, t.bitrate
+		FROM tracks t
+		WHERE t.album_id = ?
+		ORDER BY t.disc_number ASC, t.track_number ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, albumID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tracks []models.Track
+	for rows.Next() {
+		var track models.Track
+		if err := rows.Scan(&track.ID, &track.AlbumID, &track.Title, &track.TrackNumber, &track.DiscNumber, &track.DurationMs, &track.FilePath, &track.Format, &track.Bitrate); err != nil {
+			return nil, err
+		}
+		tracks = append(tracks, track)
+	}
+	return tracks, rows.Err()
+}
