@@ -124,9 +124,9 @@ const SettingsPage: React.FC = () => {
           <div style={{ background: 'var(--bg-glass)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-glass)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Library Management</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '16px' }}>
-              Manually trigger a full rescan of your media directory.
+              Manage your media directory and clean up metadata.
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
               <button 
                 onClick={() => {
                   apiService.scanLibrary().catch(console.error);
@@ -136,6 +136,31 @@ const SettingsPage: React.FC = () => {
               >
                 {scanStatus.status === 'scanning' ? 'Scanning...' : 'Scan Library'}
               </button>
+
+              {plugins.some(p => p.id === 'autotagger' && p.enabled) && (
+                <button 
+                  onClick={() => {
+                    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/plugins/autotagger/run`, { method: 'POST' });
+                    alert("Auto-tagging job started in the background. Check backend logs for progress.");
+                  }}
+                  style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Run Auto-Tagger
+                </button>
+              )}
+
+              {plugins.some(p => p.id === 'artistmerger' && p.enabled) && (
+                <button 
+                  onClick={() => {
+                    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/plugins/artistmerger/run`, { method: 'POST' });
+                    alert("Artist merger job started in the background. Check backend logs for progress.");
+                  }}
+                  style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Merge Similar Artists
+                </button>
+              )}
+
               {scanStatus.status === 'scanning' && (
                 <span style={{ color: 'var(--text-secondary)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div className="loader" style={{ width: '16px', height: '16px', borderWidth: '2px', borderColor: 'rgba(255,255,255,0.1)', borderTopColor: 'var(--accent-primary)' }}></div>
@@ -175,16 +200,20 @@ const SettingsPage: React.FC = () => {
               ) : (
                 <button 
                   onClick={() => {
-                    // Redirect to Last.fm OAuth
-                    const apiKey = "YOUR_API_KEY"; // In a real app this comes from backend config
                     const cb = window.location.origin + "/settings";
-                    window.location.href = `http://www.last.fm/api/auth/?api_key=${apiKey}&cb=${encodeURIComponent(cb)}`;
+                    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/plugins/lastfm/auth-url?cb=${encodeURIComponent(cb)}`)
+                      .then(r => r.json())
+                      .then(data => {
+                        if (data.url) {
+                          window.location.href = data.url;
+                        }
+                      });
                   }}
-                  style={{ background: 'rgba(186, 0, 0, 0.1)', border: '1px solid rgba(186, 0, 0, 0.2)', color: '#ba0000', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, transition: 'var(--transition-fast)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(186, 0, 0, 0.2)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(186, 0, 0, 0.1)'}
+                  style={{ background: '#ba0000', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', transition: 'var(--transition-fast)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#d00000'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#ba0000'}
                 >
-                  Connect Account
+                  Connect Last.fm
                 </button>
               )}
             </div>
