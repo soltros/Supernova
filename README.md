@@ -86,6 +86,19 @@ Authorization: Bearer <your_jwt_token>
 ## Plugin Ecosystem
 Supernova is built to be highly modular. Enabled plugins expose their own API endpoints mounted under `/api/plugins/`.
 
+### Enabling Plugins
+By default, all official plugins are bundled with the backend but must be explicitly enabled via environment variables before running the server:
+```bash
+# Enable specific plugins
+export SUPERNOVA_PLUGIN_SUBSONIC=true
+export SUPERNOVA_PLUGIN_LASTFM=true
+export SUPERNOVA_PLUGIN_LRCLIB=true
+export SUPERNOVA_PLUGIN_RADIOBROWSER=true
+
+# Run the server
+go run cmd/server/main.go
+```
+
 ### 1. Subsonic Translation Layer (`/rest/*`)
 The Subsonic Translation plugin bridges the gap between Supernova's modern architecture and the massive, established ecosystem of Subsonic clients. By translating API calls in real-time, it enables full compatibility with dozens of third-party apps without needing a dedicated Supernova mobile app.
 **Featureset:**
