@@ -1,6 +1,6 @@
 import type { FC } from 'react';
 import { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../services/api';
 import type { Artist, Album, Track } from '../types';
 import ArtistCard from '../components/ArtistCard';
@@ -18,7 +18,6 @@ const SearchPage: FC = () => {
   const [loading, setLoading] = useState(false);
 
   const { playContext, currentTrack, isPlaying } = usePlayer();
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (!query) return;
