@@ -19,6 +19,7 @@ import (
 	_ "github.com/soltros/Supernova/internal/plugins/deduper"
 	_ "github.com/soltros/Supernova/internal/plugins/lastfm"
 	_ "github.com/soltros/Supernova/internal/plugins/lrclib"
+	_ "github.com/soltros/Supernova/internal/plugins/podcasts"
 	_ "github.com/soltros/Supernova/internal/plugins/radiobrowser"
 	_ "github.com/soltros/Supernova/internal/plugins/subsonic"
 	"github.com/soltros/Supernova/internal/scanner"

@@ -32,6 +32,9 @@ const Sidebar: FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen, onClo
         <NavLink to="/radio" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
           Radio
         </NavLink>
+        <NavLink to="/podcasts" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
+          Podcasts
+        </NavLink>
         <NavLink to="/playlists" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} onClick={onClose}>
           Playlists
         </NavLink>
