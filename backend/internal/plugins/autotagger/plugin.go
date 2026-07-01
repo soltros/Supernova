@@ -2,7 +2,6 @@ package autotagger
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -18,9 +17,7 @@ type AutoTaggerPlugin struct {
 }
 
 func init() {
-	plugins.Register("autotagger", func() plugins.Plugin {
-		return &AutoTaggerPlugin{}
-	})
+	plugins.Register(&AutoTaggerPlugin{})
 }
 
 func (p *AutoTaggerPlugin) ID() string {
