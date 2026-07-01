@@ -21,7 +21,7 @@ interface PlayerState {
 }
 
 const PlayerContext = createContext<PlayerState | undefined>(undefined);
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
 
 export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
