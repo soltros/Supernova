@@ -44,10 +44,37 @@ func (p *LastFmPlugin) Init(config plugins.PluginConfig) error {
 }
 
 func (p *LastFmPlugin) SetupRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/plugins/lastfm/scrobble", p.handleScrobble)
-	mux.HandleFunc("POST /api/plugins/lastfm/session", p.handleGetSession)
-	mux.HandleFunc("POST /api/plugins/lastfm/nowplaying", p.handleNowPlaying)
-	mux.HandleFunc("GET /api/plugins/lastfm/auth-url", p.handleGetAuthUrl)
+	mux.HandleFunc("/api/plugins/lastfm/scrobble", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		p.handleScrobble(w, r)
+	})
+
+	mux.HandleFunc("/api/plugins/lastfm/session", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		p.handleGetSession(w, r)
+	})
+
+	mux.HandleFunc("/api/plugins/lastfm/nowplaying", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		p.handleNowPlaying(w, r)
+	})
+
+	mux.HandleFunc("/api/plugins/lastfm/auth-url", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		p.handleGetAuthUrl(w, r)
+	})
 }
 
 func (p *LastFmPlugin) handleGetAuthUrl(w http.ResponseWriter, r *http.Request) {
@@ -82,58 +109,6 @@ func (p *LastFmPlugin) handleNowPlaying(w http.ResponseWriter, r *http.Request) 
 	}
 
 	err := p.client.UpdateNowPlaying(payload.SessionKey, payload.Artist, payload.Track)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"ok"}`))
-}
-
-func (p *LastFmPlugin) handleGetSession(w http.ResponseWriter, r *http.Request) {
-	var payload struct {
-		Token string `json:"token"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
-		return
-	}
-
-	sessionKey, err := p.client.GetSession(payload.Token)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"session_key": sessionKey,
-	})
-}
-
-func (p *LastFmPlugin) handleScrobble(w http.ResponseWriter, r *http.Request) {
-	var payload struct {
-		SessionKey string `json:"session_key"`
-		Artist     string `json:"artist"`
-		Track      string `json:"track"`
-		Timestamp  int64  `json:"timestamp"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
-		return
-	}
-
-	if payload.SessionKey == "" {
-		http.Error(w, "missing session_key", http.StatusBadRequest)
-		return
-	}
-
-	// Wait to receive the API keys from environment
-	// Currently using placeholder keys in Init, which will fail if executed against real API
-	
-	err := p.client.Scrobble(payload.SessionKey, payload.Artist, payload.Track, payload.Timestamp)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

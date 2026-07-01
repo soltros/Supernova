@@ -39,7 +39,13 @@ func (p *ArtistMergerPlugin) Init(config plugins.PluginConfig) error {
 
 func (p *ArtistMergerPlugin) SetupRoutes(mux *http.ServeMux) {
 	// ServeMux patterns are path-only; route by method inside the handler.
-	mux.HandleFunc("/api/plugins/artistmerger/run", p.handleRunMerger)
+	mux.HandleFunc("/api/plugins/artistmerger/run", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		p.handleRunMerger(w, r)
+	})
 }
 
 func (p *ArtistMergerPlugin) handleRunMerger(w http.ResponseWriter, r *http.Request) {
