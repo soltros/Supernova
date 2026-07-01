@@ -18,6 +18,14 @@ services:
       - ART_CACHE_PATH=/root/.supernova/art_cache
       - LASTFM_API_KEY=${LASTFM_API_KEY:-}
       - LASTFM_API_SECRET=${LASTFM_API_SECRET:-}
+      # Required: set a strong random secret >= 32 chars, e.g. openssl rand -hex 32
+      - JWT_SECRET=${JWT_SECRET}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     restart: unless-stopped
 
   frontend:
@@ -25,10 +33,9 @@ services:
     container_name: supernova-frontend
     ports:
       - "5174:80"
-    environment:
-      - VITE_API_URL=http://localhost:8080
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
