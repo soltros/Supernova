@@ -41,95 +41,96 @@ const SearchPage: FC = () => {
 
   if (!query) {
     return (
-      <div className="page-container flex-center">
-        <h2>Enter a search term to begin</h2>
+      <div className="content-scroll">
+        <div className="page-container flex-center">
+          <h2>Enter a search term to begin</h2>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="page-container fade-in">
-      <h1 className="page-title">Search Results for "{query}"</h1>
+    <div className="content-scroll">
+      <div className="page-container fade-in">
+        <h1 className="page-title">Search Results for "{query}"</h1>
 
-      {loading ? (
-        <div className="loading-spinner" />
-      ) : (
-        <div className="dashboard-content">
-          {artists.length > 0 && (
-            <section className="dashboard-section">
-              <h2 className="section-title">Artists</h2>
-              <div className="grid">
-                {artists.map((artist) => (
-                  <ArtistCard 
-                    key={artist.id} 
-                    artist={artist} 
-                  />
-                ))}
-              </div>
-            </section>
-          )}
+        {loading ? (
+          <div className="loading-spinner" />
+        ) : (
+          <div className="dashboard-content">
+            {artists.length > 0 && (
+              <section className="dashboard-section">
+                <h2 className="section-title">Artists</h2>
+                <div className="grid">
+                  {artists.map((artist) => (
+                    <ArtistCard 
+                      key={artist.id} 
+                      artist={artist} 
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
 
-          {albums.length > 0 && (
-            <section className="dashboard-section">
-              <h2 className="section-title">Albums</h2>
-              <div className="grid">
-                {albums.map((album) => (
-                  <AlbumCard 
-                    key={album.id} 
-                    album={album} 
-                  />
-                ))}
-              </div>
-            </section>
-          )}
+            {albums.length > 0 && (
+              <section className="dashboard-section">
+                <h2 className="section-title">Albums</h2>
+                <div className="grid">
+                  {albums.map((album) => (
+                    <AlbumCard 
+                      key={album.id} 
+                      album={album} 
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
 
-          {tracks.length > 0 && (
-            <section className="dashboard-section">
-              <h2 className="section-title">Tracks</h2>
-              <div className="track-list">
-                {tracks.map((track, index) => {
-                  const isCurrentTrack = currentTrack?.id === track.id;
-                  
-                  return (
-                    <div 
-                      key={track.id}
-                      className={`track-item ${isCurrentTrack ? 'active' : ''}`}
-                      onDoubleClick={() => playContext(tracks, index, { id: 'search', title: `Search: ${query}`, release_year: 0, cover_art_path: '', artist_id: '', artist_name: '' } as Album)}
-                    >
-                      <div className="track-index">
-                        {isCurrentTrack && isPlaying ? (
-                          <div className="playing-indicator">
-                            <span className="bar"></span>
-                            <span className="bar"></span>
-                            <span className="bar"></span>
-                          </div>
-                        ) : (
-                          index + 1
-                        )}
+            {tracks.length > 0 && (
+              <section className="dashboard-section">
+                <h2 className="section-title">Tracks</h2>
+                <div className="track-list">
+                  {tracks.map((track, index) => {
+                    const isCurrentTrack = currentTrack?.id === track.id;
+                    
+                    return (
+                      <div 
+                        key={track.id}
+                        className={`track-item ${isCurrentTrack ? 'active' : ''}`}
+                        onDoubleClick={() => playContext(tracks, index, { id: 'search', title: `Search: ${query}`, release_year: 0, cover_art_path: '', artist_id: '', artist_name: '' } as Album)}
+                      >
+                        <div className="track-index">
+                          {isCurrentTrack && isPlaying ? (
+                            <div className="playing-indicator" style={{ background: 'var(--accent-primary)', width: '16px', height: '16px', borderRadius: '50%' }} />
+                          ) : (
+                            <span>{index + 1}</span>
+                          )}
+                        </div>
+                        
+                        <div className="track-info">
+                          <div className="track-title" style={{ color: isCurrentTrack ? 'var(--accent-primary)' : 'var(--text-primary)' }}>{track.title}</div>
+                          <div className="track-artist">{track.artist_name}</div>
+                        </div>
+
+                        <div className="track-album">{track.album_title}</div>
+                        <div className="track-actions">
+                          <HeartButton entityType="track" entityId={track.id} />
+                        </div>
                       </div>
-                      
-                      <div className="track-info">
-                        <div className="track-title">{track.title}</div>
-                        <div className="track-artist">{track.artist_name || 'Unknown Artist'} &bull; {track.album_title || 'Unknown Album'}</div>
-                      </div>
-                      
-                      <div className="track-actions">
-                        <HeartButton entityType="track" entityId={track.id} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
-          {artists.length === 0 && albums.length === 0 && tracks.length === 0 && (
-            <div className="flex-center" style={{ marginTop: '4rem' }}>
-              <h2>No results found for "{query}"</h2>
-            </div>
-          )}
-        </div>
-      )}
+            {artists.length === 0 && albums.length === 0 && tracks.length === 0 && (
+              <div className="empty-state">
+                <p>No results found for "{query}"</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

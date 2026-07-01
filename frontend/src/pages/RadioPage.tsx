@@ -83,97 +83,99 @@ const RadioPage: React.FC = () => {
   };
 
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <h1 className="page-title">
-          <Radio size={32} style={{ marginRight: '16px', color: 'var(--accent-primary)' }} />
-          Internet Radio
-        </h1>
-        <p className="page-subtitle">Search and stream thousands of global internet radio stations.</p>
-      </div>
-
-      <form onSubmit={searchStations} style={{ display: 'flex', gap: '16px', marginBottom: '32px' }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: '500px' }}>
-          <Search size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          <input 
-            type="text" 
-            placeholder="Search stations, genres, or countries..." 
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '16px 24px 16px 48px',
-              borderRadius: '24px',
-              border: '1px solid var(--border-glass)',
-              background: 'var(--bg-glass)',
-              color: 'var(--text-primary)',
-              fontSize: '16px',
-              outline: 'none'
-            }}
-          />
+    <div className="content-scroll">
+      <div className="page-container">
+        <div className="page-header">
+          <h1 className="page-title">
+            <Radio size={32} style={{ marginRight: '16px', color: 'var(--accent-primary)' }} />
+            Internet Radio
+          </h1>
+          <p className="page-subtitle">Search and stream thousands of global internet radio stations.</p>
         </div>
-        <button 
-          type="submit" 
-          className="btn btn-primary"
-          style={{ padding: '0 32px', borderRadius: '24px' }}
-        >
-          {loading ? 'Searching...' : 'Search'}
-        </button>
-      </form>
 
-      {error && (
-        <div style={{ color: '#ff4444', marginBottom: '24px', padding: '16px', background: 'rgba(255,68,68,0.1)', borderRadius: '12px' }}>
-          {error}
-        </div>
-      )}
-
-      <div className="grid-container" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
-        {stations.map(station => (
-          <div key={station.stationuuid} className="card" onClick={() => playStation(station)}>
-            <div className="card-image-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', padding: '24px' }}>
-              {station.favicon ? (
-                <img 
-                  src={station.favicon} 
-                  alt={station.name} 
-                  className="card-image"
-                  style={{ objectFit: 'contain', width: '100px', height: '100px', borderRadius: '8px' }}
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    if (e.currentTarget.nextElementSibling) {
-                      (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'block';
-                    }
-                  }}
-                />
-              ) : null}
-              <div style={{ display: station.favicon ? 'none' : 'block' }}>
-                <Radio size={48} color="var(--text-muted)" />
-              </div>
-              <div className="play-overlay">
-                <button className="play-btn">
-                  <Play size={24} fill="currentColor" />
-                </button>
-              </div>
-            </div>
-            <div className="card-info">
-              <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</h3>
-              <p className="card-subtitle">{station.country || 'Unknown Location'} • {station.tags ? station.tags.split(',')[0] : 'Radio'}</p>
-            </div>
+        <form onSubmit={searchStations} style={{ display: 'flex', gap: '16px', marginBottom: '32px' }}>
+          <div style={{ position: 'relative', flex: 1, maxWidth: '500px' }}>
+            <Search size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input 
+              type="text" 
+              placeholder="Search stations, genres, or countries..." 
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '16px 24px 16px 48px',
+                borderRadius: '24px',
+                border: '1px solid var(--border-glass)',
+                background: 'var(--bg-glass)',
+                color: 'var(--text-primary)',
+                fontSize: '16px',
+                outline: 'none'
+              }}
+            />
           </div>
-        ))}
-      </div>
-
-      {hasMore && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '32px' }}>
           <button 
-            className="btn btn-secondary" 
-            onClick={loadMore}
-            disabled={loading}
-            style={{ padding: '12px 32px', borderRadius: '24px' }}
+            type="submit" 
+            className="btn btn-primary"
+            style={{ padding: '0 32px', borderRadius: '24px' }}
           >
-            {loading ? 'Loading...' : 'Load More'}
+            {loading ? 'Searching...' : 'Search'}
           </button>
+        </form>
+
+        {error && (
+          <div style={{ color: '#ff4444', marginBottom: '24px', padding: '16px', background: 'rgba(255,68,68,0.1)', borderRadius: '12px' }}>
+            {error}
+          </div>
+        )}
+
+        <div className="grid-container" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
+          {stations.map(station => (
+            <div key={station.stationuuid} className="card" onClick={() => playStation(station)}>
+              <div className="card-image-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', padding: '24px' }}>
+                {station.favicon ? (
+                  <img 
+                    src={station.favicon} 
+                    alt={station.name} 
+                    className="card-image"
+                    style={{ objectFit: 'contain', width: '100px', height: '100px', borderRadius: '8px' }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      if (e.currentTarget.nextElementSibling) {
+                        (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'block';
+                      }
+                    }}
+                  />
+                ) : null}
+                <div style={{ display: station.favicon ? 'none' : 'block' }}>
+                  <Radio size={48} color="var(--text-muted)" />
+                </div>
+                <div className="play-overlay">
+                  <button className="play-btn">
+                    <Play size={24} fill="currentColor" />
+                  </button>
+                </div>
+              </div>
+              <div className="card-info">
+                <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</h3>
+                <p className="card-subtitle">{station.country || 'Unknown Location'} • {station.tags ? station.tags.split(',')[0] : 'Radio'}</p>
+              </div>
+            </div>
+          ))}
         </div>
-      )}
+
+        {hasMore && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '32px' }}>
+            <button 
+              className="btn btn-secondary" 
+              onClick={loadMore}
+              disabled={loading}
+              style={{ padding: '12px 32px', borderRadius: '24px' }}
+            >
+              {loading ? 'Loading...' : 'Load More'}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
