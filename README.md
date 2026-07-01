@@ -87,23 +87,35 @@ Authorization: Bearer <your_jwt_token>
 Supernova is built to be highly modular. Enabled plugins expose their own API endpoints mounted under `/api/plugins/`.
 
 ### 1. Subsonic Translation Layer (`/rest/*`)
-Exposes a fully OpenSubsonic-compliant API. This allows you to connect any standard Subsonic app (like Symfonium, DSub, Play:Sub, or Ultrasonic) directly to Supernova.
-- Automatically handles token, cleartext, and API Key authentication.
-- Maps internal UUIDs and relationships to Subsonic's strict XML/JSON payloads.
+The Subsonic Translation plugin bridges the gap between Supernova's modern architecture and the massive, established ecosystem of Subsonic clients. By translating API calls in real-time, it enables full compatibility with dozens of third-party apps without needing a dedicated Supernova mobile app.
+**Featureset:**
+- **Universal Compatibility:** Connect standard apps like Symfonium, DSub, Play:Sub, Ultrasonic, and AVSub directly to your Supernova server.
+- **On-the-fly Translation:** Intercepts OpenSubsonic XML/JSON payloads, maps them to Supernova's UUID relational database, and returns perfectly formatted OpenSubsonic responses.
+- **Complete Auth Support:** Automatically handles Token, Cleartext, and API Key authentication.
+- **Deep Integration:** Supports library browsing, directory traversal, full-text search, and direct media streaming.
 
 ### 2. Last.fm Scrobbler (`/api/plugins/lastfm/*`)
-Allows users to link their Last.fm accounts via OAuth and dual-scrobble their plays to Last.fm in real-time.
-- `POST /api/plugins/lastfm/session`
-- `POST /api/plugins/lastfm/nowplaying`
-- `POST /api/plugins/lastfm/scrobble`
+For users deeply invested in tracking their listening habits, the Last.fm plugin provides seamless, background integration with the Last.fm ecosystem.
+**Featureset:**
+- **OAuth Integration:** Securely link your Last.fm account directly through the Supernova settings.
+- **Dual-Scrobbling:** Works in tandem with Supernova's internal Scrub-Proof Scrobbling engine to log plays both locally and to Last.fm simultaneously.
+- **"Now Playing" Support:** Instantly updates your Last.fm status to show the track you are currently listening to.
+- **Real-time API Sync:** Strictly adheres to Last.fm's Scrobbling 2.0 API guidelines for zero dropped scrobbles.
 
 ### 3. LRCLib Synchronized Lyrics (`/api/plugins/lrclib/*`)
-Fetches time-synced lyrics on-demand for the currently playing track by proxying queries through the backend to avoid CORS restrictions and leverage caching.
-- `GET /api/plugins/lrclib/lyrics`
+Enhance your listening experience with real-time, karaoke-style synchronized lyrics powered by the open-source LRCLib database.
+**Featureset:**
+- **Time-Synced Lyrics:** Automatically fetches LRC formatted lyrics that sync line-by-line with audio playback.
+- **CORS Bypass Proxy:** Proxies queries through the Go backend to bypass strict browser CORS restrictions, ensuring lyrics load flawlessly in the PWA.
+- **Smart Fallbacks:** Falls back to plain-text lyrics if time-synced versions are unavailable for a specific track.
+- **Performance Caching:** Highly optimized to avoid redundant external network requests.
 
 ### 4. Radio-Browser (`/api/plugins/radiobrowser/*`)
-Integrates tens of thousands of global internet radio stations directly into the Supernova player, supporting searching, tagging, and direct streaming without modifying the local library.
-- `GET /api/plugins/radiobrowser/search`
+Transform Supernova into an internet radio powerhouse. This plugin integrates directly with the community-driven Radio-Browser database.
+**Featureset:**
+- **Massive Directory:** Search and browse tens of thousands of global internet radio stations by genre, language, or country.
+- **High-Availability DNS:** Leverages Radio-Browser's dynamic round-robin DNS to ensure the API never goes down.
+- **Direct Integration:** Streams remote radio stations directly through the Supernova audio engine without cluttering your pristine local library.
 
 ## Writing Your Own Plugin
 Supernova's plugin system is designed to be highly accessible for developers. To create your own plugin:
