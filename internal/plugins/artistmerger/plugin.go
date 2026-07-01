@@ -16,7 +16,9 @@ type ArtistMergerPlugin struct {
 }
 
 func init() {
-	plugins.Register(&ArtistMergerPlugin{})
+	plugins.Register("artistmerger", func() plugins.Plugin {
+		return &ArtistMergerPlugin{}
+	})
 }
 
 func (p *ArtistMergerPlugin) ID() string {
