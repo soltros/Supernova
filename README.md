@@ -104,3 +104,38 @@ Fetches time-synced lyrics on-demand for the currently playing track by proxying
 ### 4. Radio-Browser (`/api/plugins/radiobrowser/*`)
 Integrates tens of thousands of global internet radio stations directly into the Supernova player, supporting searching, tagging, and direct streaming without modifying the local library.
 - `GET /api/plugins/radiobrowser/search`
+
+## Writing Your Own Plugin
+Supernova's plugin system is designed to be highly accessible for developers. To create your own plugin:
+
+1. Create a new directory under `backend/internal/plugins/yourplugin`.
+2. Implement the `plugins.Plugin` interface:
+   ```go
+   package yourplugin
+
+   import (
+       "net/http"
+       "github.com/soltros/Supernova/internal/plugins"
+   )
+
+   type MyPlugin struct {}
+
+   func init() {
+       plugins.Register(&MyPlugin{})
+   }
+
+   func (p *MyPlugin) ID() string { return "myplugin" }
+   func (p *MyPlugin) Name() string { return "My Custom Plugin" }
+   func (p *MyPlugin) Description() string { return "Does something cool!" }
+   func (p *MyPlugin) Init(config plugins.PluginConfig) error { return nil }
+   func (p *MyPlugin) SetupRoutes(mux *http.ServeMux) {
+       mux.HandleFunc("GET /api/plugins/myplugin/hello", func(w http.ResponseWriter, r *http.Request) {
+           w.Write([]byte("Hello from my plugin!"))
+       })
+   }
+   ```
+3. Import your package anonymously in `backend/cmd/server/main.go`:
+   ```go
+   import _ "github.com/soltros/Supernova/internal/plugins/yourplugin"
+   ```
+4. Enable it by setting the environment variable `SUPERNOVA_PLUGIN_MYPLUGIN=true`.
