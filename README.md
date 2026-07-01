@@ -6,7 +6,7 @@ Built with a highly-concurrent Go backend and a Progressive Web App (PWA) React 
 
 ## Core Features
 
-- **Concurrent Library Scanning:** Leverages a tunable Go worker pool to extract ID3 metadata, album art, and audio parameters from tens of thousands of files (FLAC, ALAC, MP3, OPUS, M4A) in seconds.
+- **Concurrent Library Scanning:** Leverages a tunable Go worker pool purely for CPU-bound ID3 metadata extraction from tens of thousands of files in seconds, batching results to a single dedicated database writer to completely eliminate SQLite write-lock contention.
 - **Pure-Go Architecture:** Powered by `ncruces/go-sqlite3` (WASM-based SQLite) for zero CGO dependencies and true cross-platform compilation.
 - **Audiophile Streaming:** Raw HTTP range-request streaming for lossless audio directly from your filesystem. 
 - **Last.fm Enrichment:** A background daemon automatically fetches missing artist bios, high-resolution imagery, and global popularity rankings without blocking the user interface.
@@ -107,11 +107,16 @@ JWT_SECRET=paste_the_64_character_hex_output_here
 > [!IMPORTANT]
 > The server will **refuse to start** if `JWT_SECRET` is missing or shorter than 32 characters. This is intentional. A weak or missing secret allows anyone to forge login tokens for any account.
 
-### 2. Set your music library path
+### 2. Set your music library and security configs
 
 In `.env`, uncomment and set `MEDIA_PATH` to the absolute path of your music folder on the host:
 ```ini
 MEDIA_PATH=/home/youruser/Music
+```
+
+For security, if you expose this server to the internet, it is strongly recommended to restrict API access by setting the CORS origin to match your frontend domain:
+```ini
+CORS_ALLOWED_ORIGIN=https://music.yourdomain.com
 ```
 
 ### 3. Start the stack
