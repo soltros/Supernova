@@ -68,17 +68,15 @@ func main() {
 
 	// 5. Initialize the Background Enricher
 	enricher := scanner.NewEnricher(repo, mbClient, lastfmClient)
-	ctx, cancelEnricher := context.WithCancel(context.Background())
-	defer cancelEnricher()
-	enricher.Start(ctx)
+	appCtx, cancelApp := context.WithCancel(context.Background())
+	enricher.Start(appCtx)
 
 	// 6. Initialize the File Scanner
 	log.Printf("Initializing media scanner for path: %s", mediaPath)
-	mediaScanner, err := scanner.New(mediaPath, repo, enricher)
+	mediaScanner, err := scanner.New(appCtx, mediaPath, repo, enricher)
 	if err != nil {
 		log.Fatalf("Failed to initialize media scanner: %v", err)
 	}
-	defer mediaScanner.Close()
 
 	// 7. Start the real-time fsnotify file watcher
 	mediaScanner.Watch()
@@ -123,7 +121,14 @@ func main() {
 	<-quit
 
 	log.Println("Shutting down Supernova server gracefully...")
-	
+
+	// Signal background workers to terminate
+	cancelApp()
+
+	// Close the media scanner watcher
+	if mediaScanner != nil {
+		mediaScanner.Close()
+	}
 	// Create a deadline to wait for currently active requests
 	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelShutdown()

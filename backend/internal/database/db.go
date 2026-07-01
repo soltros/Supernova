@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	// Using ncruces/go-sqlite3 which is a 100% pure Go WebAssembly-based SQLite driver.
@@ -58,8 +60,21 @@ func Init(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("failed to execute schema migrations: %w", err)
 	}
 
-	// Add popularity column to existing DBs safely
-	db.Exec("ALTER TABLE tracks ADD COLUMN popularity INTEGER DEFAULT 0;")
+	// Track migration states using user_version
+	var version int
+	err = db.QueryRow("PRAGMA user_version").Scan(&version)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read user_version: %w", err)
+	}
+
+	if version < 1 {
+		log.Println("Migrating database to version 1...")
+		_, err = db.Exec("ALTER TABLE tracks ADD COLUMN popularity INTEGER DEFAULT 0;")
+		if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+			return nil, fmt.Errorf("migration to v1 failed: %w", err)
+		}
+		db.Exec("PRAGMA user_version = 1")
+	}
 
 	return &DB{db}, nil
 }
