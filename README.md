@@ -83,29 +83,78 @@ Authorization: Bearer <your_jwt_token>
 - `POST /api/scrobbles` - Log a completed listen. Accepts `{ "track_id" }`.
 - `GET /api/scrobbles/recent` - Retrieve chronological listening history.
 
+## Docker Deployment
+
+The recommended way to run Supernova in production is with Docker Compose.
+
+### 1. Configure your environment
+
+Copy the example file and fill in your values:
+```bash
+cp .env.example .env
+```
+
+Then edit `.env`. At minimum you **must** set `JWT_SECRET`:
+
+```bash
+# Generate a cryptographically secure secret (run this in your terminal):
+openssl rand -hex 32
+
+# Paste the output as the value for JWT_SECRET in your .env file:
+JWT_SECRET=paste_the_64_character_hex_output_here
+```
+
+> [!IMPORTANT]
+> The server will **refuse to start** if `JWT_SECRET` is missing or shorter than 32 characters. This is intentional — a weak or missing secret allows anyone to forge login tokens for any account.
+
+### 2. Set your music library path
+
+In `.env`, uncomment and set `MEDIA_PATH` to the absolute path of your music folder on the host:
+```ini
+MEDIA_PATH=/home/youruser/Music
+```
+
+### 3. Start the stack
+```bash
+docker compose up -d
+```
+
+The web UI will be available at **http://your-server:5174**.
+
+> [!NOTE]
+> The frontend container will not start until the backend passes its health check (`/api/health`). This prevents the nginx DNS crash that occurs when the backend hasn't launched yet.
+
+---
+
 ## Plugin Ecosystem
 Supernova is built to be highly modular. Enabled plugins expose their own API endpoints mounted under `/api/plugins/`.
 
 ### Enabling Plugins
-By default, all official plugins are bundled with the backend but must be explicitly enabled via environment variables before running the server:
+By default, all official plugins are bundled with the backend but must be explicitly enabled via environment variables.
+
+**With Docker Compose** — add to your `.env` file:
+```ini
+SUPERNOVA_PLUGIN_SUBSONIC=true
+SUPERNOVA_PLUGIN_LASTFM=true
+SUPERNOVA_PLUGIN_LRCLIB=true
+SUPERNOVA_PLUGIN_RADIOBROWSER=true
+SUPERNOVA_PLUGIN_AUTOTAGGER=true
+SUPERNOVA_PLUGIN_ARTISTMERGER=true
+SUPERNOVA_PLUGIN_DEDUPER=true
+```
+
+**Running directly** — export before starting the server:
 ```bash
-# Enable specific plugins
-export SUPERNOVA_PLUGIN_SUBSONIC=true
-export SUPERNOVA_PLUGIN_LASTFM=true
-export SUPERNOVA_PLUGIN_LRCLIB=true
-export SUPERNOVA_PLUGIN_RADIOBROWSER=true
-export SUPERNOVA_PLUGIN_AUTOTAGGER=true
-export SUPERNOVA_PLUGIN_ARTISTMERGER=true
-export SUPERNOVA_PLUGIN_DEDUPER=true
+# Required — generate with: openssl rand -hex 32
+export JWT_SECRET=your_secret_here
 
-# Required for JWT auth (must be >= 32 chars) — server will refuse to start without it
-export JWT_SECRET=a_very_long_random_secret_string_here_minimum_32_chars
-
-# Required for Last.fm scrobbling and auth
+# Optional — for Last.fm scrobbling
 export LASTFM_API_KEY=your_api_key_here
 export LASTFM_API_SECRET=your_api_secret_here
 
-# Run the server
+export SUPERNOVA_PLUGIN_LASTFM=true
+# ... other plugins as needed
+
 go run cmd/server/main.go
 ```
 
