@@ -137,7 +137,7 @@ Supernova is built to be highly modular. Enabled plugins expose their own API en
 ### Enabling Plugins
 By default, all official plugins are bundled with the backend but must be explicitly enabled via environment variables.
 
-**With Docker Compose** — add to your `.env` file:
+**With Docker Compose:** add to your `.env` file:
 ```ini
 SUPERNOVA_PLUGIN_SUBSONIC=true
 SUPERNOVA_PLUGIN_LASTFM=true
