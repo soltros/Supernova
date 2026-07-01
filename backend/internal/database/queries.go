@@ -84,7 +84,7 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 
 	// Search Albums
 	albumRows, err := r.db.QueryContext(ctx, `
-		SELECT a.id, a.title, ar.name as artist_name, a.cover_art_url
+		SELECT a.id, a.title, ar.name as artist_name, a.cover_art_path
 		FROM albums a
 		LEFT JOIN album_artists aa ON a.id = aa.album_id
 		LEFT JOIN artists ar ON aa.artist_id = ar.id
@@ -111,7 +111,7 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 
 	// Search Tracks
 	trackRows, err := r.db.QueryContext(ctx, `
-		SELECT t.id, t.title, a.title as album_title, ar.name as artist_name, t.duration_ms, a.id as album_id, a.cover_art_url
+		SELECT t.id, t.title, a.title as album_title, ar.name as artist_name, t.duration_ms, a.id as album_id, a.cover_art_path
 		FROM tracks t
 		JOIN albums a ON t.album_id = a.id
 		LEFT JOIN track_artists ta ON t.id = ta.track_id

@@ -134,13 +134,20 @@ func generateJWT(userID string) (string, error) {
 // requireAuth is a middleware that intercepts protected routes, validates the JWT, and injects the user_id into the context
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		tokenString := ""
+		
 		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+		} else if r.URL.Query().Get("token") != "" {
+			// Fallback to query parameter (required for native <audio> tags connecting to stream endpoints)
+			tokenString = r.URL.Query().Get("token")
+		}
+
+		if tokenString == "" {
 			http.Error(w, "unauthorized - missing token", http.StatusUnauthorized)
 			return
 		}
-
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {

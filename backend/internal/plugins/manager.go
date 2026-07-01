@@ -14,21 +14,25 @@ type Manager struct {
 
 var globalManager *Manager
 
-// InitManager creates the singleton plugin manager
-func InitManager() *Manager {
-	globalManager = &Manager{
-		registry: make(map[string]Plugin),
-		enabled:  make(map[string]bool),
+// GetManager returns the singleton plugin manager, initializing it if necessary
+func GetManager() *Manager {
+	if globalManager == nil {
+		globalManager = &Manager{
+			registry: make(map[string]Plugin),
+			enabled:  make(map[string]bool),
+		}
 	}
 	return globalManager
 }
 
+// InitManager is kept for backwards compatibility
+func InitManager() *Manager {
+	return GetManager()
+}
+
 // Register adds a plugin to the manager (should be called in init() functions of plugins)
 func Register(p Plugin) {
-	if globalManager == nil {
-		InitManager()
-	}
-	globalManager.registry[p.ID()] = p
+	GetManager().registry[p.ID()] = p
 }
 
 // Start checks environment variables and initializes enabled plugins

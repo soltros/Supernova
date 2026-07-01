@@ -164,7 +164,9 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }
 
     audioRef.current.pause();
-    audioRef.current.src = (track as any).stream_url ? (track as any).stream_url : `${API_BASE_URL}/api/stream/${track.id}`;
+    const token = localStorage.getItem('sn_token');
+    const tokenQuery = token ? `?token=${token}` : '';
+    audioRef.current.src = (track as any).stream_url ? (track as any).stream_url : `${API_BASE_URL}/api/stream/${track.id}${tokenQuery}`;
     
     try {
       playPromiseRef.current = audioRef.current.play();
