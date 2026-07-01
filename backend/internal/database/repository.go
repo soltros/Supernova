@@ -63,7 +63,8 @@ func (r *Repository) UpsertTrack(ctx context.Context, meta *models.TrackMetadata
 	if albumTitle == "" {
 		albumTitle = "Unknown Album"
 	}
-	albumID, err := r.upsertAlbum(tx, albumTitle, meta.AlbumMBID, meta.Year, meta.CoverArtPath)
+	// BUG-3: Pass albumArtistID so that albums with the same title from different artists are not merged
+	albumID, err := r.upsertAlbum(tx, albumTitle, meta.AlbumMBID, meta.Year, meta.CoverArtPath, albumArtistID)
 	if err != nil {
 		return err
 	}
@@ -124,11 +125,16 @@ func (r *Repository) upsertArtist(tx *sql.Tx, name, mbid, imageURL, bio string) 
 	return id, nil
 }
 
-// upsertAlbum looks up an album by title. If it doesn't exist, it creates it.
-func (r *Repository) upsertAlbum(tx *sql.Tx, title, mbid string, year int, coverArtPath string) (string, error) {
+// upsertAlbum looks up an album by (title, album_artist_id). If it doesn't exist, it creates it.
+// BUG-3 fix: matching only on title caused different artists' albums with the same title (e.g. "Greatest Hits") to merge.
+func (r *Repository) upsertAlbum(tx *sql.Tx, title, mbid string, year int, coverArtPath string, albumArtistID string) (string, error) {
 	var id string
-	err := tx.QueryRow(`SELECT id FROM albums WHERE title = ? LIMIT 1`, title).Scan(&id)
-	
+	err := tx.QueryRow(`
+		SELECT a.id FROM albums a
+		JOIN album_artists aa ON a.id = aa.album_id
+		WHERE a.title = ? AND aa.artist_id = ? LIMIT 1
+	`, title, albumArtistID).Scan(&id)
+
 	if err == sql.ErrNoRows {
 		id = generateUUID()
 		_, err = tx.Exec(`
@@ -167,18 +173,22 @@ func (r *Repository) linkAlbumArtist(tx *sql.Tx, albumID, artistID, role string)
 
 func generateUUID() string {
 	b := make([]byte, 16)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// CONC-3: crypto/rand failure would produce all-zero UUIDs causing PK collisions — unrecoverable
+		panic("crypto/rand unavailable: " + err.Error())
+	}
 	b[6] = (b[6] & 0x0f) | 0x40 // Version 4
 	b[8] = (b[8] & 0x3f) | 0x80 // Variant 10
 	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 // ResetArtistEnrichment resets any cached/enriched artist fields so enrichment can be rerun.
-func (r *Repository) ResetArtistEnrichment() error {
+// LEAK-4 fix: use ExecContext so the operation respects request cancellation.
+func (r *Repository) ResetArtistEnrichment(ctx context.Context) error {
 	r.writeMu.Lock()
 	defer r.writeMu.Unlock()
 
-	_, err := r.db.Exec(`
+	_, err := r.db.ExecContext(ctx, `
 		UPDATE artists 
 		SET enriched = 0, image_url = '', bio = ''
 	`)

@@ -61,6 +61,19 @@ func (s *Server) handleAddHeart() http.HandlerFunc {
 			http.Error(w, "invalid request", http.StatusBadRequest)
 			return
 		}
+		// SEC-2: allowlist entity_type to prevent dirty data / future query confusion
+		switch req.EntityType {
+		case "track", "album", "artist", "playlist":
+			// valid
+		default:
+			http.Error(w, "invalid entity_type: must be track, album, artist, or playlist", http.StatusBadRequest)
+			return
+		}
+		// ERR-6: reject empty entity_id
+		if req.EntityID == "" {
+			http.Error(w, "entity_id is required", http.StatusBadRequest)
+			return
+		}
 		if err := s.repo.HeartEntity(r.Context(), userID, req.EntityType, req.EntityID); err != nil {
 			http.Error(w, "failed to add heart", http.StatusInternalServerError)
 			return

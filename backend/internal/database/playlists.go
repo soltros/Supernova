@@ -2,16 +2,15 @@ package database
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/soltros/Supernova/internal/models"
 )
 
-// CreatePlaylist creates a new playlist for the user
-func (r *Repository) CreatePlaylist(ctx context.Context, userID, name string) (*models.Playlist, error) {
-	r.writeMu.Lock()
-	defer r.writeMu.Unlock()
-
+// createPlaylistUnlocked inserts a playlist row without acquiring writeMu (caller must hold the lock).
+func (r *Repository) createPlaylistUnlocked(ctx context.Context, userID, name string) (*models.Playlist, error) {
 	id := generateUUID()
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO playlists (id, user_id, name)
@@ -20,12 +19,14 @@ func (r *Repository) CreatePlaylist(ctx context.Context, userID, name string) (*
 	if err != nil {
 		return nil, err
 	}
+	return &models.Playlist{ID: id, UserID: userID, Name: name}, nil
+}
 
-	return &models.Playlist{
-		ID:     id,
-		UserID: userID,
-		Name:   name,
-	}, nil
+// CreatePlaylist creates a new playlist for the user
+func (r *Repository) CreatePlaylist(ctx context.Context, userID, name string) (*models.Playlist, error) {
+	r.writeMu.Lock()
+	defer r.writeMu.Unlock()
+	return r.createPlaylistUnlocked(ctx, userID, name)
 }
 
 // GetPlaylists returns all playlists for a user
@@ -49,42 +50,49 @@ func (r *Repository) GetPlaylists(ctx context.Context, userID string) ([]models.
 		}
 		playlists = append(playlists, p)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return playlists, nil
 }
 
-// DeletePlaylist deletes a playlist
+// DeletePlaylist deletes a playlist and returns NotFound if nothing was deleted (BUG-5)
 func (r *Repository) DeletePlaylist(ctx context.Context, userID, playlistID string) error {
 	r.writeMu.Lock()
 	defer r.writeMu.Unlock()
 
-	_, err := r.db.ExecContext(ctx, `
+	result, err := r.db.ExecContext(ctx, `
 		DELETE FROM playlists
 		WHERE id = ? AND user_id = ?
 	`, playlistID, userID)
-	return err
+	if err != nil {
+		return err
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return errors.New("playlist not found or unauthorized")
+	}
+	return nil
 }
 
-// AddTrackToPlaylist appends a track to a playlist
+// AddTrackToPlaylist appends a track to a playlist (CONC-1: reads done outside mutex)
 func (r *Repository) AddTrackToPlaylist(ctx context.Context, userID, playlistID, trackID string) error {
-	r.writeMu.Lock()
-	defer r.writeMu.Unlock()
-
-	// Verify ownership
+	// Verify ownership outside mutex — these are reads and don't need serialization
 	var valid int
 	err := r.db.QueryRowContext(ctx, `SELECT 1 FROM playlists WHERE id = ? AND user_id = ?`, playlistID, userID).Scan(&valid)
 	if err != nil {
 		return fmt.Errorf("playlist not found or unauthorized")
 	}
-
-	// Get max position
 	var maxPos int
 	_ = r.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(position), 0) FROM playlist_tracks WHERE playlist_id = ?`, playlistID).Scan(&maxPos)
 
+	// Only lock for the actual write
+	r.writeMu.Lock()
+	defer r.writeMu.Unlock()
 	_, err = r.db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position)
 		VALUES (?, ?, ?)
 	`, playlistID, trackID, maxPos+1)
-
 	return err
 }
 
@@ -147,6 +155,9 @@ func (r *Repository) GetPlaylistTracks(ctx context.Context, userID, playlistID s
 		}
 		tracks = append(tracks, t)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return tracks, nil
 }
 
@@ -169,35 +180,37 @@ func (r *Repository) ExportPlaylists(ctx context.Context, userID string) ([]mode
 		if err != nil {
 			continue
 		}
-		
-		var tracks []string
+		defer rows.Close() // LEAK-1: defer instead of manual close
+
+		var filePaths []string
 		for rows.Next() {
 			var path string
-			if err := rows.Scan(&path); err == nil {
-				tracks = append(tracks, path)
+			if err := rows.Scan(&path); err != nil {
+				continue
 			}
+			filePaths = append(filePaths, path)
 		}
-		rows.Close()
 
 		backups = append(backups, models.PlaylistBackup{
 			Name:      p.Name,
 			CreatedAt: p.CreatedAt,
-			Tracks:    tracks,
+			Tracks:    filePaths,
 		})
 	}
 	return backups, nil
 }
 
-// ImportPlaylistBackup safely creates a playlist from paths
+// ImportPlaylistBackup safely creates a playlist from paths.
+// CONC-2 fix: acquires writeMu once for the whole operation instead of calling CreatePlaylist
+// (which would try to lock the same non-reentrant mutex, causing a deadlock).
 func (r *Repository) ImportPlaylistBackup(ctx context.Context, userID string, backup models.PlaylistBackup) error {
-	// Create the playlist first
-	p, err := r.CreatePlaylist(ctx, userID, backup.Name)
+	r.writeMu.Lock()
+	defer r.writeMu.Unlock()
+
+	p, err := r.createPlaylistUnlocked(ctx, userID, backup.Name)
 	if err != nil {
 		return err
 	}
-
-	r.writeMu.Lock()
-	defer r.writeMu.Unlock()
 
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -205,7 +218,6 @@ func (r *Repository) ImportPlaylistBackup(ctx context.Context, userID string, ba
 	}
 	defer tx.Rollback()
 
-	// Prepare statements
 	stmtSelect, err := tx.PrepareContext(ctx, `SELECT id FROM tracks WHERE file_path = ?`)
 	if err != nil {
 		return err

@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -11,7 +13,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret = []byte("supernova_development_secret_key") // In production, this would be injected via ENV
+var jwtSecret = func() []byte {
+	secret := os.Getenv("JWT_SECRET")
+	if len(secret) < 32 {
+		log.Fatal("FATAL: JWT_SECRET env var must be set and at least 32 characters long. Set it before starting the server.")
+	}
+	return []byte(secret)
+}()
 
 type contextKey string
 const userIDKey contextKey = "user_id"

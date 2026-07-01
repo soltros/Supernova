@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/external"
@@ -19,6 +21,7 @@ type Server struct {
 	scanner       *scanner.Scanner
 	pluginManager *plugins.Manager
 	mux           *http.ServeMux
+	scanRunning   atomic.Bool // ERR-4: prevents concurrent scan goroutines
 }
 
 func NewServer(repo *database.Repository, lastfm *external.LastFmClient, enricher *scanner.Enricher, mediaScanner *scanner.Scanner, pluginManager *plugins.Manager) *Server {
@@ -69,8 +72,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/hearts/export", s.requireAuth(s.handleExportHearts()))
 	s.mux.HandleFunc("POST /api/hearts/import", s.requireAuth(s.handleImportHearts()))
 	
-	// Streaming route leveraging Go 1.22 path variables
-	s.mux.HandleFunc("GET /api/stream/{id}", s.handleStreamTrack())
+	// Streaming route — requireAuth prevents anonymous bandwidth abuse (SEC-3)
+	s.mux.HandleFunc("GET /api/stream/{id}", s.requireAuth(s.handleStreamTrack()))
 
 	// Dashboard route
 	s.mux.HandleFunc("GET /api/dashboard", s.requireAuth(s.handleGetDashboard()))
@@ -233,6 +236,11 @@ func (s *Server) handleScrobble() http.HandlerFunc {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
+		// ERR-5: reject empty or missing track_id before hitting the DB
+		if req.TrackID == "" {
+			http.Error(w, "track_id is required", http.StatusBadRequest)
+			return
+		}
 		if err := s.repo.ScrobbleTrack(r.Context(), userID, req.TrackID); err != nil {
 			http.Error(w, "failed to scrobble track", http.StatusInternalServerError)
 			return
@@ -278,7 +286,7 @@ func (s *Server) handleGetDashboard() http.HandlerFunc {
 
 func (s *Server) handleResetArtists() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		err := s.repo.ResetArtistEnrichment()
+		err := s.repo.ResetArtistEnrichment(r.Context())
 		if err != nil {
 			http.Error(w, `{"error":"failed to reset artists"}`, http.StatusInternalServerError)
 			return
@@ -294,13 +302,20 @@ func (s *Server) handleResetArtists() http.HandlerFunc {
 	}
 }
 
-// handleScanLibrary triggers a full library rescan
+// handleScanLibrary triggers a full library rescan. Uses an atomic flag to prevent concurrent scans (ERR-4).
 func (s *Server) handleScanLibrary() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if s.scanner != nil {
+			if !s.scanRunning.CompareAndSwap(false, true) {
+				w.WriteHeader(http.StatusConflict)
+				w.Write([]byte(`{"status":"already_running"}`))
+				return
+			}
 			go func() {
-				// Fire and forget
-				_ = s.scanner.FullScan()
+				defer s.scanRunning.Store(false)
+				if err := s.scanner.FullScan(); err != nil {
+					log.Printf("[Scanner] FullScan error: %v", err)
+				}
 			}()
 		}
 		w.WriteHeader(http.StatusOK)

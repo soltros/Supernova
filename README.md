@@ -98,6 +98,9 @@ export SUPERNOVA_PLUGIN_AUTOTAGGER=true
 export SUPERNOVA_PLUGIN_ARTISTMERGER=true
 export SUPERNOVA_PLUGIN_DEDUPER=true
 
+# Required for JWT auth (must be >= 32 chars) — server will refuse to start without it
+export JWT_SECRET=a_very_long_random_secret_string_here_minimum_32_chars
+
 # Required for Last.fm scrobbling and auth
 export LASTFM_API_KEY=your_api_key_here
 export LASTFM_API_SECRET=your_api_secret_here
