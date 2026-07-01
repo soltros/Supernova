@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Mic2, Hash } from 'lucide-react';
+import { Mic2 } from 'lucide-react';
 import type { Artist } from '../types';
 import { apiService } from '../services/api';
 
@@ -104,7 +104,7 @@ const ArtistsPage: React.FC = () => {
                 onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.background = 'var(--bg-glass-hover)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.background = 'var(--bg-glass)'; }}
               >
-                <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: 'var(--bg-secondary)', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px', fontWeight: 800, color: 'var(--text-muted)', overflow: 'hidden', boxShadow: '0 8px 16px rgba(0,0,0,0.3)' }}>
+                <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: 'var(--bg-secondary)', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px', fontWeight: 700, overflow: 'hidden' }}>
                   {artist.image_url && artist.image_url !== 'NOT_FOUND' ? (
                     <img src={artist.image_url} alt={artist.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
