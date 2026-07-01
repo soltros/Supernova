@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/external"
@@ -116,4 +115,57 @@ func (p *LastFmPlugin) handleNowPlaying(w http.ResponseWriter, r *http.Request) 
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status":"ok"}`))
+}
+
+func (p *LastFmPlugin) handleScrobble(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		SessionKey string `json:"session_key"`
+		Artist     string `json:"artist"`
+		Track      string `json:"track"`
+		Timestamp  int64  `json:"timestamp"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	if payload.SessionKey == "" {
+		http.Error(w, "missing session_key", http.StatusBadRequest)
+		return
+	}
+
+	err := p.client.Scrobble(payload.SessionKey, payload.Artist, payload.Track, payload.Timestamp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"ok"}`))
+}
+
+func (p *LastFmPlugin) handleGetSession(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Token string `json:"token"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, "invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	if payload.Token == "" {
+		http.Error(w, "missing token", http.StatusBadRequest)
+		return
+	}
+
+	session, err := p.client.GetSession(payload.Token)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(session)
 }
