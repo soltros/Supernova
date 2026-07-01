@@ -1,4 +1,4 @@
-import { createContext, useState, useContext, useEffect, useRef, useMemo } from 'react';
+import { createContext, useState, useContext, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { FC, ReactNode } from 'react';
 import { apiService } from '../services/api';
 import type { Track, Album } from '../types';
@@ -186,7 +186,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }
   };
 
-  const playContext = (tracks: Track[], startIndex: number, album: Album) => {
+  const playContext = useCallback((tracks: Track[], startIndex: number, album: Album) => {
     setQueue(tracks);
     setQueueIndex(startIndex);
     
@@ -195,7 +195,8 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     albumRef.current = album;
     
     internalPlay(tracks[startIndex], album);
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const playNext = () => {
     if (queueIndexRef.current < queueRef.current.length - 1) {
@@ -273,10 +274,8 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     audioElement: audioRef.current,
     playContext, playNext, playPrev, togglePlay, seekTo, changeVolume 
   }), [
-    currentTrack, currentAlbum, isPlaying, duration, volume, queue, queueIndex, playContext
-    // playNext, playPrev, togglePlay, seekTo, changeVolume could be added if wrapped in useCallback, 
-    // but React doesn't warn for missing dependencies if they are functions defined in the same scope, 
-    // though to be completely optimal they should be memoized. We'll rely on the main state deps for now.
+    currentTrack, currentAlbum, isPlaying, duration, volume, queue, queueIndex,
+    playContext, playNext, playPrev, togglePlay, seekTo, changeVolume
   ]);
 
   return (

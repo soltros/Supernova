@@ -50,12 +50,16 @@ const SettingsPage: React.FC = () => {
         await registration.unregister();
       }
     }
-    // Clear local storage excluding auth tokens
-    const token = localStorage.getItem('sn_token');
-    const user = localStorage.getItem('sn_user');
-    localStorage.clear();
-    if (token) localStorage.setItem('sn_token', token);
-    if (user) localStorage.setItem('sn_user', user);
+    // Selectively remove non-auth cache keys - never clear the entire storage
+    // to avoid a race condition that could log the user out mid-clear
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key !== 'sn_token' && key !== 'sn_user' && key !== 'lastfm_session') {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
     
     alert('Cache cleared successfully! Reloading...');
     window.location.reload();

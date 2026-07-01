@@ -3,6 +3,7 @@ package lastfm
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/soltros/Supernova/internal/database"
@@ -36,8 +37,9 @@ func (p *LastFmPlugin) Description() string {
 
 func (p *LastFmPlugin) Init(config plugins.PluginConfig) error {
 	p.repo = config.Repo
-	// Use existing client instance or instantiate one
-	p.client = external.NewLastFmClient("YOUR_API_KEY", "YOUR_API_SECRET") // Real keys would be injected via env in production
+	apiKey := os.Getenv("LASTFM_API_KEY")
+	apiSecret := os.Getenv("LASTFM_API_SECRET")
+	p.client = external.NewLastFmClient(apiKey, apiSecret)
 	return nil
 }
 
@@ -50,9 +52,11 @@ func (p *LastFmPlugin) SetupRoutes(mux *http.ServeMux) {
 
 func (p *LastFmPlugin) handleGetAuthUrl(w http.ResponseWriter, r *http.Request) {
 	cb := r.URL.Query().Get("cb")
-	// Note: in a real environment, the API key is passed into the client from os.Getenv
-	apiKey := "YOUR_API_KEY" // TODO: Use real API key
-	
+	apiKey := os.Getenv("LASTFM_API_KEY")
+	if apiKey == "" {
+		http.Error(w, "Last.fm API key not configured on server", http.StatusServiceUnavailable)
+		return
+	}
 	url := "http://www.last.fm/api/auth/?api_key=" + apiKey + "&cb=" + cb
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{

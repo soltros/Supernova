@@ -115,7 +115,7 @@ const SearchPage: FC = () => {
                       </div>
                       
                       <div className="track-actions">
-                        <HeartButton trackId={track.id} />
+                        <HeartButton entityType="track" entityId={track.id} />
                       </div>
                     </div>
                   );

@@ -98,6 +98,10 @@ export SUPERNOVA_PLUGIN_AUTOTAGGER=true
 export SUPERNOVA_PLUGIN_ARTISTMERGER=true
 export SUPERNOVA_PLUGIN_DEDUPER=true
 
+# Required for Last.fm scrobbling and auth
+export LASTFM_API_KEY=your_api_key_here
+export LASTFM_API_SECRET=your_api_secret_here
+
 # Run the server
 go run cmd/server/main.go
 ```

@@ -10,20 +10,40 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// auth middleware checks the subsonic credentials (u, p)
+// auth middleware checks the subsonic credentials (u, p or u, t, s)
 func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u := r.URL.Query().Get("u")
 		pwd := r.URL.Query().Get("p")
 		t := r.URL.Query().Get("t")
+		s := r.URL.Query().Get("s")
 
-		if t != "" && pwd == "" {
-			p.writeError(w, r, 40, "Token auth (t/s) is unsupported by Supernova due to bcrypt security. Please enable Legacy Auth (Cleartext password) in your Subsonic client.")
+		if u == "" {
+			p.writeError(w, r, 10, "Required parameter is missing: u")
 			return
 		}
 
-		if u == "" || pwd == "" {
-			p.writeError(w, r, 10, "Required parameter is missing.")
+		if t != "" && s != "" {
+			// Token-based auth: client sends t = md5(password + salt), s = salt
+			_, hash, err := p.repo.GetUserByUsername(context.Background(), u)
+			if err != nil {
+				p.writeError(w, r, 40, "Wrong username or password.")
+				return
+			}
+			// We store passwords as bcrypt hashes so we can't reconstruct the plain text
+			// for MD5 token comparison. Reject gracefully with a clear message.
+			if hash == "" {
+				p.writeError(w, r, 40, "Wrong username or password.")
+				return
+			}
+			// Token auth requires plaintext password stored server-side which is incompatible
+			// with bcrypt. Inform client to use cleartext password auth instead.
+			p.writeError(w, r, 41, "Token authentication is not supported when passwords are bcrypt-hashed. Please use cleartext password (p=) auth in your client settings.")
+			return
+		}
+
+		if pwd == "" {
+			p.writeError(w, r, 10, "Required parameter is missing: p or t+s")
 			return
 		}
 
@@ -31,7 +51,7 @@ func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 		if strings.HasPrefix(pwd, "enc:") {
 			decoded, err := hex.DecodeString(strings.TrimPrefix(pwd, "enc:"))
 			if err != nil {
-				p.writeError(w, r, 40, "Wrong username or password.")
+				p.writeError(w, r, 10, "Malformed hex-encoded password.")
 				return
 			}
 			pwd = string(decoded)
@@ -136,7 +156,9 @@ func (p *SubsonicPlugin) handleGetIndexes(w http.ResponseWriter, r *http.Request
 
 	p.writeResponse(w, r, map[string]interface{}{
 		"indexes": map[string]interface{}{
-			"index": indexes,
+			"lastModified":    0,
+			"ignoredArticles": "The El La Los Las Le Les",
+			"index":           indexes,
 		},
 	})
 }
@@ -202,9 +224,11 @@ func (p *SubsonicPlugin) handleGetArtist(w http.ResponseWriter, r *http.Request)
 
 	p.writeResponse(w, r, map[string]interface{}{
 		"artist": map[string]interface{}{
-			"id":     artist.ID,
-			"name":   artist.Name,
-			"album":  albumList,
+			"id":         artist.ID,
+			"name":       artist.Name,
+			"coverArt":   artist.ID,
+			"albumCount": len(albumList),
+			"album":      albumList,
 		},
 	})
 }
@@ -285,17 +309,23 @@ func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) 
 	
 	var songList []map[string]interface{}
 	for _, t := range tracks {
+		contentType := "audio/" + strings.ToLower(t.Format)
+		if t.Format == "" {
+			contentType = "audio/mpeg"
+		}
 		songList = append(songList, map[string]interface{}{
-			"id":       t.ID,
-			"title":    t.Title,
-			"album":    album.Title,
-			"artist":   t.ArtistName,
-			"track":    t.TrackNumber,
-			"discNumber": t.DiscNumber,
-			"coverArt": album.ID,
-			"duration": t.DurationMs / 1000,
-			"path":     t.FilePath,
-			"contentType": "audio/flac", // Fallback, would need real mime type
+			"id":          t.ID,
+			"title":       t.Title,
+			"album":       album.Title,
+			"artist":      t.ArtistName,
+			"track":       t.TrackNumber,
+			"discNumber":  t.DiscNumber,
+			"coverArt":    album.ID,
+			"duration":    t.DurationMs / 1000,
+			"path":        t.FilePath,
+			"contentType": contentType,
+			"suffix":      strings.ToLower(t.Format),
+			"bitRate":     t.Bitrate,
 		})
 	}
 
