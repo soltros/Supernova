@@ -66,9 +66,19 @@ func (p *RadioPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	limit := r.URL.Query().Get("limit")
+	if limit == "" {
+		limit = "50"
+	}
+	offset := r.URL.Query().Get("offset")
+	if offset == "" {
+		offset = "0"
+	}
+
 	q := req.URL.Query()
 	q.Add("name", query)
-	q.Add("limit", "50")
+	q.Add("limit", limit)
+	q.Add("offset", offset)
 	q.Add("hidebroken", "true")
 	q.Add("order", "clickcount")
 	q.Add("reverse", "true")

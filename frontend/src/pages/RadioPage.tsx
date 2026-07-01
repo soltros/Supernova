@@ -7,6 +7,8 @@ const RadioPage: React.FC = () => {
   const [stations, setStations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
 
   const { internalPlay } = usePlayer() as any;
 
@@ -15,20 +17,44 @@ const RadioPage: React.FC = () => {
     if (!query) return;
     setLoading(true);
     setError(null);
+    setOffset(0);
     try {
-      // Create a fetch function to hit the backend plugin
       const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
-      const response = await fetch(`${API_BASE_URL}/api/plugins/radio/search?q=${encodeURIComponent(query)}`, {
+      const response = await fetch(`${API_BASE_URL}/api/plugins/radio/search?q=${encodeURIComponent(query)}&limit=50&offset=0`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
       if (!response.ok) throw new Error('Search failed');
       const data = await response.json();
-      setStations(data);
+      setStations(data || []);
+      setHasMore((data || []).length === 50);
     } catch (err) {
       console.error(err);
       setError("Failed to search radio stations. Ensure the Radio plugin is enabled in Settings.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMore = async () => {
+    if (!query || loading) return;
+    setLoading(true);
+    const newOffset = offset + 50;
+    try {
+      const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
+      const response = await fetch(`${API_BASE_URL}/api/plugins/radio/search?q=${encodeURIComponent(query)}&limit=50&offset=${newOffset}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      if (!response.ok) throw new Error('Search failed');
+      const data = await response.json();
+      setStations([...stations, ...(data || [])]);
+      setOffset(newOffset);
+      setHasMore((data || []).length === 50);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -135,6 +161,19 @@ const RadioPage: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {hasMore && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '32px' }}>
+          <button 
+            className="btn btn-secondary" 
+            onClick={loadMore}
+            disabled={loading}
+            style={{ padding: '12px 32px', borderRadius: '24px' }}
+          >
+            {loading ? 'Loading...' : 'Load More'}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

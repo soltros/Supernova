@@ -274,7 +274,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     currentTrack, currentAlbum, isPlaying, 
     duration, volume, queue, queueIndex,
     audioElement: audioRef.current,
-    playContext, playNext, playPrev, togglePlay, seekTo, changeVolume 
+    playContext, playNext, playPrev, togglePlay, seekTo, changeVolume, internalPlay
   }), [
     currentTrack, currentAlbum, isPlaying, duration, volume, queue, queueIndex,
     playContext, playNext, playPrev, togglePlay, seekTo, changeVolume
