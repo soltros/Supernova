@@ -178,6 +178,136 @@ func main() {
 			fmt.Printf("- %s by %s (ID: %s)\n", a["title"], a["artist_name"], a["id"])
 		}
 
+	case "import-navidrome":
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: sn import-navidrome <path-to-json> [optional-path-prefix]")
+			os.Exit(1)
+		}
+		c, err := loadConfig()
+		if err != nil {
+			fmt.Println("Not logged in. Please run `sn login` first.")
+			os.Exit(1)
+		}
+
+		filePath := os.Args[2]
+		prefix := ""
+		if len(os.Args) >= 4 {
+			prefix = os.Args[3]
+			if !strings.HasSuffix(prefix, "/") {
+				prefix += "/"
+			}
+		}
+
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			fmt.Println("Error reading file:", err)
+			os.Exit(1)
+		}
+
+		var export struct {
+			Album []struct {
+				Name string `json:"name"`
+			} `json:"album"`
+			Song []struct {
+				Path string `json:"path"`
+			} `json:"song"`
+		}
+
+		if err := json.Unmarshal(data, &export); err != nil {
+			fmt.Println("Error parsing JSON:", err)
+			os.Exit(1)
+		}
+
+		type HeartBackup struct {
+			EntityType string `json:"entityType"`
+			Reference  string `json:"reference"`
+			CreatedAt  string `json:"createdAt"`
+		}
+
+		var backups []HeartBackup
+
+		for _, a := range export.Album {
+			backups = append(backups, HeartBackup{
+				EntityType: "album",
+				Reference:  a.Name,
+				CreatedAt:  "2026-01-01T00:00:00Z",
+			})
+		}
+		for _, s := range export.Song {
+			backups = append(backups, HeartBackup{
+				EntityType: "track",
+				Reference:  prefix + s.Path,
+				CreatedAt:  "2026-01-01T00:00:00Z",
+			})
+		}
+
+		payload, _ := json.Marshal(backups)
+		_, err = doRequest("POST", "/api/hearts/import", bytes.NewBuffer(payload), c.Token)
+		if err != nil {
+			fmt.Println("Error importing favorites:", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Successfully imported %d favorites!\n", len(backups))
+
+	case "import-m3u":
+		if len(os.Args) < 4 {
+			fmt.Println("Usage: sn import-m3u <playlist-name> <path-to-m3u> [optional-path-prefix]")
+			os.Exit(1)
+		}
+		c, err := loadConfig()
+		if err != nil {
+			fmt.Println("Not logged in.")
+			os.Exit(1)
+		}
+
+		playlistName := os.Args[2]
+		filePath := os.Args[3]
+		prefix := ""
+		if len(os.Args) >= 5 {
+			prefix = os.Args[4]
+			if !strings.HasSuffix(prefix, "/") {
+				prefix += "/"
+			}
+		}
+
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			fmt.Println("Error reading m3u:", err)
+			os.Exit(1)
+		}
+
+		lines := strings.Split(string(data), "\n")
+		var tracks []string
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			tracks = append(tracks, prefix+line)
+		}
+
+		type PlaylistBackup struct {
+			Name      string   `json:"name"`
+			CreatedAt string   `json:"createdAt"`
+			Tracks    []string `json:"tracks"`
+		}
+
+		backups := []PlaylistBackup{
+			{
+				Name:      playlistName,
+				CreatedAt: "2026-01-01T00:00:00Z",
+				Tracks:    tracks,
+			},
+		}
+
+		payload, _ := json.Marshal(backups)
+		_, err = doRequest("POST", "/api/playlists/import", bytes.NewBuffer(payload), c.Token)
+		if err != nil {
+			fmt.Println("Error importing playlist:", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Successfully imported playlist '%s' with %d tracks!\n", playlistName, len(tracks))
+
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)
 		os.Exit(1)
