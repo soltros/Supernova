@@ -96,6 +96,7 @@ export SUPERNOVA_PLUGIN_LRCLIB=true
 export SUPERNOVA_PLUGIN_RADIOBROWSER=true
 export SUPERNOVA_PLUGIN_AUTOTAGGER=true
 export SUPERNOVA_PLUGIN_ARTISTMERGER=true
+export SUPERNOVA_PLUGIN_DEDUPER=true
 
 # Run the server
 go run cmd/server/main.go
@@ -145,6 +146,9 @@ A powerful library cleaner that groups similar artists to eliminate frustrating 
 - **String Normalization:** Intelligently strips out punctuation, spaces, and prefixes (like "The " or "A ") to find matches.
 - **Canonical Merging:** Automatically detects pairs like "Beatles" and "The Beatles" or "AC DC" and "AC/DC", picking the best formatted name as the canonical artist.
 - **Relational Re-routing:** Safely migrates all albums, tracks, and favorites pointing to the duplicates over to the canonical artist before deleting the orphaned records.
+
+### 7. Deduper ("Hide Duplicates") (`/api/plugins/deduper/*`)
+An automatic library cleaner that identifies duplicate tracks (same title, same album) and gracefully deletes the lower quality (lower bitrate) version from your database, keeping your library pristine.
 
 ## Writing Your Own Plugin
 Supernova's plugin system is designed to be highly accessible for developers. To create your own plugin:

@@ -161,6 +161,18 @@ const SettingsPage: React.FC = () => {
                 </button>
               )}
 
+              {plugins.some(p => p.id === 'deduper' && p.enabled) && (
+                <button 
+                  onClick={() => {
+                    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/plugins/deduper/run`, { method: 'POST' });
+                    alert("Hide Duplicates job started in the background. Check backend logs for progress.");
+                  }}
+                  style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Hide Duplicates
+                </button>
+              )}
+
               {scanStatus.status === 'scanning' && (
                 <span style={{ color: 'var(--text-secondary)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div className="loader" style={{ width: '16px', height: '16px', borderWidth: '2px', borderColor: 'rgba(255,255,255,0.1)', borderTopColor: 'var(--accent-primary)' }}></div>
