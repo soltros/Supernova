@@ -2,7 +2,6 @@ package artistmerger
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -17,9 +16,8 @@ type ArtistMergerPlugin struct {
 }
 
 func init() {
-	plugins.Register("artistmerger", func() plugins.Plugin {
-		return &ArtistMergerPlugin{}
-	})
+	// Register an instance directly (Register expects a plugins.Plugin value)
+	plugins.Register(&ArtistMergerPlugin{})
 }
 
 func (p *ArtistMergerPlugin) ID() string {
@@ -40,7 +38,8 @@ func (p *ArtistMergerPlugin) Init(config plugins.PluginConfig) error {
 }
 
 func (p *ArtistMergerPlugin) SetupRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/plugins/artistmerger/run", p.handleRunMerger)
+	// ServeMux patterns are path-only; route by method inside the handler.
+	mux.HandleFunc("/api/plugins/artistmerger/run", p.handleRunMerger)
 }
 
 func (p *ArtistMergerPlugin) handleRunMerger(w http.ResponseWriter, r *http.Request) {
