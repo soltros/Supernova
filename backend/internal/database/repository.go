@@ -20,6 +20,10 @@ func NewRepository(db *DB) *Repository {
 	return &Repository{db: db}
 }
 
+func (r *Repository) DB() *DB {
+	return r.db
+}
+
 // UpsertTrack safely inserts or updates a track and its relational metadata.
 // It uses a mutex to serialize writes to SQLite, enabling extreme concurrency for scanning 
 // without triggering "database is locked" timeouts.

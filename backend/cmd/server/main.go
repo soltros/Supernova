@@ -14,6 +14,8 @@ import (
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/external"
 	"github.com/soltros/Supernova/internal/plugins"
+	_ "github.com/soltros/Supernova/internal/plugins/autotagger"
+	_ "github.com/soltros/Supernova/internal/plugins/artistmerger"
 	_ "github.com/soltros/Supernova/internal/plugins/lrclib"
 	_ "github.com/soltros/Supernova/internal/plugins/radiobrowser"
 	_ "github.com/soltros/Supernova/internal/plugins/subsonic"
