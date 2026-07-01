@@ -74,8 +74,12 @@ export const apiService = {
     return response.json();
   },
 
-  fetchArtists: async (limit: number = 50, offset: number = 0): Promise<Artist[]> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/artists?limit=${limit}&offset=${offset}`);
+  fetchArtists: async (limit: number = 50, offset: number = 0, letter?: string): Promise<Artist[]> => {
+    let url = `${API_BASE_URL}/api/artists?limit=${limit}&offset=${offset}`;
+    if (letter) {
+      url += `&letter=${encodeURIComponent(letter)}`;
+    }
+    const response = await fetchWithAuth(url);
     if (!response.ok) throw new Error('Failed to fetch artists');
     return response.json();
   },

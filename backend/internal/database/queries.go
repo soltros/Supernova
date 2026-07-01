@@ -30,6 +30,41 @@ func (r *Repository) GetArtists(ctx context.Context, limit, offset int) ([]model
 	return artists, nil
 }
 
+// GetArtistsByLetter returns artists starting with a specific letter. '#' represents non-alphabetical.
+func (r *Repository) GetArtistsByLetter(ctx context.Context, letter string, limit, offset int) ([]models.Artist, error) {
+	var query string
+	var args []interface{}
+
+	if letter == "#" {
+		query = `SELECT id, name, musicbrainz_id, image_url, bio FROM artists WHERE UPPER(SUBSTR(name, 1, 1)) < 'A' OR UPPER(SUBSTR(name, 1, 1)) > 'Z' ORDER BY name ASC LIMIT ? OFFSET ?`
+		args = []interface{}{limit, offset}
+	} else {
+		query = `SELECT id, name, musicbrainz_id, image_url, bio FROM artists WHERE name LIKE ? ORDER BY name ASC LIMIT ? OFFSET ?`
+		args = []interface{}{letter + "%", limit, offset}
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var artists []models.Artist
+	for rows.Next() {
+		var a models.Artist
+		if err := rows.Scan(&a.ID, &a.Name, &a.MusicBrainzID, &a.ImageURL, &a.Bio); err != nil {
+			return nil, err
+		}
+		artists = append(artists, a)
+	}
+
+	if artists == nil {
+		return []models.Artist{}, nil
+	}
+	return artists, nil
+}
+
+
 func (r *Repository) GetArtistByID(ctx context.Context, id string) (models.Artist, error) {
 	query := `SELECT id, name, musicbrainz_id, image_url, bio FROM artists WHERE id = ?`
 	var a models.Artist

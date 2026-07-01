@@ -126,7 +126,17 @@ func parsePagination(r *http.Request) (limit, offset int) {
 func (s *Server) handleGetArtists() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		limit, offset := parsePagination(r)
-		artists, err := s.repo.GetArtists(r.Context(), limit, offset)
+		letter := r.URL.Query().Get("letter")
+		
+		var artists []models.Artist
+		var err error
+
+		if letter != "" {
+			artists, err = s.repo.GetArtistsByLetter(r.Context(), letter, limit, offset)
+		} else {
+			artists, err = s.repo.GetArtists(r.Context(), limit, offset)
+		}
+
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
