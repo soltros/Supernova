@@ -38,3 +38,5 @@ cache/
 *.m4a
 *.ogg
 *.wav
+lastfm_api_reference.pdf
+*.pdf

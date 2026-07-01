@@ -37,33 +37,27 @@ func (p *SubsonicPlugin) Init(config plugins.PluginConfig) error {
 }
 
 func (p *SubsonicPlugin) SetupRoutes(mux *http.ServeMux) {
-	// Subsonic endpoints
-	mux.HandleFunc("GET /rest/ping", p.handlePing)
-	mux.HandleFunc("POST /rest/ping", p.handlePing)
-	mux.HandleFunc("GET /rest/ping.view", p.handlePing)
-	mux.HandleFunc("POST /rest/ping.view", p.handlePing)
+	// Root ping
+	mux.HandleFunc("GET /rest/ping", p.auth(p.handlePing))
+	mux.HandleFunc("POST /rest/ping", p.auth(p.handlePing))
+	mux.HandleFunc("GET /rest/ping.view", p.auth(p.handlePing))
+	mux.HandleFunc("POST /rest/ping.view", p.auth(p.handlePing))
+
+	// License
+	mux.HandleFunc("GET /rest/getLicense", p.auth(p.handleGetLicense))
+	mux.HandleFunc("POST /rest/getLicense", p.auth(p.handleGetLicense))
+
+	// Browsing
+	mux.HandleFunc("GET /rest/getIndexes", p.auth(p.handleGetIndexes))
+	mux.HandleFunc("GET /rest/getArtists", p.auth(p.handleGetArtists))
+	mux.HandleFunc("GET /rest/getArtist", p.auth(p.handleGetArtist))
+	mux.HandleFunc("GET /rest/getMusicDirectory", p.auth(p.handleGetMusicDirectory))
+	mux.HandleFunc("GET /rest/getAlbum", p.auth(p.handleGetAlbum))
+
+	// Streaming
+	mux.HandleFunc("GET /rest/stream", p.auth(p.handleStream))
 }
 
 func (p *SubsonicPlugin) handlePing(w http.ResponseWriter, r *http.Request) {
-	// Subsonic can respond in XML or JSON depending on the 'f' parameter.
-	// For now, we only implement JSON to show the translation layer works.
-	format := r.URL.Query().Get("f")
-	
-	if format == "json" {
-		w.Header().Set("Content-Type", "application/json")
-		resp := map[string]interface{}{
-			"subsonic-response": map[string]interface{}{
-				"status": "ok",
-				"version": "1.16.1", // Tell the client we support a modern API version
-			},
-		}
-		json.NewEncoder(w).Encode(resp)
-		return
-	}
-
-	// Default XML response
-	w.Header().Set("Content-Type", "text/xml")
-	w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
-<subsonic-response xmlns="http://subsonic.org/restapi" status="ok" version="1.16.1">
-</subsonic-response>`))
+	p.writeResponse(w, r, nil)
 }

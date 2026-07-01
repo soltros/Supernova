@@ -86,7 +86,8 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 	albumRows, err := r.db.QueryContext(ctx, `
 		SELECT a.id, a.title, ar.name as artist_name, a.cover_art_url
 		FROM albums a
-		JOIN artists ar ON a.artist_id = ar.id
+		LEFT JOIN album_artists aa ON a.id = aa.album_id
+		LEFT JOIN artists ar ON aa.artist_id = ar.id
 		WHERE a.title LIKE ? LIMIT ?
 	`, likeQuery, limit)
 	if err != nil {
@@ -95,10 +96,15 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 	defer albumRows.Close()
 	var albums []map[string]interface{}
 	for albumRows.Next() {
-		var id, title, artistName, coverArt string
+		var id, title, coverArt string
+		var artistName *string
 		if err := albumRows.Scan(&id, &title, &artistName, &coverArt); err == nil {
+			name := "Unknown Artist"
+			if artistName != nil {
+				name = *artistName
+			}
 			albums = append(albums, map[string]interface{}{
-				"id": id, "title": title, "artist_name": artistName, "cover_art_url": coverArt,
+				"id": id, "title": title, "artist_name": name, "cover_art_url": coverArt,
 			})
 		}
 	}
@@ -108,7 +114,8 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 		SELECT t.id, t.title, a.title as album_title, ar.name as artist_name, t.duration_ms, a.id as album_id, a.cover_art_url
 		FROM tracks t
 		JOIN albums a ON t.album_id = a.id
-		JOIN artists ar ON a.artist_id = ar.id
+		LEFT JOIN track_artists ta ON t.id = ta.track_id
+		LEFT JOIN artists ar ON ta.artist_id = ar.id
 		WHERE t.title LIKE ? LIMIT ?
 	`, likeQuery, limit)
 	if err != nil {
@@ -117,12 +124,17 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 	defer trackRows.Close()
 	var tracks []map[string]interface{}
 	for trackRows.Next() {
-		var id, title, albumTitle, artistName, albumID, coverArt string
+		var id, title, albumTitle, albumID, coverArt string
 		var durationMs int
+		var artistName *string
 		if err := trackRows.Scan(&id, &title, &albumTitle, &artistName, &durationMs, &albumID, &coverArt); err == nil {
+			name := "Unknown Artist"
+			if artistName != nil {
+				name = *artistName
+			}
 			tracks = append(tracks, map[string]interface{}{
 				"id": id, "title": title, "album_title": albumTitle, 
-				"artist_name": artistName, "duration_ms": durationMs,
+				"artist_name": name, "duration_ms": durationMs,
 				"album_id": albumID, "cover_art_url": coverArt,
 			})
 		}

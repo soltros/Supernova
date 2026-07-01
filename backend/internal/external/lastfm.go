@@ -163,6 +163,51 @@ func (c *LastFmClient) Scrobble(sessionKey, artist, track string, timestamp int6
 	return c.postAuthenticated(params)
 }
 
+// GetSession exchanges an auth token for a permanent session key
+func (c *LastFmClient) GetSession(token string) (string, error) {
+	params := map[string]string{
+		"method":  "auth.getSession",
+		"token":   token,
+		"api_key": c.apiKey,
+	}
+
+	apiSig := c.generateSignature(params)
+
+	reqURL := fmt.Sprintf("%s?method=auth.getSession&token=%s&api_key=%s&api_sig=%s&format=json",
+		lastFmBaseURL, token, c.apiKey, apiSig)
+
+	resp, err := c.client.Get(reqURL)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("last.fm auth error: %s", string(body))
+	}
+
+	var data struct {
+		Session struct {
+			Name       string `json:"name"`
+			Key        string `json:"key"`
+			Subscriber int    `json:"subscriber"`
+		} `json:"session"`
+		Error   int    `json:"error"`
+		Message string `json:"message"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return "", err
+	}
+
+	if data.Error != 0 {
+		return "", fmt.Errorf("last.fm api error: %s", data.Message)
+	}
+
+	return data.Session.Key, nil
+}
+
 // postAuthenticated handles the boilerplate of signing and executing a write request
 func (c *LastFmClient) postAuthenticated(params map[string]string) error {
 	apiSig := c.generateSignature(params)
