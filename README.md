@@ -94,6 +94,8 @@ export SUPERNOVA_PLUGIN_SUBSONIC=true
 export SUPERNOVA_PLUGIN_LASTFM=true
 export SUPERNOVA_PLUGIN_LRCLIB=true
 export SUPERNOVA_PLUGIN_RADIOBROWSER=true
+export SUPERNOVA_PLUGIN_AUTOTAGGER=true
+export SUPERNOVA_PLUGIN_ARTISTMERGER=true
 
 # Run the server
 go run cmd/server/main.go
@@ -129,6 +131,20 @@ Transform Supernova into an internet radio powerhouse. This plugin integrates di
 - **Massive Directory:** Search and browse tens of thousands of global internet radio stations by genre, language, or country.
 - **High-Availability DNS:** Leverages Radio-Browser's dynamic round-robin DNS to ensure the API never goes down.
 - **Direct Integration:** Streams remote radio stations directly through the Supernova audio engine without cluttering your pristine local library.
+
+### 5. Auto-Tagger (`/api/plugins/autotagger/*`)
+A fully safe, non-destructive metadata enricher that fixes your library without modifying a single byte of your actual `.mp3` or `.flac` files on disk.
+**Featureset:**
+- **Smart Path Inference:** Automatically parses your folder structures (e.g., `/music/Artist Name/Album Name/01 - Track.mp3`) to infer missing metadata.
+- **Background Processing:** Runs as an asynchronous background job, gracefully patching your Supernova database to fix "Unknown Artist" or generic "Track 1" entries.
+- **Database-Only Execution:** Ensures your pristine local file tags are never overwritten or corrupted.
+
+### 6. Artist Merger (`/api/plugins/artistmerger/*`)
+A powerful library cleaner that groups similar artists to eliminate frustrating duplicates from bad metadata.
+**Featureset:**
+- **String Normalization:** Intelligently strips out punctuation, spaces, and prefixes (like "The " or "A ") to find matches.
+- **Canonical Merging:** Automatically detects pairs like "Beatles" and "The Beatles" or "AC DC" and "AC/DC", picking the best formatted name as the canonical artist.
+- **Relational Re-routing:** Safely migrates all albums, tracks, and favorites pointing to the duplicates over to the canonical artist before deleting the orphaned records.
 
 ## Writing Your Own Plugin
 Supernova's plugin system is designed to be highly accessible for developers. To create your own plugin:
