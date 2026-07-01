@@ -8,7 +8,7 @@ import HeartButton from '../components/HeartButton';
 import AddToPlaylistMenu from '../components/AddToPlaylistMenu';
 import type { Album, Track } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
 
 const formatTime = (ms: number) => {
   if (!ms) return '--:--';

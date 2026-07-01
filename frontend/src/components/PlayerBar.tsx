@@ -6,7 +6,7 @@ import { usePlayer } from '../context/PlayerContext';
 import HeartButton from './HeartButton';
 import LyricsOverlay from './LyricsOverlay';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
 
 const formatTime = (seconds: number) => {
   if (!seconds || isNaN(seconds)) return "0:00";

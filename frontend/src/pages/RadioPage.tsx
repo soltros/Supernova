@@ -17,7 +17,8 @@ const RadioPage: React.FC = () => {
     setError(null);
     try {
       // Create a fetch function to hit the backend plugin
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/plugins/radio/search?q=${encodeURIComponent(query)}`, {
+      const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
+      const response = await fetch(`${API_BASE_URL}/api/plugins/radio/search?q=${encodeURIComponent(query)}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }

@@ -12,7 +12,8 @@ const SettingsPage: React.FC = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     if (token) {
-      fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/plugins/lastfm/session`, {
+      const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
+      fetch(`${API_BASE_URL}/api/plugins/lastfm/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token })
@@ -144,7 +145,8 @@ const SettingsPage: React.FC = () => {
               {plugins.some(p => p.id === 'autotagger' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/plugins/autotagger/run`, { method: 'POST' });
+                    const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
+                    fetch(`${API_BASE_URL}/api/plugins/autotagger/run`, { method: 'POST' });
                     alert("Auto-tagging job started in the background. Check backend logs for progress.");
                   }}
                   style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
@@ -156,7 +158,8 @@ const SettingsPage: React.FC = () => {
               {plugins.some(p => p.id === 'artistmerger' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/plugins/artistmerger/run`, { method: 'POST' });
+                    const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
+                    fetch(`${API_BASE_URL}/api/plugins/artistmerger/run`, { method: 'POST' });
                     alert("Artist merger job started in the background. Check backend logs for progress.");
                   }}
                   style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
@@ -168,7 +171,8 @@ const SettingsPage: React.FC = () => {
               {plugins.some(p => p.id === 'deduper' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/plugins/deduper/run`, { method: 'POST' });
+                    const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
+                    fetch(`${API_BASE_URL}/api/plugins/deduper/run`, { method: 'POST' });
                     alert("Hide Duplicates job started in the background. Check backend logs for progress.");
                   }}
                   style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
@@ -217,7 +221,8 @@ const SettingsPage: React.FC = () => {
                 <button 
                   onClick={() => {
                     const cb = window.location.origin + "/settings";
-                    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/plugins/lastfm/auth-url?cb=${encodeURIComponent(cb)}`)
+                    const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
+                    fetch(`${API_BASE_URL}/api/plugins/lastfm/auth-url?cb=${encodeURIComponent(cb)}`)
                       .then(r => r.json())
                       .then(data => {
                         if (data.url) {
