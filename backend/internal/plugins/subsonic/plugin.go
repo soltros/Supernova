@@ -72,6 +72,12 @@ func (p *SubsonicPlugin) SetupRoutes(mux *http.ServeMux) {
 
 	// Streaming
 	mux.HandleFunc("/rest/stream", p.auth(p.handleStream))
+
+	// Media Annotation (Supernova Hearts mapping)
+	mux.HandleFunc("/rest/star", p.auth(p.handleStar))
+	mux.HandleFunc("/rest/unstar", p.auth(p.handleUnstar))
+	mux.HandleFunc("/rest/getStarred", p.auth(p.handleGetStarred))
+	mux.HandleFunc("/rest/getStarred2", p.auth(p.handleGetStarred))
 }
 
 func (p *SubsonicPlugin) handlePing(w http.ResponseWriter, r *http.Request) {
