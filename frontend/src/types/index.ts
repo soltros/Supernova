@@ -26,6 +26,7 @@ export interface Track {
   bitrate: number;
   artist_id?: string;
   artist_name?: string;
+  album_title?: string;
 }
 
 export interface User {

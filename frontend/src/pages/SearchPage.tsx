@@ -1,11 +1,12 @@
-import { FC, useEffect, useState } from 'react';
+import type { FC } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import type { Artist, Album, Track } from '../types';
 import ArtistCard from '../components/ArtistCard';
 import AlbumCard from '../components/AlbumCard';
 import { usePlayer } from '../context/PlayerContext';
-import { HeartButton } from '../components/HeartButton';
+import HeartButton from '../components/HeartButton';
 
 const SearchPage: FC = () => {
   const [searchParams] = useSearchParams();
@@ -63,7 +64,6 @@ const SearchPage: FC = () => {
                   <ArtistCard 
                     key={artist.id} 
                     artist={artist} 
-                    onClick={() => navigate(`/artist/${artist.id}`)}
                   />
                 ))}
               </div>
@@ -78,7 +78,6 @@ const SearchPage: FC = () => {
                   <AlbumCard 
                     key={album.id} 
                     album={album} 
-                    onClick={() => navigate(`/album/${album.id}`)}
                   />
                 ))}
               </div>
