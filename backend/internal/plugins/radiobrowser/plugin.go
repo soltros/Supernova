@@ -42,7 +42,13 @@ func (p *RadioPlugin) Init(config plugins.PluginConfig) error {
 }
 
 func (p *RadioPlugin) SetupRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/plugins/radio/search", p.handleSearch)
+	mux.HandleFunc("/api/plugins/radio/search", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		p.handleSearch(w, r)
+	})
 }
 
 func (p *RadioPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {

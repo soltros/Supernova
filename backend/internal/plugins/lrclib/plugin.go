@@ -41,7 +41,13 @@ func (p *LRCLibPlugin) Init(config plugins.PluginConfig) error {
 }
 
 func (p *LRCLibPlugin) SetupRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/plugins/lrclib/lyrics", p.handleGetLyrics)
+	mux.HandleFunc("/api/plugins/lrclib/lyrics", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		p.handleGetLyrics(w, r)
+	})
 }
 
 func (p *LRCLibPlugin) handleGetLyrics(w http.ResponseWriter, r *http.Request) {

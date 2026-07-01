@@ -38,7 +38,13 @@ func (p *AutoTaggerPlugin) Init(config plugins.PluginConfig) error {
 }
 
 func (p *AutoTaggerPlugin) SetupRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/plugins/autotagger/run", p.handleRunTagger)
+	mux.HandleFunc("/api/plugins/autotagger/run", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		p.handleRunTagger(w, r)
+	})
 }
 
 func (p *AutoTaggerPlugin) handleRunTagger(w http.ResponseWriter, r *http.Request) {
@@ -96,30 +102,3 @@ func (p *AutoTaggerPlugin) runTaggingJob() {
 			if title == "" {
 				title = baseName
 			}
-
-			if artistDir != "music" && albumDir != "music" && artistDir != "" {
-				tracksToUpdate = append(tracksToUpdate, models.TrackMetadata{
-					Title:        title,
-					Album:        albumDir,
-					Artist:       artistDir,
-					AlbumArtist:  artistDir,
-					DurationMs:   durationMs,
-					Format:       format,
-					Bitrate:      bitrate,
-					FilePath:     path,
-					CoverArtPath: coverArt,
-				})
-			}
-		}
-	}
-	rows.Close()
-
-	count := 0
-	for _, meta := range tracksToUpdate {
-		if err := p.repo.UpsertTrack(ctx, &meta); err == nil {
-			count++
-		}
-	}
-
-	log.Printf("[AutoTagger] Background tagging job completed. Fixed %d tracks.\n", count)
-}

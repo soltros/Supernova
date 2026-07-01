@@ -36,25 +36,42 @@ func (p *SubsonicPlugin) Init(config plugins.PluginConfig) error {
 }
 
 func (p *SubsonicPlugin) SetupRoutes(mux *http.ServeMux) {
-	// Root ping
-	mux.HandleFunc("GET /rest/ping", p.auth(p.handlePing))
-	mux.HandleFunc("POST /rest/ping", p.auth(p.handlePing))
-	mux.HandleFunc("GET /rest/ping.view", p.auth(p.handlePing))
-	mux.HandleFunc("POST /rest/ping.view", p.auth(p.handlePing))
+	// Root ping (allow GET and POST)
+	h := p.auth(p.handlePing)
+	mux.HandleFunc("/rest/ping", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h(w, r)
+	})
+	mux.HandleFunc("/rest/ping.view", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		h(w, r)
+	})
 
-	// License
-	mux.HandleFunc("GET /rest/getLicense", p.auth(p.handleGetLicense))
-	mux.HandleFunc("POST /rest/getLicense", p.auth(p.handleGetLicense))
+	// License (allow GET and POST)
+	hGetLicense := p.auth(p.handleGetLicense)
+	mux.HandleFunc("/rest/getLicense", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		hGetLicense(w, r)
+	})
 
-	// Browsing
-	mux.HandleFunc("GET /rest/getIndexes", p.auth(p.handleGetIndexes))
-	mux.HandleFunc("GET /rest/getArtists", p.auth(p.handleGetArtists))
-	mux.HandleFunc("GET /rest/getArtist", p.auth(p.handleGetArtist))
-	mux.HandleFunc("GET /rest/getMusicDirectory", p.auth(p.handleGetMusicDirectory))
-	mux.HandleFunc("GET /rest/getAlbum", p.auth(p.handleGetAlbum))
+	// Browsing (GET)
+	mux.HandleFunc("/rest/getIndexes", p.auth(p.handleGetIndexes))
+	mux.HandleFunc("/rest/getArtists", p.auth(p.handleGetArtists))
+	mux.HandleFunc("/rest/getArtist", p.auth(p.handleGetArtist))
+	mux.HandleFunc("/rest/getMusicDirectory", p.auth(p.handleGetMusicDirectory))
+	mux.HandleFunc("/rest/getAlbum", p.auth(p.handleGetAlbum))
 
 	// Streaming
-	mux.HandleFunc("GET /rest/stream", p.auth(p.handleStream))
+	mux.HandleFunc("/rest/stream", p.auth(p.handleStream))
 }
 
 func (p *SubsonicPlugin) handlePing(w http.ResponseWriter, r *http.Request) {

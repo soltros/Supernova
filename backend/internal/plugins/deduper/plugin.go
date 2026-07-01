@@ -14,9 +14,8 @@ type DeduperPlugin struct {
 }
 
 func init() {
-	plugins.Register("deduper", func() plugins.Plugin {
-		return &DeduperPlugin{}
-	})
+	// Register the plugin instance. plugins.Register expects a plugins.Plugin value.
+	plugins.Register(&DeduperPlugin{})
 }
 
 func (p *DeduperPlugin) ID() string {
@@ -37,7 +36,14 @@ func (p *DeduperPlugin) Init(config plugins.PluginConfig) error {
 }
 
 func (p *DeduperPlugin) SetupRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/plugins/deduper/run", p.handleRunDeduper)
+	// ServeMux patterns are path-only; route by method inside the handler.
+	mux.HandleFunc("/api/plugins/deduper/run", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		p.handleRunDeduper(w, r)
+	})
 }
 
 func (p *DeduperPlugin) handleRunDeduper(w http.ResponseWriter, r *http.Request) {
