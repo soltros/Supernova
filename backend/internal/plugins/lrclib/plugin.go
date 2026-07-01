@@ -67,7 +67,11 @@ func (p *LRCLibPlugin) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	reqURL := fmt.Sprintf("https://lrclib.net/api/get?%s", query.Encode())
-	req, _ := http.NewRequest("GET", reqURL, nil)
+	req, err := http.NewRequest("GET", reqURL, nil)
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
 	req.Header.Set("User-Agent", "Supernova Media Server v1.0.0")
 
 	resp, err := p.client.Do(req)
@@ -87,7 +91,16 @@ func (p *LRCLibPlugin) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "failed to read response", http.StatusInternalServerError)
+		return
+	}
+	
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(body)
+	_, err = w.Write(body)
+	if err != nil {
+		// Can't do much if writing fails, just log it or ignore
+		return
+	}
 }

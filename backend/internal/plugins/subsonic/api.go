@@ -182,7 +182,11 @@ func (p *SubsonicPlugin) handleGetArtists(w http.ResponseWriter, r *http.Request
 
 func (p *SubsonicPlugin) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
-	artist, _ := p.repo.GetArtistByID(context.Background(), id)
+	artist, err := p.repo.GetArtistByID(context.Background(), id)
+	if err != nil || artist == nil {
+		p.writeError(w, r, 70, "Artist not found")
+		return
+	}
 	albums, _ := p.repo.GetAlbums(context.Background(), id, 100, 0)
 	
 	var albumList []map[string]interface{}
@@ -295,11 +299,16 @@ func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) 
 		})
 	}
 
+	artistName := ""
+	if len(tracks) > 0 {
+		artistName = tracks[0].ArtistName
+	}
+
 	p.writeResponse(w, r, map[string]interface{}{
 		"album": map[string]interface{}{
 			"id":       album.ID,
 			"name":     album.Title,
-			"artist":   tracks[0].ArtistName,
+			"artist":   artistName,
 			"coverArt": album.ID,
 			"song":     songList,
 		},

@@ -53,8 +53,7 @@ func (p *RadioPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Make request to a random Radio-Browser instance using the round-robin DNS
-	apiURL := "https://de1.api.radio-browser.info/json/stations/search"
-	
+	apiURL := "https://all.api.radio-browser.info/json/stations/search"
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		http.Error(w, "failed to create request", http.StatusInternalServerError)
