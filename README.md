@@ -105,7 +105,7 @@ JWT_SECRET=paste_the_64_character_hex_output_here
 ```
 
 > [!IMPORTANT]
-> The server will **refuse to start** if `JWT_SECRET` is missing or shorter than 32 characters. This is intentional — a weak or missing secret allows anyone to forge login tokens for any account.
+> The server will **refuse to start** if `JWT_SECRET` is missing or shorter than 32 characters. This is intentional. A weak or missing secret allows anyone to forge login tokens for any account.
 
 ### 2. Set your music library path
 
