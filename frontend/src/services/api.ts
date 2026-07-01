@@ -99,6 +99,12 @@ export const apiService = {
     return response.json();
   },
 
+  search: async (query: string): Promise<{ artists: Artist[], albums: Album[], tracks: Track[] }> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error('Search failed');
+    return response.json();
+  },
+
   fetchDashboard: async (): Promise<{ recently_added_albums: Album[], recently_played_tracks: Track[], favorite_tracks: Track[] }> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/dashboard`);
     if (!response.ok) throw new Error('Failed to fetch dashboard');

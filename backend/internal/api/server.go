@@ -59,6 +59,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/albums", s.handleGetAlbums())
 	s.mux.HandleFunc("GET /api/albums/{id}", s.handleGetAlbumByID())
 	s.mux.HandleFunc("GET /api/tracks", s.handleGetTracks())
+	s.mux.HandleFunc("GET /api/search", s.handleSearch())
 	
 	// Protected User Data routes
 	s.mux.HandleFunc("GET /api/hearts", s.requireAuth(s.handleGetHearts()))
@@ -154,6 +155,28 @@ func (s *Server) handleGetArtistByID() http.HandlerFunc {
 			return
 		}
 		json.NewEncoder(w).Encode(artist)
+	}
+}
+
+func (s *Server) handleSearch() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query().Get("q")
+		if query == "" {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"artists": []interface{}{},
+				"albums":  []interface{}{},
+				"tracks":  []interface{}{},
+			})
+			return
+		}
+		
+		limit := 20 // Default limit
+		results, err := s.repo.Search(r.Context(), query, limit)
+		if err != nil {
+			http.Error(w, "Search failed", http.StatusInternalServerError)
+			return
+		}
+		json.NewEncoder(w).Encode(results)
 	}
 }
 

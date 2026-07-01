@@ -13,6 +13,7 @@ import ArtistPage from './pages/ArtistPage';
 import AlbumsPage from './pages/AlbumsPage';
 import SettingsPage from './pages/SettingsPage';
 import RadioPage from './pages/RadioPage';
+import SearchPage from './pages/SearchPage';
 import { HeartsProvider } from './context/HeartsContext';
 import { PlaylistsProvider } from './context/PlaylistsContext';
 import { PlayerProvider } from './context/PlayerContext';
@@ -49,6 +50,7 @@ function AppContent() {
                 <Route path="/albums" element={<AlbumsPage />} />
                 <Route path="/playlists" element={<PlaylistsPage />} />
                 <Route path="/radio" element={<RadioPage />} />
+                <Route path="/search" element={<SearchPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Routes>
             </main>

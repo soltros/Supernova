@@ -64,6 +64,80 @@ func (r *Repository) GetArtistsByLetter(ctx context.Context, letter string, limi
 	return artists, nil
 }
 
+// Search queries artists, albums, and tracks for the given query string.
+func (r *Repository) Search(ctx context.Context, query string, limit int) (map[string]interface{}, error) {
+	likeQuery := "%" + query + "%"
+	
+	// Search Artists
+	artistRows, err := r.db.QueryContext(ctx, `SELECT id, name, image_url FROM artists WHERE name LIKE ? LIMIT ?`, likeQuery, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer artistRows.Close()
+	var artists []map[string]interface{}
+	for artistRows.Next() {
+		var id, name, img string
+		if err := artistRows.Scan(&id, &name, &img); err == nil {
+			artists = append(artists, map[string]interface{}{"id": id, "name": name, "image_url": img})
+		}
+	}
+
+	// Search Albums
+	albumRows, err := r.db.QueryContext(ctx, `
+		SELECT a.id, a.title, ar.name as artist_name, a.cover_art_url
+		FROM albums a
+		JOIN artists ar ON a.artist_id = ar.id
+		WHERE a.title LIKE ? LIMIT ?
+	`, likeQuery, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer albumRows.Close()
+	var albums []map[string]interface{}
+	for albumRows.Next() {
+		var id, title, artistName, coverArt string
+		if err := albumRows.Scan(&id, &title, &artistName, &coverArt); err == nil {
+			albums = append(albums, map[string]interface{}{
+				"id": id, "title": title, "artist_name": artistName, "cover_art_url": coverArt,
+			})
+		}
+	}
+
+	// Search Tracks
+	trackRows, err := r.db.QueryContext(ctx, `
+		SELECT t.id, t.title, a.title as album_title, ar.name as artist_name, t.duration_ms, a.id as album_id, a.cover_art_url
+		FROM tracks t
+		JOIN albums a ON t.album_id = a.id
+		JOIN artists ar ON a.artist_id = ar.id
+		WHERE t.title LIKE ? LIMIT ?
+	`, likeQuery, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer trackRows.Close()
+	var tracks []map[string]interface{}
+	for trackRows.Next() {
+		var id, title, albumTitle, artistName, albumID, coverArt string
+		var durationMs int
+		if err := trackRows.Scan(&id, &title, &albumTitle, &artistName, &durationMs, &albumID, &coverArt); err == nil {
+			tracks = append(tracks, map[string]interface{}{
+				"id": id, "title": title, "album_title": albumTitle, 
+				"artist_name": artistName, "duration_ms": durationMs,
+				"album_id": albumID, "cover_art_url": coverArt,
+			})
+		}
+	}
+
+	if artists == nil { artists = []map[string]interface{}{} }
+	if albums == nil { albums = []map[string]interface{}{} }
+	if tracks == nil { tracks = []map[string]interface{}{} }
+
+	return map[string]interface{}{
+		"artists": artists,
+		"albums": albums,
+		"tracks": tracks,
+	}, nil
+}
 
 func (r *Repository) GetArtistByID(ctx context.Context, id string) (models.Artist, error) {
 	query := `SELECT id, name, musicbrainz_id, image_url, bio FROM artists WHERE id = ?`
