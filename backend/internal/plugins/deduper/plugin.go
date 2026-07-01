@@ -36,7 +36,7 @@ func (p *DeduperPlugin) Init(config plugins.PluginConfig) error {
 	return nil
 }
 
-func (p *DeduperPlugin) RegisterRoutes(mux *http.ServeMux) {
+func (p *DeduperPlugin) SetupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/plugins/deduper/run", p.handleRunDeduper)
 }
 

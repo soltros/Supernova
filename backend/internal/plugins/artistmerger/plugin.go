@@ -39,7 +39,7 @@ func (p *ArtistMergerPlugin) Init(config plugins.PluginConfig) error {
 	return nil
 }
 
-func (p *ArtistMergerPlugin) RegisterRoutes(mux *http.ServeMux) {
+func (p *ArtistMergerPlugin) SetupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/plugins/artistmerger/run", p.handleRunMerger)
 }
 

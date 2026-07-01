@@ -40,7 +40,7 @@ func (p *AutoTaggerPlugin) Init(config plugins.PluginConfig) error {
 	return nil
 }
 
-func (p *AutoTaggerPlugin) RegisterRoutes(mux *http.ServeMux) {
+func (p *AutoTaggerPlugin) SetupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/plugins/autotagger/run", p.handleRunTagger)
 }
 

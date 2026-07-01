@@ -1,7 +1,6 @@
 package subsonic
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/soltros/Supernova/internal/database"
