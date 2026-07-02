@@ -172,22 +172,20 @@ const PodcastsPage: React.FC = () => {
             {podcasts.length === 0 && recentPodcasts.length > 0 && !error && (
               <div style={{ marginBottom: '48px' }}>
                 <h2 className="section-title">Recently Viewed Podcasts</h2>
-                <div className="grid-container" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+                <div className="album-grid">
                   {recentPodcasts.map(podcast => (
-                    <div key={`recent-${podcast.id}`} className="card" onClick={() => loadEpisodes(podcast)}>
-                      <div className="card-image-container" style={{ padding: '16px', background: 'var(--bg-secondary)' }}>
+                    <div key={`recent-${podcast.id}`} className="album-card" onClick={() => loadEpisodes(podcast)} style={{ cursor: 'pointer' }}>
+                      <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
                         {podcast.image ? (
-                          <img src={podcast.image} alt={podcast.title} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '8px' }} />
+                          <img src={podcast.image} alt={podcast.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
-                          <div style={{ width: '100%', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
-                            <Mic size={48} color="var(--text-muted)" />
-                          </div>
+                          <Mic size={48} color="var(--text-muted)" />
                         )}
                       </div>
-                      <div className="card-info" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                      <div className="album-info" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: '12px' }}>
                         <div style={{ overflow: 'hidden' }}>
-                          <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{podcast.title}</h3>
-                          <p className="card-subtitle">{podcast.author || 'Unknown'}</p>
+                          <h3 style={{ margin: '0 0 4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{podcast.title}</h3>
+                          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{podcast.author || 'Unknown'}</p>
                         </div>
                         <div onClick={(e) => e.stopPropagation()} style={{ marginLeft: '8px' }}>
                           <HeartButton entityType="podcast" entityId={podcast.id?.toString()} />
@@ -199,22 +197,20 @@ const PodcastsPage: React.FC = () => {
               </div>
             )}
 
-            <div className="grid-container" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+            <div className="album-grid">
               {podcasts.map(podcast => (
-                <div key={podcast.id} className="card" onClick={() => loadEpisodes(podcast)}>
-                  <div className="card-image-container" style={{ padding: '16px', background: 'var(--bg-secondary)' }}>
+                <div key={podcast.id} className="album-card" onClick={() => loadEpisodes(podcast)} style={{ cursor: 'pointer' }}>
+                  <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
                     {podcast.image ? (
-                      <img src={podcast.image} alt={podcast.title} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '8px' }} />
+                      <img src={podcast.image} alt={podcast.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
-                      <div style={{ width: '100%', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
-                        <Mic size={48} color="var(--text-muted)" />
-                      </div>
+                      <Mic size={48} color="var(--text-muted)" />
                     )}
                   </div>
-                  <div className="card-info" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <div className="album-info" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: '12px' }}>
                     <div style={{ overflow: 'hidden' }}>
-                      <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{podcast.title}</h3>
-                      <p className="card-subtitle">{podcast.author || 'Unknown'}</p>
+                      <h3 style={{ margin: '0 0 4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{podcast.title}</h3>
+                      <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{podcast.author || 'Unknown'}</p>
                     </div>
                     <div onClick={(e) => e.stopPropagation()} style={{ marginLeft: '8px' }}>
                       <HeartButton entityType="podcast" entityId={podcast.id?.toString()} />

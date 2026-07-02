@@ -146,58 +146,58 @@ const RadioPage: React.FC = () => {
         {stations.length === 0 && recentStations.length > 0 && !loading && !error && (
           <div style={{ marginBottom: '48px' }}>
             <h2 className="section-title">Recently Played Stations</h2>
-            <div className="grid-container" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
-              {recentStations.map(station => (
-                <div key={`recent-${station.stationuuid}`} className="card" onClick={() => playStation(station)}>
-                  <div className="card-image-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', padding: '24px' }}>
-                    {station.favicon ? (
-                      <img 
-                        src={station.favicon} 
-                        alt={station.name} 
-                        className="card-image"
-                        style={{ objectFit: 'contain', width: '100px', height: '100px', borderRadius: '8px' }}
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          if (e.currentTarget.nextElementSibling) {
-                            (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'block';
-                          }
-                        }}
-                      />
-                    ) : null}
-                    <div style={{ display: station.favicon ? 'none' : 'block' }}>
-                      <Radio size={48} color="var(--text-muted)" />
+                <div className="album-grid">
+                  {recentStations.map(station => (
+                    <div key={`recent-${station.stationuuid}`} className="album-card" onClick={() => playStation(station)} style={{ cursor: 'pointer' }}>
+                      <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
+                        {station.favicon ? (
+                          <img 
+                            src={station.favicon} 
+                            alt={station.name} 
+                            style={{ objectFit: 'contain', width: '70%', height: '70%' }}
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              if (e.currentTarget.nextElementSibling) {
+                                (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'block';
+                              }
+                            }}
+                          />
+                        ) : null}
+                        <div style={{ display: station.favicon ? 'none' : 'block' }}>
+                          <Radio size={48} color="var(--text-muted)" />
+                        </div>
+                        <div className="play-overlay">
+                          <button className="play-btn">
+                            <Play size={24} fill="currentColor" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="album-info" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: '12px' }}>
+                        <div style={{ overflow: 'hidden' }}>
+                          <h3 style={{ margin: '0 0 4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</h3>
+                          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {station.country || 'Unknown Location'} • {station.tags ? station.tags.split(',')[0] : 'Radio'}
+                          </p>
+                        </div>
+                        <div onClick={(e) => e.stopPropagation()} style={{ marginLeft: '8px' }}>
+                          <HeartButton entityType="radio" entityId={station.stationuuid} />
+                        </div>
+                      </div>
                     </div>
-                    <div className="play-overlay">
-                      <button className="play-btn">
-                        <Play size={24} fill="currentColor" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="card-info" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                    <div style={{ overflow: 'hidden' }}>
-                      <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</h3>
-                      <p className="card-subtitle">{station.country || 'Unknown Location'} • {station.tags ? station.tags.split(',')[0] : 'Radio'}</p>
-                    </div>
-                    <div onClick={(e) => e.stopPropagation()} style={{ marginLeft: '8px' }}>
-                      <HeartButton entityType="radio" entityId={station.stationuuid} />
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
           </div>
         )}
 
-        <div className="grid-container" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
+        <div className="album-grid">
           {stations.map(station => (
-            <div key={station.stationuuid} className="card" onClick={() => playStation(station)}>
-              <div className="card-image-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', padding: '24px' }}>
+            <div key={station.stationuuid} className="album-card" onClick={() => playStation(station)} style={{ cursor: 'pointer' }}>
+              <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
                 {station.favicon ? (
                   <img 
                     src={station.favicon} 
                     alt={station.name} 
-                    className="card-image"
-                    style={{ objectFit: 'contain', width: '100px', height: '100px', borderRadius: '8px' }}
+                    style={{ objectFit: 'contain', width: '70%', height: '70%' }}
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
                       if (e.currentTarget.nextElementSibling) {
@@ -215,10 +215,12 @@ const RadioPage: React.FC = () => {
                   </button>
                 </div>
               </div>
-              <div className="card-info" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+              <div className="album-info" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: '12px' }}>
                 <div style={{ overflow: 'hidden' }}>
-                  <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</h3>
-                  <p className="card-subtitle">{station.country || 'Unknown Location'} • {station.tags ? station.tags.split(',')[0] : 'Radio'}</p>
+                  <h3 style={{ margin: '0 0 4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</h3>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {station.country || 'Unknown Location'} • {station.tags ? station.tags.split(',')[0] : 'Radio'}
+                  </p>
                 </div>
                 <div onClick={(e) => e.stopPropagation()} style={{ marginLeft: '8px' }}>
                   <HeartButton entityType="radio" entityId={station.stationuuid} />
