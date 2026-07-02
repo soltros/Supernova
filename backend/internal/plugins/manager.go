@@ -39,7 +39,7 @@ func Register(p Plugin) {
 func (m *Manager) Start(config PluginConfig) {
 	for id, p := range m.registry {
 		envKey := "SUPERNOVA_PLUGIN_" + strings.ToUpper(id)
-		if strings.ToLower(os.Getenv(envKey)) == "true" {
+		if strings.ToLower(os.Getenv(envKey)) != "false" {
 			log.Printf("Starting plugin: %s (%s)", p.Name(), id)
 			err := p.Init(config)
 			if err != nil {
