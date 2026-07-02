@@ -63,10 +63,10 @@ func (s *Server) handleAddHeart() http.HandlerFunc {
 		}
 		// SEC-2: allowlist entity_type to prevent dirty data / future query confusion
 		switch req.EntityType {
-		case "track", "album", "artist", "playlist":
+		case "track", "album", "artist", "playlist", "radio", "podcast":
 			// valid
 		default:
-			http.Error(w, "invalid entity_type: must be track, album, artist, or playlist", http.StatusBadRequest)
+			http.Error(w, "invalid entity_type: must be track, album, artist, playlist, radio, or podcast", http.StatusBadRequest)
 			return
 		}
 		// ERR-6: reject empty entity_id

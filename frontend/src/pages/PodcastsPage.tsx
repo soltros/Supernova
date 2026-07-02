@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Search, Mic, ChevronLeft } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
+import HeartButton from '../components/HeartButton';
 
 const PodcastsPage: React.FC = () => {
   const [query, setQuery] = useState('');
@@ -183,9 +184,14 @@ const PodcastsPage: React.FC = () => {
                           </div>
                         )}
                       </div>
-                      <div className="card-info">
-                        <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{podcast.title}</h3>
-                        <p className="card-subtitle">{podcast.author || 'Unknown'}</p>
+                      <div className="card-info" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                        <div style={{ overflow: 'hidden' }}>
+                          <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{podcast.title}</h3>
+                          <p className="card-subtitle">{podcast.author || 'Unknown'}</p>
+                        </div>
+                        <div onClick={(e) => e.stopPropagation()} style={{ marginLeft: '8px' }}>
+                          <HeartButton entityType="podcast" entityId={podcast.id?.toString()} />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -205,9 +211,14 @@ const PodcastsPage: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  <div className="card-info">
-                    <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{podcast.title}</h3>
-                    <p className="card-subtitle">{podcast.author || 'Unknown'}</p>
+                  <div className="card-info" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <div style={{ overflow: 'hidden' }}>
+                      <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{podcast.title}</h3>
+                      <p className="card-subtitle">{podcast.author || 'Unknown'}</p>
+                    </div>
+                    <div onClick={(e) => e.stopPropagation()} style={{ marginLeft: '8px' }}>
+                      <HeartButton entityType="podcast" entityId={podcast.id?.toString()} />
+                    </div>
                   </div>
                 </div>
               ))}

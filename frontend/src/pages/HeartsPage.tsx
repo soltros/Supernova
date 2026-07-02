@@ -29,6 +29,8 @@ const HeartsPage: FC = () => {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [radioStations, setRadioStations] = useState<any[]>([]);
+  const [podcasts, setPodcasts] = useState<any[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -47,7 +49,17 @@ const HeartsPage: FC = () => {
         setLoading(false);
       });
     return () => { isMounted = false; };
-  }, []); // Run once on mount, let HeartButton handle optimistic UI locally
+  }, []);
+
+  useEffect(() => {
+    try {
+      const storedRadio = JSON.parse(localStorage.getItem('recentStations') || '[]');
+      setRadioStations(storedRadio.filter((s: any) => heartedIds.has(s.stationuuid)));
+
+      const storedPodcasts = JSON.parse(localStorage.getItem('recentPodcasts') || '[]');
+      setPodcasts(storedPodcasts.filter((p: any) => heartedIds.has(p.id?.toString())));
+    } catch (e) {}
+  }, [heartedIds]);
 
   const handleExport = () => {
     window.open(`${API_BASE_URL}/api/hearts/export`, '_blank');
@@ -155,6 +167,58 @@ const HeartsPage: FC = () => {
           <div className="album-grid">
             {playlists.map(playlist => (
               <PlaylistCard key={playlist.id} playlist={playlist} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {radioStations.length > 0 && (
+        <section style={{ marginBottom: '48px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            Radio Stations
+            <span style={{ fontSize: '14px', padding: '4px 12px', background: 'var(--bg-glass)', borderRadius: '24px', color: 'var(--text-secondary)' }}>{radioStations.length}</span>
+          </h2>
+          <div className="album-grid">
+            {radioStations.map(station => (
+              <Link key={station.stationuuid} to="/radio" state={{ station }} className="album-card" style={{ textDecoration: 'none' }}>
+                <div className="album-cover-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', height: '160px', borderRadius: '12px', overflow: 'hidden' }}>
+                  {station.favicon ? (
+                    <img src={station.favicon} alt={station.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)' }}>Radio</span>
+                  )}
+                </div>
+                <div className="album-info">
+                  <h3 className="album-title">{station.name}</h3>
+                  <p className="album-artist">{station.country}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {podcasts.length > 0 && (
+        <section style={{ marginBottom: '48px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            Podcasts
+            <span style={{ fontSize: '14px', padding: '4px 12px', background: 'var(--bg-glass)', borderRadius: '24px', color: 'var(--text-secondary)' }}>{podcasts.length}</span>
+          </h2>
+          <div className="album-grid">
+            {podcasts.map(podcast => (
+              <Link key={podcast.id} to="/podcasts" state={{ podcast }} className="album-card" style={{ textDecoration: 'none' }}>
+                <div className="album-cover-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', height: '160px', borderRadius: '12px', overflow: 'hidden' }}>
+                  {podcast.image ? (
+                    <img src={podcast.image} alt={podcast.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)' }}>Podcast</span>
+                  )}
+                </div>
+                <div className="album-info">
+                  <h3 className="album-title">{podcast.title}</h3>
+                  <p className="album-artist">{podcast.author || 'Unknown'}</p>
+                </div>
+              </Link>
             ))}
           </div>
         </section>

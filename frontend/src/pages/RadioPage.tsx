@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Search, Radio } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
+import HeartButton from '../components/HeartButton';
 
 const RadioPage: React.FC = () => {
   const [query, setQuery] = useState('');
@@ -172,9 +173,14 @@ const RadioPage: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                  <div className="card-info">
-                    <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</h3>
-                    <p className="card-subtitle">{station.country || 'Unknown Location'} • {station.tags ? station.tags.split(',')[0] : 'Radio'}</p>
+                  <div className="card-info" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <div style={{ overflow: 'hidden' }}>
+                      <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</h3>
+                      <p className="card-subtitle">{station.country || 'Unknown Location'} • {station.tags ? station.tags.split(',')[0] : 'Radio'}</p>
+                    </div>
+                    <div onClick={(e) => e.stopPropagation()} style={{ marginLeft: '8px' }}>
+                      <HeartButton entityType="radio" entityId={station.stationuuid} />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -209,9 +215,14 @@ const RadioPage: React.FC = () => {
                   </button>
                 </div>
               </div>
-              <div className="card-info">
-                <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</h3>
-                <p className="card-subtitle">{station.country || 'Unknown Location'} • {station.tags ? station.tags.split(',')[0] : 'Radio'}</p>
+              <div className="card-info" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                <div style={{ overflow: 'hidden' }}>
+                  <h3 className="card-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{station.name}</h3>
+                  <p className="card-subtitle">{station.country || 'Unknown Location'} • {station.tags ? station.tags.split(',')[0] : 'Radio'}</p>
+                </div>
+                <div onClick={(e) => e.stopPropagation()} style={{ marginLeft: '8px' }}>
+                  <HeartButton entityType="radio" entityId={station.stationuuid} />
+                </div>
               </div>
             </div>
           ))}
