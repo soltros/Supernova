@@ -111,7 +111,7 @@ func (p *PodcastsPlugin) handleEpisodes(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resp, err := p.doPodcastIndexRequest("/episodes/bypodcastid", "id="+id)
+	resp, err := p.doPodcastIndexRequest("/episodes/byfeedid", "id="+id)
 	if err != nil {
 		if err.Error() == "Podcast Index API keys are not configured in the .env file" {
 			http.Error(w, err.Error(), http.StatusUnauthorized)
