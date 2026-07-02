@@ -8,6 +8,19 @@ import (
 	"github.com/soltros/Supernova/internal/models"
 )
 
+func (p *SubsonicPlugin) resolveEntityType(ctx context.Context, id string) string {
+	if t, err := p.repo.GetTrackByID(ctx, id); err == nil && t != nil {
+		return "track"
+	}
+	if a, err := p.repo.GetAlbumByID(ctx, id); err == nil && a != nil {
+		return "album"
+	}
+	if a, err := p.repo.GetArtistByID(ctx, id); err == nil && a.ID != "" {
+		return "artist"
+	}
+	return "track"
+}
+
 func (p *SubsonicPlugin) handleStar(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value("user").(*models.User)
 	
@@ -17,13 +30,14 @@ func (p *SubsonicPlugin) handleStar(w http.ResponseWriter, r *http.Request) {
 	artistIds := r.Form["artistId"]
 
 	for _, id := range ids {
-		p.repo.HeartEntity(context.Background(), user.ID, "track", id)
+		entityType := p.resolveEntityType(r.Context(), id)
+		p.repo.HeartEntity(r.Context(), user.ID, entityType, id)
 	}
 	for _, id := range albumIds {
-		p.repo.HeartEntity(context.Background(), user.ID, "album", id)
+		p.repo.HeartEntity(r.Context(), user.ID, "album", id)
 	}
 	for _, id := range artistIds {
-		p.repo.HeartEntity(context.Background(), user.ID, "artist", id)
+		p.repo.HeartEntity(r.Context(), user.ID, "artist", id)
 	}
 
 	p.writeResponse(w, r, nil)
@@ -38,13 +52,14 @@ func (p *SubsonicPlugin) handleUnstar(w http.ResponseWriter, r *http.Request) {
 	artistIds := r.Form["artistId"]
 
 	for _, id := range ids {
-		p.repo.UnheartEntity(context.Background(), user.ID, "track", id)
+		entityType := p.resolveEntityType(r.Context(), id)
+		p.repo.UnheartEntity(r.Context(), user.ID, entityType, id)
 	}
 	for _, id := range albumIds {
-		p.repo.UnheartEntity(context.Background(), user.ID, "album", id)
+		p.repo.UnheartEntity(r.Context(), user.ID, "album", id)
 	}
 	for _, id := range artistIds {
-		p.repo.UnheartEntity(context.Background(), user.ID, "artist", id)
+		p.repo.UnheartEntity(r.Context(), user.ID, "artist", id)
 	}
 
 	p.writeResponse(w, r, nil)
