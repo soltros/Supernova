@@ -303,5 +303,79 @@ export const apiService = {
       body: await file.text()
     });
     if (!response.ok) throw new Error('Failed to import playlists');
+  },
+
+  // Podcasts API
+  getPodcastSubscriptions: async (): Promise<any[]> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/subscriptions`, { headers: getHeaders() });
+    if (!response.ok) throw new Error('Failed to fetch subscriptions');
+    return response.json();
+  },
+
+  subscribeToPodcast: async (feedId: string, feedUrl: string, title: string, imageUrl: string): Promise<void> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/subscriptions`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ feed_id: feedId, feed_url: feedUrl, title: title, image_url: imageUrl })
+    });
+    if (!response.ok) throw new Error('Failed to subscribe');
+  },
+
+  unsubscribeFromPodcast: async (feedId: string): Promise<void> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/subscriptions?feed_id=${feedId}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    if (!response.ok) throw new Error('Failed to unsubscribe');
+  },
+
+  exportOPML: async (): Promise<void> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/opml/export`, { headers: getHeaders() });
+    if (!response.ok) throw new Error('Failed to export OPML');
+    
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'supernova_podcasts.opml';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+
+  importOPML: async (file: File): Promise<void> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const headers = getHeaders();
+    delete headers['Content-Type']; // Let the browser set it with boundary
+    
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/opml/import`, {
+      method: 'POST',
+      headers: headers,
+      body: formData
+    });
+    if (!response.ok) throw new Error('Failed to import OPML');
+  },
+
+  savePodcastProgress: async (episodeId: string, positionMs: number, completed: boolean): Promise<void> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/progress`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ episode_id: episodeId, position_ms: positionMs, completed })
+    });
+    // Ignore errors for progress saving to avoid UI disruption
+  },
+
+  getPodcastProgressBatch: async (episodeIds: string[]): Promise<Record<string, any>> => {
+    if (episodeIds.length === 0) return {};
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/progress/batch`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ episode_ids: episodeIds })
+    });
+    if (!response.ok) throw new Error('Failed to fetch progress');
+    return response.json();
   }
 };

@@ -90,6 +90,12 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     });
 
     audio.addEventListener('ended', () => {
+      const activeTrack = queueRef.current[queueIndexRef.current];
+      if (activeTrack && activeTrack.id.startsWith('podcast-')) {
+        const episodeId = activeTrack.id.replace('podcast-', '');
+        apiService.savePodcastProgress(episodeId, 0, true).catch(e => console.error("Podcast progress save failed:", e));
+      }
+
       if (playNextRef.current) {
         playNextRef.current();
       }
@@ -115,6 +121,12 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       setIsPlaying(false);
       if ('mediaSession' in navigator) {
         navigator.mediaSession.playbackState = 'paused';
+      }
+      
+      const activeTrack = queueRef.current[queueIndexRef.current];
+      if (activeTrack && activeTrack.id.startsWith('podcast-') && audioRef.current) {
+        const episodeId = activeTrack.id.replace('podcast-', '');
+        apiService.savePodcastProgress(episodeId, Math.floor(audioRef.current.currentTime * 1000), false).catch(e => console.error("Podcast progress save failed:", e));
       }
     });
 
@@ -146,7 +158,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     };
   }, []);
 
-  const internalPlay = async (track: Track, album: Album) => {
+  const internalPlay = async (track: Track, album: Album, options?: { podcast_episode_id?: string, start_position_ms?: number }) => {
     hasScrobbledRef.current = false;
     accumulatedPlayTimeRef.current = 0;
     lastTimeRef.current = 0;
@@ -167,6 +179,11 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const token = localStorage.getItem('sn_token');
     const tokenQuery = token ? `?token=${token}` : '';
     audioRef.current.src = (track as any).stream_url ? (track as any).stream_url : `${API_BASE_URL}/api/stream/${track.id}${tokenQuery}`;
+    
+    if (options && options.start_position_ms && options.start_position_ms > 0) {
+      audioRef.current.currentTime = options.start_position_ms / 1000;
+      lastTimeRef.current = options.start_position_ms / 1000;
+    }
     
     try {
       playPromiseRef.current = audioRef.current.play();
