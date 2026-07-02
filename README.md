@@ -67,7 +67,7 @@ Authorization: Bearer <your_jwt_token>
 
 #### User Data (Requires Auth)
 - `GET /api/dashboard` - Returns personalized layout data (recently added albums, recently played tracks, and favorite tracks).
-- `GET /api/hearts` / `POST /api/hearts` / `DELETE /api/hearts` - Manage user favorites. Accepts `{ "entity_type", "entity_id" }`.
+- `GET /api/hearts` / `POST /api/hearts` / `DELETE /api/hearts` - Manage user favorites. Accepts `{ "entity_type", "entity_id" }`. Supported entities: `track`, `album`, `artist`, `playlist`, `radio`, `podcast`.
 - `GET /api/hearts/details` - Returns hydrated track/album models for all of a user's hearted items.
 
 #### Playlists (Requires Auth)
@@ -135,17 +135,11 @@ The web UI will be available at **http://your-server:5174**.
 Supernova is built to be highly modular. Enabled plugins expose their own API endpoints mounted under `/api/plugins/`.
 
 ### Enabling Plugins
-By default, all official plugins are bundled with the backend but must be explicitly enabled via environment variables.
+By default, all official plugins are bundled with the backend and are **enabled by default** (opt-out). You can explicitly disable them by setting their respective environment variables to `false`.
 
-**With Docker Compose:** add to your `.env` file:
+**With Docker Compose:** add to your `.env` file to disable specific plugins:
 ```ini
-SUPERNOVA_PLUGIN_SUBSONIC=true
-SUPERNOVA_PLUGIN_LASTFM=true
-SUPERNOVA_PLUGIN_LRCLIB=true
-SUPERNOVA_PLUGIN_RADIOBROWSER=true
-SUPERNOVA_PLUGIN_AUTOTAGGER=true
-SUPERNOVA_PLUGIN_ARTISTMERGER=true
-SUPERNOVA_PLUGIN_DEDUPER=true
+SUPERNOVA_PLUGIN_AUTOTAGGER=false
 ```
 
 **Running directly** — export before starting the server:
@@ -157,8 +151,8 @@ export JWT_SECRET=your_secret_here
 export LASTFM_API_KEY=your_api_key_here
 export LASTFM_API_SECRET=your_api_secret_here
 
-export SUPERNOVA_PLUGIN_LASTFM=true
-# ... other plugins as needed
+# Example of disabling a plugin
+export SUPERNOVA_PLUGIN_LASTFM=false
 
 go run cmd/server/main.go
 ```
@@ -210,6 +204,13 @@ A powerful library cleaner that groups similar artists to eliminate frustrating 
 
 ### 7. Deduper ("Hide Duplicates") (`/api/plugins/deduper/*`)
 An automatic library cleaner that identifies duplicate tracks (same title, same album) and gracefully deletes the lower quality (lower bitrate) version from your database, keeping your library pristine.
+
+### 8. Podcasts (`/api/plugins/podcasts/*`)
+A powerful podcast client integrated directly into Supernova, powered by the open PodcastIndex directory.
+**Featureset:**
+- **Massive Directory:** Search and browse millions of podcasts using the PodcastIndex API.
+- **Direct Streaming:** Stream podcast episodes directly in the Supernova audio engine.
+- **Heart Integration:** Favorite and save your top podcasts directly to your Hearts page.
 
 ## Writing Your Own Plugin
 Supernova's plugin system is designed to be highly accessible for developers. To create your own plugin:
