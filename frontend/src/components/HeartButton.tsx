@@ -3,7 +3,7 @@ import { Heart } from 'lucide-react';
 import { useHearts } from '../context/HeartsContext';
 
 interface Props {
-  entityType: 'track' | 'album' | 'artist' | 'playlist';
+  entityType: 'track' | 'album' | 'artist' | 'playlist' | 'radio' | 'podcast';
   entityId: string;
   size?: number;
 }
