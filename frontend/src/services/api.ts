@@ -348,14 +348,25 @@ export const apiService = {
     const formData = new FormData();
     formData.append('file', file);
     
-    const headers = getHeaders() as Record<string, string>;
-    delete headers['Content-Type']; // Let the browser set it with boundary
+    const token = localStorage.getItem('sn_token');
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
     
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/opml/import`, {
+    // We intentionally bypass fetchWithAuth to avoid the 'application/json' Content-Type injection
+    const response = await fetch(`${API_BASE_URL}/api/plugins/podcasts/opml/import`, {
       method: 'POST',
-      headers: headers,
+      headers,
       body: formData
     });
+    
+    if (response.status === 401) {
+      localStorage.removeItem('sn_user');
+      localStorage.removeItem('sn_token');
+      window.location.reload();
+    }
+    
     if (!response.ok) throw new Error('Failed to import OPML');
   },
 
