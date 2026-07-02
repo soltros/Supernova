@@ -45,6 +45,10 @@ func (p *PodcastsPlugin) doPodcastIndexRequest(endpoint string, queryValues stri
 	apiKey := os.Getenv("PODCAST_INDEX_API_KEY")
 	apiSecret := os.Getenv("PODCAST_INDEX_API_SECRET")
 
+	if apiKey == "" || apiSecret == "" {
+		return nil, fmt.Errorf("Podcast Index API keys are not configured in the .env file")
+	}
+
 	req, err := http.NewRequest("GET", "https://api.podcastindex.org/api/1.0"+endpoint+"?"+queryValues, nil)
 	if err != nil {
 		return nil, err
@@ -52,17 +56,15 @@ func (p *PodcastsPlugin) doPodcastIndexRequest(endpoint string, queryValues stri
 
 	req.Header.Set("User-Agent", "Supernova/1.0")
 
-	if apiKey != "" && apiSecret != "" {
-		// Authenticated request
-		now := fmt.Sprintf("%d", time.Now().Unix())
-		hash := sha1.New()
-		hash.Write([]byte(apiKey + apiSecret + now))
-		authHeader := fmt.Sprintf("%x", hash.Sum(nil))
+	// Authenticated request
+	now := fmt.Sprintf("%d", time.Now().Unix())
+	hash := sha1.New()
+	hash.Write([]byte(apiKey + apiSecret + now))
+	authHeader := fmt.Sprintf("%x", hash.Sum(nil))
 
-		req.Header.Set("X-Auth-Date", now)
-		req.Header.Set("X-Auth-Key", apiKey)
-		req.Header.Set("Authorization", authHeader)
-	}
+	req.Header.Set("X-Auth-Date", now)
+	req.Header.Set("X-Auth-Key", apiKey)
+	req.Header.Set("Authorization", authHeader)
 
 	client := &http.Client{}
 	return client.Do(req)
@@ -78,10 +80,19 @@ func (p *PodcastsPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := p.doPodcastIndexRequest("/search/byterm", "q="+query)
 	if err != nil {
+		if err.Error() == "Podcast Index API keys are not configured in the .env file" {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
 		http.Error(w, "Failed to contact Podcast Index", http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		http.Error(w, "Podcast Index returned an error", resp.StatusCode)
+		return
+	}
 
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
@@ -102,10 +113,19 @@ func (p *PodcastsPlugin) handleEpisodes(w http.ResponseWriter, r *http.Request) 
 
 	resp, err := p.doPodcastIndexRequest("/episodes/bypodcastid", "id="+id)
 	if err != nil {
+		if err.Error() == "Podcast Index API keys are not configured in the .env file" {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+			return
+		}
 		http.Error(w, "Failed to contact Podcast Index", http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		http.Error(w, "Podcast Index returned an error", resp.StatusCode)
+		return
+	}
 
 	var result map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {

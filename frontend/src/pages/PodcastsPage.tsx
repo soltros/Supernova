@@ -37,12 +37,17 @@ const PodcastsPage: React.FC = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      if (!response.ok) throw new Error('Search failed');
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Podcast Index API keys are missing. Please add PODCAST_INDEX_API_KEY and PODCAST_INDEX_API_SECRET to your .env file.');
+        }
+        throw new Error('Search failed');
+      }
       const data = await response.json();
       setPodcasts(data || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("Failed to search podcasts. Ensure the Podcasts plugin is enabled in Settings.");
+      setError(err.message || "Failed to search podcasts. Ensure the Podcasts plugin is enabled in Settings.");
     } finally {
       setLoading(false);
     }
@@ -58,7 +63,12 @@ const PodcastsPage: React.FC = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      if (!response.ok) throw new Error('Failed to fetch episodes');
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Podcast Index API keys are missing. Please add PODCAST_INDEX_API_KEY and PODCAST_INDEX_API_SECRET to your .env file.');
+        }
+        throw new Error('Failed to fetch episodes');
+      }
       const data = await response.json();
       setEpisodes(data || []);
       setSelectedPodcast(podcast);
@@ -66,9 +76,9 @@ const PodcastsPage: React.FC = () => {
       const newRecents = [podcast, ...recentPodcasts.filter(p => p.id !== podcast.id)].slice(0, 20);
       setRecentPodcasts(newRecents);
       localStorage.setItem('recentPodcasts', JSON.stringify(newRecents));
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("Failed to load episodes.");
+      setError(err.message || "Failed to load episodes.");
     } finally {
       setLoading(false);
     }
