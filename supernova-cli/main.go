@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -140,6 +141,7 @@ func main() {
 		fmt.Println("  albums [id]")
 		fmt.Println("  tracks [artist|album] [id]")
 		fmt.Println("\nMedia:")
+		fmt.Println("  play <track_id>")
 		fmt.Println("  stream <id> <output_file>")
 		fmt.Println("  art <album_id> <output_file>")
 		fmt.Println("\nUser Data:")
@@ -266,7 +268,7 @@ func main() {
 		c, _ := loadConfig()
 		endpoint := "/api/tracks"
 		if len(os.Args) == 4 {
-			filterType := os.Args[2] // "artist" or "album"
+			filterType := os.Args[2]
 			filterID := os.Args[3]
 			if filterType == "artist" {
 				endpoint += "?artist_id=" + filterID
@@ -287,6 +289,30 @@ func main() {
 	// ---------------------------------------------------------
 	// STREAMING & MEDIA
 	// ---------------------------------------------------------
+	case "play":
+		requireArgs(3, "sn play <track_id>")
+		c, err := loadConfig()
+		if err != nil {
+			fmt.Println("Not logged in. Please run `sn login` first.")
+			os.Exit(1)
+		}
+		
+		trackID := os.Args[2]
+		streamURL := c.URL + "/api/stream/" + trackID
+		authHeader := "Authorization: Bearer " + c.Token
+
+		fmt.Printf("Starting mpv for track %s...\n", trackID)
+		
+		cmd := exec.Command("mpv", "--http-header-fields="+authHeader, streamURL)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		
+		if err := cmd.Run(); err != nil {
+			fmt.Println("Playback failed:", err)
+			os.Exit(1)
+		}
+
 	case "stream":
 		requireArgs(4, "sn stream <id> <output_file>")
 		id := os.Args[2]
