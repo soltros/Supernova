@@ -387,5 +387,29 @@ export const apiService = {
     });
     if (!response.ok) throw new Error('Failed to fetch progress');
     return response.json();
+  },
+
+  // Radio API
+  getRadioSubscriptions: async (): Promise<any[]> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/radio/subscriptions`, { headers: getHeaders() });
+    if (!response.ok) throw new Error('Failed to fetch subscriptions');
+    return response.json();
+  },
+
+  subscribeToRadio: async (stationId: string, url: string, name: string, favicon: string): Promise<void> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/radio/subscriptions`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ station_id: stationId, url, name, favicon })
+    });
+    if (!response.ok) throw new Error('Failed to subscribe');
+  },
+
+  unsubscribeFromRadio: async (stationId: string): Promise<void> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/radio/subscriptions?station_id=${stationId}`, {
+      method: 'DELETE',
+      headers: getHeaders()
+    });
+    if (!response.ok) throw new Error('Failed to unsubscribe');
   }
 };

@@ -81,6 +81,16 @@ type PodcastProgress struct {
 	UpdatedAt  string `json:"updated_at"`
 }
 
+type RadioSubscription struct {
+	ID           string `json:"id"`
+	UserID       string `json:"user_id"`
+	StationID    string `json:"station_id"`
+	URL          string `json:"url"`
+	Name         string `json:"name"`
+	Favicon      string `json:"favicon"`
+	SubscribedAt string `json:"subscribed_at"`
+}
+
 // HeartBackup securely exports hearts by absolute file_path instead of volatile UUIDs
 type HeartBackup struct {
 	EntityType string `json:"entity_type"`

@@ -107,5 +107,26 @@ func Init(dbPath string) (*DB, error) {
 		db.Exec("PRAGMA user_version = 2")
 	}
 
+	if version < 3 {
+		log.Println("Migrating database to version 3 (Radio)...")
+		_, err = db.Exec(`
+			CREATE TABLE IF NOT EXISTS radio_subscriptions (
+				id TEXT PRIMARY KEY,
+				user_id TEXT NOT NULL,
+				station_id TEXT NOT NULL,
+				url TEXT NOT NULL,
+				name TEXT NOT NULL,
+				favicon TEXT,
+				subscribed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				UNIQUE(user_id, station_id),
+				FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+			);
+		`)
+		if err != nil {
+			return nil, fmt.Errorf("migration to v3 failed: %w", err)
+		}
+		db.Exec("PRAGMA user_version = 3")
+	}
+
 	return &DB{db}, nil
 }

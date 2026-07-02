@@ -237,6 +237,48 @@ func (r *Repository) GetPodcastProgress(ctx context.Context, userID string, epis
 }
 
 
+// Radio DB operations
+
+func (r *Repository) GetRadioSubscriptions(ctx context.Context, userID string) ([]models.RadioSubscription, error) {
+	query := `SELECT id, user_id, station_id, url, name, favicon, subscribed_at FROM radio_subscriptions WHERE user_id = ? ORDER BY subscribed_at DESC`
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subs []models.RadioSubscription
+	for rows.Next() {
+		var s models.RadioSubscription
+		var favicon sql.NullString
+		if err := rows.Scan(&s.ID, &s.UserID, &s.StationID, &s.URL, &s.Name, &favicon, &s.SubscribedAt); err != nil {
+			return nil, err
+		}
+		if favicon.Valid {
+			s.Favicon = favicon.String
+		}
+		subs = append(subs, s)
+	}
+	return subs, nil
+}
+
+func (r *Repository) AddRadioSubscription(ctx context.Context, sub models.RadioSubscription) error {
+	query := `
+		INSERT INTO radio_subscriptions (id, user_id, station_id, url, name, favicon)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(user_id, station_id) DO UPDATE SET name=excluded.name, favicon=excluded.favicon
+	`
+	_, err := r.db.ExecContext(ctx, query, sub.ID, sub.UserID, sub.StationID, sub.URL, sub.Name, sub.Favicon)
+	return err
+}
+
+func (r *Repository) RemoveRadioSubscription(ctx context.Context, userID, stationID string) error {
+	query := `DELETE FROM radio_subscriptions WHERE user_id = ? AND station_id = ?`
+	_, err := r.db.ExecContext(ctx, query, userID, stationID)
+	return err
+}
+
+
 func (r *Repository) GetArtistByID(ctx context.Context, id string) (models.Artist, error) {
 	query := `SELECT id, name, musicbrainz_id, image_url, bio FROM artists WHERE id = ?`
 	var a models.Artist

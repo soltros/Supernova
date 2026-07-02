@@ -140,3 +140,15 @@ CREATE TABLE IF NOT EXISTS podcast_progress (
     PRIMARY KEY(user_id, episode_id),
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS radio_subscriptions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    station_id TEXT NOT NULL,
+    url TEXT NOT NULL,
+    name TEXT NOT NULL,
+    favicon TEXT,
+    subscribed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, station_id),
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
