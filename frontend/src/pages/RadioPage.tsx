@@ -180,7 +180,7 @@ const RadioPage: React.FC = () => {
                           </p>
                         </div>
                         <div onClick={(e) => e.stopPropagation()} style={{ marginLeft: '8px' }}>
-                          <HeartButton entityType="radio" entityId={station.stationuuid} />
+                          <HeartButton entityType="radio" entityId={station.stationuuid} metadata={station} />
                         </div>
                       </div>
                     </div>
@@ -223,7 +223,7 @@ const RadioPage: React.FC = () => {
                   </p>
                 </div>
                 <div onClick={(e) => e.stopPropagation()} style={{ marginLeft: '8px' }}>
-                  <HeartButton entityType="radio" entityId={station.stationuuid} />
+                  <HeartButton entityType="radio" entityId={station.stationuuid} metadata={station} />
                 </div>
               </div>
             </div>

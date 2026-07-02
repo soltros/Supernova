@@ -6,15 +6,35 @@ interface Props {
   entityType: 'track' | 'album' | 'artist' | 'playlist' | 'radio' | 'podcast';
   entityId: string;
   size?: number;
+  metadata?: any;
 }
 
-const HeartButton: FC<Props> = ({ entityType, entityId, size = 18 }) => {
+const HeartButton: FC<Props> = ({ entityType, entityId, size = 18, metadata }) => {
   const { isHearted, toggleHeart } = useHearts();
   const active = isHearted(entityId);
 
   const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation(); // Don't trigger the track's row onClick (which would play the song)
     toggleHeart(entityType, entityId);
+    
+    // Cache external entity metadata for rendering on HeartsPage
+    if (metadata) {
+      if (entityType === 'radio') {
+        const stored = JSON.parse(localStorage.getItem('heartedRadioStations') || '[]');
+        if (active) {
+          localStorage.setItem('heartedRadioStations', JSON.stringify(stored.filter((x: any) => x.stationuuid !== entityId)));
+        } else {
+          localStorage.setItem('heartedRadioStations', JSON.stringify([metadata, ...stored.filter((x: any) => x.stationuuid !== entityId)]));
+        }
+      } else if (entityType === 'podcast') {
+        const stored = JSON.parse(localStorage.getItem('heartedPodcasts') || '[]');
+        if (active) {
+          localStorage.setItem('heartedPodcasts', JSON.stringify(stored.filter((x: any) => x.id?.toString() !== entityId)));
+        } else {
+          localStorage.setItem('heartedPodcasts', JSON.stringify([metadata, ...stored.filter((x: any) => x.id?.toString() !== entityId)]));
+        }
+      }
+    }
   };
 
   return (

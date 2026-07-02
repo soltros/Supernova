@@ -53,11 +53,17 @@ const HeartsPage: FC = () => {
 
   useEffect(() => {
     try {
-      const storedRadio = JSON.parse(localStorage.getItem('recentStations') || '[]');
-      setRadioStations(storedRadio.filter((s: any) => heartedIds.has(s.stationuuid)));
+      const storedRadio = JSON.parse(localStorage.getItem('heartedRadioStations') || '[]');
+      const fallbackRadio = JSON.parse(localStorage.getItem('recentRadioStations') || '[]');
+      const mergedRadio = [...storedRadio, ...fallbackRadio];
+      const uniqueRadio = mergedRadio.filter((v, i, a) => a.findIndex(t => (t.stationuuid === v.stationuuid)) === i);
+      setRadioStations(uniqueRadio.filter((s: any) => heartedIds.has(s.stationuuid)));
 
-      const storedPodcasts = JSON.parse(localStorage.getItem('recentPodcasts') || '[]');
-      setPodcasts(storedPodcasts.filter((p: any) => heartedIds.has(p.id?.toString())));
+      const storedPodcasts = JSON.parse(localStorage.getItem('heartedPodcasts') || '[]');
+      const fallbackPodcasts = JSON.parse(localStorage.getItem('recentPodcasts') || '[]');
+      const mergedPodcasts = [...storedPodcasts, ...fallbackPodcasts];
+      const uniquePodcasts = mergedPodcasts.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
+      setPodcasts(uniquePodcasts.filter((p: any) => heartedIds.has(p.id?.toString())));
     } catch (e) {}
   }, [heartedIds]);
 
@@ -138,7 +144,7 @@ const HeartsPage: FC = () => {
         </div>
       </div>
 
-      {albums.length === 0 && tracks.length === 0 && artists.length === 0 && playlists.length === 0 && (
+      {albums.length === 0 && tracks.length === 0 && artists.length === 0 && playlists.length === 0 && radioStations.length === 0 && podcasts.length === 0 && (
         <div style={{ padding: '48px', textAlign: 'center', background: 'var(--bg-glass)', borderRadius: '24px', border: '1px solid var(--border-glass-bright)' }}>
           <p style={{ fontSize: '18px', color: 'var(--text-secondary)' }}>You haven't hearted anything yet!</p>
         </div>

@@ -188,7 +188,7 @@ const PodcastsPage: React.FC = () => {
                           <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{podcast.author || 'Unknown'}</p>
                         </div>
                         <div onClick={(e) => e.stopPropagation()} style={{ marginLeft: '8px' }}>
-                          <HeartButton entityType="podcast" entityId={podcast.id?.toString()} />
+                          <HeartButton entityType="podcast" entityId={podcast.id?.toString()} metadata={podcast} />
                         </div>
                       </div>
                     </div>
@@ -213,7 +213,7 @@ const PodcastsPage: React.FC = () => {
                       <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{podcast.author || 'Unknown'}</p>
                     </div>
                     <div onClick={(e) => e.stopPropagation()} style={{ marginLeft: '8px' }}>
-                      <HeartButton entityType="podcast" entityId={podcast.id?.toString()} />
+                      <HeartButton entityType="podcast" entityId={podcast.id?.toString()} metadata={podcast} />
                     </div>
                   </div>
                 </div>
