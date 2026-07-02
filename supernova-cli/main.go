@@ -43,11 +43,16 @@ func saveConfig(c *Config) error {
 
 func doRequest(method, endpoint string, body io.Reader, token string) ([]byte, error) {
 	c, err := loadConfig()
-	if err != nil {
+	if err != nil && token == "" && endpoint != "/api/auth/login" && endpoint != "/api/auth/register" {
 		return nil, fmt.Errorf("could not load config, please login first")
 	}
 
-	req, err := http.NewRequest(method, c.URL+endpoint, body)
+	url := endpoint
+	if c != nil {
+		url = c.URL + endpoint
+	}
+
+	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, err
 	}
@@ -73,78 +78,154 @@ func doRequest(method, endpoint string, body io.Reader, token string) ([]byte, e
 	return io.ReadAll(resp.Body)
 }
 
+func downloadFile(endpoint, dest string) error {
+	c, err := loadConfig()
+	if err != nil {
+		return fmt.Errorf("could not load config, please login first")
+	}
+
+	req, err := http.NewRequest("GET", c.URL+endpoint, nil)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("API error: %s", resp.Status)
+	}
+
+	out, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	return err
+}
+
+func printPrettyJSON(data []byte) {
+	var obj interface{}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		fmt.Println(string(data))
+		return
+	}
+	pretty, _ := json.MarshalIndent(obj, "", "  ")
+	fmt.Println(string(pretty))
+}
+
+func requireArgs(expected int, usage string) {
+	if len(os.Args) < expected {
+		fmt.Println("Usage:", usage)
+		os.Exit(1)
+	}
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Supernova CLI")
 		fmt.Println("Usage: sn <command> [args]")
-		fmt.Println("Commands:")
+		fmt.Println("\nAuthentication:")
+		fmt.Println("  register <url> <username> <password>")
 		fmt.Println("  login <url> <username> <password>")
-		fmt.Println("  artists")
-		fmt.Println("  albums")
+		fmt.Println("\nLibrary:")
+		fmt.Println("  artists [id]")
+		fmt.Println("  albums [id]")
+		fmt.Println("  tracks [artist|album] [id]")
+		fmt.Println("\nMedia:")
+		fmt.Println("  stream <id> <output_file>")
+		fmt.Println("  art <album_id> <output_file>")
+		fmt.Println("\nUser Data:")
+		fmt.Println("  dashboard")
+		fmt.Println("  hearts")
+		fmt.Println("  hearts-details")
+		fmt.Println("  heart <type> <id> (types: track, album, artist, playlist, radio, podcast)")
+		fmt.Println("  unheart <type> <id>")
+		fmt.Println("\nPlaylists:")
+		fmt.Println("  playlists")
+		fmt.Println("  playlist-create <name>")
+		fmt.Println("  playlist-delete <id>")
+		fmt.Println("  playlist-tracks <id>")
+		fmt.Println("  playlist-add <playlist_id> <track_id>")
+		fmt.Println("  playlist-remove <playlist_id> <track_id>")
+		fmt.Println("  playlist-export")
+		fmt.Println("\nScrobbling:")
+		fmt.Println("  scrobble <track_id>")
+		fmt.Println("  scrobbles")
+		fmt.Println("\nImports:")
+		fmt.Println("  import-navidrome <path-to-json> [optional-path-prefix]")
+		fmt.Println("  import-m3u <playlist-name> <path-to-m3u> [optional-path-prefix]")
 		os.Exit(1)
 	}
 
 	cmd := os.Args[1]
 
 	switch cmd {
-	case "login":
-		if len(os.Args) < 5 {
-			fmt.Println("Usage: sn login <url> <username> <password>")
-			os.Exit(1)
-		}
+	// ---------------------------------------------------------
+	// AUTHENTICATION
+	// ---------------------------------------------------------
+	case "register":
+		requireArgs(5, "sn register <url> <username> <password>")
 		url := strings.TrimRight(os.Args[2], "/")
-		username := os.Args[3]
-		password := os.Args[4]
-
 		payload, _ := json.Marshal(map[string]string{
-			"username": username,
-			"password": password,
+			"username": os.Args[3],
+			"password": os.Args[4],
 		})
-
-		req, err := http.NewRequest("POST", url+"/api/auth/login", bytes.NewBuffer(payload))
+		_, err := doRequest("POST", url+"/api/auth/register", bytes.NewBuffer(payload), "")
 		if err != nil {
-			fmt.Println("Error:", err)
+			fmt.Println("Registration failed:", err)
 			os.Exit(1)
 		}
-		req.Header.Set("Content-Type", "application/json")
+		fmt.Println("Registered successfully. You can now login.")
 
-		client := &http.Client{}
-		resp, err := client.Do(req)
+	case "login":
+		requireArgs(5, "sn login <url> <username> <password>")
+		url := strings.TrimRight(os.Args[2], "/")
+		payload, _ := json.Marshal(map[string]string{
+			"username": os.Args[3],
+			"password": os.Args[4],
+		})
+		data, err := doRequest("POST", url+"/api/auth/login", bytes.NewBuffer(payload), "")
 		if err != nil {
-			fmt.Println("Error:", err)
+			fmt.Println("Login request failed:", err)
 			os.Exit(1)
 		}
-		defer resp.Body.Close()
-
 		var result map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&result)
-
-		if resp.StatusCode != 200 {
-			fmt.Printf("Login failed: %v\n", result["error"])
-			os.Exit(1)
-		}
+		json.Unmarshal(data, &result)
 
 		token, ok := result["token"].(string)
 		if !ok {
-			fmt.Println("Token not found in response")
+			fmt.Println("Token not found in response:", result["error"])
 			os.Exit(1)
 		}
 
-		c := &Config{
-			Token: token,
-			URL:   url,
-		}
+		c := &Config{Token: token, URL: url}
 		if err := saveConfig(c); err != nil {
 			fmt.Println("Error saving config:", err)
 			os.Exit(1)
 		}
-		fmt.Println("Logged in successfully. Credentials saved to ~/.config/supernova/credentials.json")
+		fmt.Println("Logged in successfully. Credentials saved.")
 
+	// ---------------------------------------------------------
+	// PUBLIC LIBRARY
+	// ---------------------------------------------------------
 	case "artists":
-		c, err := loadConfig()
-		if err != nil {
-			fmt.Println("Not logged in. Please run `sn login` first.")
-			os.Exit(1)
+		c, _ := loadConfig()
+		if len(os.Args) >= 3 {
+			data, err := doRequest("GET", "/api/artists/"+os.Args[2], nil, c.Token)
+			if err != nil {
+				fmt.Println("Error:", err)
+				os.Exit(1)
+			}
+			printPrettyJSON(data)
+			return
 		}
 		data, err := doRequest("GET", "/api/artists?limit=100&offset=0", nil, c.Token)
 		if err != nil {
@@ -153,17 +234,21 @@ func main() {
 		}
 		var result []map[string]interface{}
 		json.Unmarshal(data, &result)
-		
 		fmt.Printf("Found %d artists:\n", len(result))
 		for _, a := range result {
-			fmt.Printf("- %s (ID: %s)\n", a["name"], a["id"])
+			fmt.Printf("- %s (ID: %v)\n", a["name"], a["id"])
 		}
 
 	case "albums":
-		c, err := loadConfig()
-		if err != nil {
-			fmt.Println("Not logged in. Please run `sn login` first.")
-			os.Exit(1)
+		c, _ := loadConfig()
+		if len(os.Args) >= 3 {
+			data, err := doRequest("GET", "/api/albums/"+os.Args[2], nil, c.Token)
+			if err != nil {
+				fmt.Println("Error:", err)
+				os.Exit(1)
+			}
+			printPrettyJSON(data)
+			return
 		}
 		data, err := doRequest("GET", "/api/albums?limit=100&offset=0", nil, c.Token)
 		if err != nil {
@@ -172,20 +257,228 @@ func main() {
 		}
 		var result []map[string]interface{}
 		json.Unmarshal(data, &result)
-		
 		fmt.Printf("Found %d albums:\n", len(result))
 		for _, a := range result {
-			fmt.Printf("- %s by %s (ID: %s)\n", a["title"], a["artist_name"], a["id"])
+			fmt.Printf("- %s by %s (ID: %v)\n", a["title"], a["artist_name"], a["id"])
 		}
 
-	case "import-navidrome":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: sn import-navidrome <path-to-json> [optional-path-prefix]")
+	case "tracks":
+		c, _ := loadConfig()
+		endpoint := "/api/tracks"
+		if len(os.Args) == 4 {
+			filterType := os.Args[2] // "artist" or "album"
+			filterID := os.Args[3]
+			if filterType == "artist" {
+				endpoint += "?artist_id=" + filterID
+			} else if filterType == "album" {
+				endpoint += "?album_id=" + filterID
+			} else {
+				fmt.Println("Unknown filter. Use 'artist' or 'album'.")
+				os.Exit(1)
+			}
+		}
+		data, err := doRequest("GET", endpoint, nil, c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
 			os.Exit(1)
 		}
+		printPrettyJSON(data)
+
+	// ---------------------------------------------------------
+	// STREAMING & MEDIA
+	// ---------------------------------------------------------
+	case "stream":
+		requireArgs(4, "sn stream <id> <output_file>")
+		id := os.Args[2]
+		dest := os.Args[3]
+		fmt.Printf("Downloading stream for track %s to %s...\n", id, dest)
+		err := downloadFile("/api/stream/"+id, dest)
+		if err != nil {
+			fmt.Println("Error downloading stream:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Download complete.")
+
+	case "art":
+		requireArgs(4, "sn art <album_id> <output_file>")
+		id := os.Args[2]
+		dest := os.Args[3]
+		fmt.Printf("Downloading art for album %s to %s...\n", id, dest)
+		err := downloadFile("/api/art/album/"+id, dest)
+		if err != nil {
+			fmt.Println("Error downloading art:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Download complete.")
+
+	// ---------------------------------------------------------
+	// USER DATA & FAVORITES
+	// ---------------------------------------------------------
+	case "dashboard":
+		c, _ := loadConfig()
+		data, err := doRequest("GET", "/api/dashboard", nil, c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		printPrettyJSON(data)
+
+	case "hearts":
+		c, _ := loadConfig()
+		data, err := doRequest("GET", "/api/hearts", nil, c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		printPrettyJSON(data)
+
+	case "hearts-details":
+		c, _ := loadConfig()
+		data, err := doRequest("GET", "/api/hearts/details", nil, c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		printPrettyJSON(data)
+
+	case "heart":
+		requireArgs(4, "sn heart <entity_type> <entity_id>")
+		c, _ := loadConfig()
+		payload, _ := json.Marshal(map[string]string{
+			"entity_type": os.Args[2],
+			"entity_id":   os.Args[3],
+		})
+		_, err := doRequest("POST", "/api/hearts", bytes.NewBuffer(payload), c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Added to favorites.")
+
+	case "unheart":
+		requireArgs(4, "sn unheart <entity_type> <entity_id>")
+		c, _ := loadConfig()
+		payload, _ := json.Marshal(map[string]string{
+			"entity_type": os.Args[2],
+			"entity_id":   os.Args[3],
+		})
+		_, err := doRequest("DELETE", "/api/hearts", bytes.NewBuffer(payload), c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Removed from favorites.")
+
+	// ---------------------------------------------------------
+	// PLAYLISTS
+	// ---------------------------------------------------------
+	case "playlists":
+		c, _ := loadConfig()
+		data, err := doRequest("GET", "/api/playlists", nil, c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		printPrettyJSON(data)
+
+	case "playlist-create":
+		requireArgs(3, "sn playlist-create <name>")
+		c, _ := loadConfig()
+		payload, _ := json.Marshal(map[string]string{
+			"name": os.Args[2],
+		})
+		data, err := doRequest("POST", "/api/playlists", bytes.NewBuffer(payload), c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		printPrettyJSON(data)
+
+	case "playlist-delete":
+		requireArgs(3, "sn playlist-delete <id>")
+		c, _ := loadConfig()
+		_, err := doRequest("DELETE", "/api/playlists/"+os.Args[2], nil, c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Playlist deleted.")
+
+	case "playlist-tracks":
+		requireArgs(3, "sn playlist-tracks <id>")
+		c, _ := loadConfig()
+		data, err := doRequest("GET", "/api/playlists/"+os.Args[2]+"/tracks", nil, c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		printPrettyJSON(data)
+
+	case "playlist-add":
+		requireArgs(4, "sn playlist-add <playlist_id> <track_id>")
+		c, _ := loadConfig()
+		payload, _ := json.Marshal(map[string]string{
+			"track_id": os.Args[3],
+		})
+		_, err := doRequest("POST", "/api/playlists/"+os.Args[2]+"/tracks", bytes.NewBuffer(payload), c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Track added to playlist.")
+
+	case "playlist-remove":
+		requireArgs(4, "sn playlist-remove <playlist_id> <track_id>")
+		c, _ := loadConfig()
+		_, err := doRequest("DELETE", fmt.Sprintf("/api/playlists/%s/tracks/%s", os.Args[2], os.Args[3]), nil, c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Track removed from playlist.")
+
+	case "playlist-export":
+		c, _ := loadConfig()
+		data, err := doRequest("GET", "/api/playlists/export", nil, c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		printPrettyJSON(data)
+
+	// ---------------------------------------------------------
+	// INTERNAL SCROBBLING
+	// ---------------------------------------------------------
+	case "scrobble":
+		requireArgs(3, "sn scrobble <track_id>")
+		c, _ := loadConfig()
+		payload, _ := json.Marshal(map[string]string{
+			"track_id": os.Args[2],
+		})
+		_, err := doRequest("POST", "/api/scrobbles", bytes.NewBuffer(payload), c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Track scrobbled successfully.")
+
+	case "scrobbles":
+		c, _ := loadConfig()
+		data, err := doRequest("GET", "/api/scrobbles/recent", nil, c.Token)
+		if err != nil {
+			fmt.Println("Error:", err)
+			os.Exit(1)
+		}
+		printPrettyJSON(data)
+
+	// ---------------------------------------------------------
+	// CUSTOM IMPORTS (PRESERVED)
+	// ---------------------------------------------------------
+	case "import-navidrome":
+		requireArgs(3, "sn import-navidrome <path-to-json> [optional-path-prefix]")
 		c, err := loadConfig()
 		if err != nil {
-			fmt.Println("Not logged in. Please run `sn login` first.")
+			fmt.Println("Not logged in.")
 			os.Exit(1)
 		}
 
@@ -250,10 +543,7 @@ func main() {
 		fmt.Printf("Successfully imported %d favorites!\n", len(backups))
 
 	case "import-m3u":
-		if len(os.Args) < 4 {
-			fmt.Println("Usage: sn import-m3u <playlist-name> <path-to-m3u> [optional-path-prefix]")
-			os.Exit(1)
-		}
+		requireArgs(4, "sn import-m3u <playlist-name> <path-to-m3u> [optional-path-prefix]")
 		c, err := loadConfig()
 		if err != nil {
 			fmt.Println("Not logged in.")
