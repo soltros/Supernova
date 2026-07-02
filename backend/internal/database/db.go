@@ -74,6 +74,37 @@ func Init(dbPath string) (*DB, error) {
 			return nil, fmt.Errorf("migration to v1 failed: %w", err)
 		}
 		db.Exec("PRAGMA user_version = 1")
+		version = 1
+	}
+
+	if version < 2 {
+		log.Println("Migrating database to version 2 (Podcasts)...")
+		_, err = db.Exec(`
+			CREATE TABLE IF NOT EXISTS podcast_subscriptions (
+				id TEXT PRIMARY KEY,
+				user_id TEXT NOT NULL,
+				feed_id TEXT NOT NULL,
+				feed_url TEXT NOT NULL,
+				title TEXT NOT NULL,
+				image_url TEXT,
+				subscribed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				UNIQUE(user_id, feed_id),
+				FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+			);
+			CREATE TABLE IF NOT EXISTS podcast_progress (
+				user_id TEXT NOT NULL,
+				episode_id TEXT NOT NULL,
+				position_ms INTEGER NOT NULL DEFAULT 0,
+				completed BOOLEAN NOT NULL DEFAULT 0,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY(user_id, episode_id),
+				FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+			);
+		`)
+		if err != nil {
+			return nil, fmt.Errorf("migration to v2 failed: %w", err)
+		}
+		db.Exec("PRAGMA user_version = 2")
 	}
 
 	return &DB{db}, nil

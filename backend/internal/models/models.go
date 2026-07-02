@@ -63,6 +63,24 @@ type Heart struct {
 	CreatedAt  string `json:"created_at"`
 }
 
+type PodcastSubscription struct {
+	ID           string `json:"id"`
+	UserID       string `json:"user_id"`
+	FeedID       string `json:"feed_id"`
+	FeedURL      string `json:"feed_url"`
+	Title        string `json:"title"`
+	ImageURL     string `json:"image_url"`
+	SubscribedAt string `json:"subscribed_at"`
+}
+
+type PodcastProgress struct {
+	UserID     string `json:"user_id"`
+	EpisodeID  string `json:"episode_id"`
+	PositionMs int    `json:"position_ms"`
+	Completed  bool   `json:"completed"`
+	UpdatedAt  string `json:"updated_at"`
+}
+
 // HeartBackup securely exports hearts by absolute file_path instead of volatile UUIDs
 type HeartBackup struct {
 	EntityType string `json:"entity_type"`

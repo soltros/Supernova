@@ -118,3 +118,25 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_playlists_user_id ON playlists(user_id);
+
+CREATE TABLE IF NOT EXISTS podcast_subscriptions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    feed_id TEXT NOT NULL,
+    feed_url TEXT NOT NULL,
+    title TEXT NOT NULL,
+    image_url TEXT,
+    subscribed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, feed_id),
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS podcast_progress (
+    user_id TEXT NOT NULL,
+    episode_id TEXT NOT NULL,
+    position_ms INTEGER NOT NULL DEFAULT 0,
+    completed BOOLEAN NOT NULL DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(user_id, episode_id),
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);

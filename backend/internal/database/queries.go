@@ -2,6 +2,9 @@ package database
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
+	"strings"
 
 	"github.com/soltros/Supernova/internal/models"
 )
@@ -150,6 +153,89 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 		"tracks": tracks,
 	}, nil
 }
+
+// Podcast DB operations
+
+func (r *Repository) GetPodcastSubscriptions(ctx context.Context, userID string) ([]models.PodcastSubscription, error) {
+	query := `SELECT id, user_id, feed_id, feed_url, title, image_url, subscribed_at FROM podcast_subscriptions WHERE user_id = ? ORDER BY subscribed_at DESC`
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subs []models.PodcastSubscription
+	for rows.Next() {
+		var s models.PodcastSubscription
+		var imageURL sql.NullString
+		if err := rows.Scan(&s.ID, &s.UserID, &s.FeedID, &s.FeedURL, &s.Title, &imageURL, &s.SubscribedAt); err != nil {
+			return nil, err
+		}
+		if imageURL.Valid {
+			s.ImageURL = imageURL.String
+		}
+		subs = append(subs, s)
+	}
+	return subs, nil
+}
+
+func (r *Repository) AddPodcastSubscription(ctx context.Context, sub models.PodcastSubscription) error {
+	query := `
+		INSERT INTO podcast_subscriptions (id, user_id, feed_id, feed_url, title, image_url)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(user_id, feed_id) DO UPDATE SET title=excluded.title, image_url=excluded.image_url
+	`
+	_, err := r.db.ExecContext(ctx, query, sub.ID, sub.UserID, sub.FeedID, sub.FeedURL, sub.Title, sub.ImageURL)
+	return err
+}
+
+func (r *Repository) RemovePodcastSubscription(ctx context.Context, userID, feedID string) error {
+	query := `DELETE FROM podcast_subscriptions WHERE user_id = ? AND feed_id = ?`
+	_, err := r.db.ExecContext(ctx, query, userID, feedID)
+	return err
+}
+
+func (r *Repository) SavePodcastProgress(ctx context.Context, prog models.PodcastProgress) error {
+	query := `
+		INSERT INTO podcast_progress (user_id, episode_id, position_ms, completed, updated_at)
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(user_id, episode_id) DO UPDATE SET position_ms=excluded.position_ms, completed=excluded.completed, updated_at=CURRENT_TIMESTAMP
+	`
+	_, err := r.db.ExecContext(ctx, query, prog.UserID, prog.EpisodeID, prog.PositionMs, prog.Completed)
+	return err
+}
+
+func (r *Repository) GetPodcastProgress(ctx context.Context, userID string, episodeIDs []string) (map[string]models.PodcastProgress, error) {
+	if len(episodeIDs) == 0 {
+		return make(map[string]models.PodcastProgress), nil
+	}
+	placeholders := make([]string, len(episodeIDs))
+	args := make([]interface{}, len(episodeIDs)+1)
+	args[0] = userID
+	for i, id := range episodeIDs {
+		placeholders[i] = "?"
+		args[i+1] = id
+	}
+	query := fmt.Sprintf(`SELECT episode_id, position_ms, completed, updated_at FROM podcast_progress WHERE user_id = ? AND episode_id IN (%s)`, strings.Join(placeholders, ","))
+	
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	progress := make(map[string]models.PodcastProgress)
+	for rows.Next() {
+		var p models.PodcastProgress
+		p.UserID = userID
+		if err := rows.Scan(&p.EpisodeID, &p.PositionMs, &p.Completed, &p.UpdatedAt); err != nil {
+			return nil, err
+		}
+		progress[p.EpisodeID] = p
+	}
+	return progress, nil
+}
+
 
 func (r *Repository) GetArtistByID(ctx context.Context, id string) (models.Artist, error) {
 	query := `SELECT id, name, musicbrainz_id, image_url, bio FROM artists WHERE id = ?`
