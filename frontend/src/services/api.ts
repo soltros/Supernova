@@ -348,7 +348,7 @@ export const apiService = {
     const formData = new FormData();
     formData.append('file', file);
     
-    const headers = getHeaders();
+    const headers = getHeaders() as Record<string, string>;
     delete headers['Content-Type']; // Let the browser set it with boundary
     
     const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/opml/import`, {
@@ -360,12 +360,11 @@ export const apiService = {
   },
 
   savePodcastProgress: async (episodeId: string, positionMs: number, completed: boolean): Promise<void> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/progress`, {
+    await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/progress`, {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify({ episode_id: episodeId, position_ms: positionMs, completed })
     });
-    // Ignore errors for progress saving to avoid UI disruption
   },
 
   getPodcastProgressBatch: async (episodeIds: string[]): Promise<Record<string, any>> => {

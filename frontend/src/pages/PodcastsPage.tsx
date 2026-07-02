@@ -368,7 +368,7 @@ const PodcastsPage: React.FC = () => {
             </div>
 
             <div className="track-list" style={{ marginTop: '24px' }}>
-              {episodes.map((episode, index) => {
+              {episodes.map((episode) => {
                 const epId = episode.id.toString();
                 const prog = progressData[epId];
                 const pct = formatProgress(episode.duration, prog?.position_ms);
