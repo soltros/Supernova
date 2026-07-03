@@ -1,4 +1,5 @@
-import React, { MouseEvent } from 'react';
+import React, { useState, useEffect } from 'react';
+import type { MouseEvent } from 'react';
 import { usePlayer } from '../context/PlayerContext';
 import { Play, Pause, SkipBack, SkipForward, Minimize2 } from 'lucide-react';
 import HeartButton from './HeartButton';
@@ -20,8 +21,23 @@ const formatTime = (seconds: number) => {
 const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) => {
   const { 
     currentTrack, currentAlbum, isPlaying, 
-    currentTime, duration, togglePlayPause, playNext, playPrevious, seekTo
+    duration, togglePlay, playNext, playPrev, seekTo, audioElement
   } = usePlayer();
+
+  const [currentTime, setCurrentTime] = useState(0);
+
+  useEffect(() => {
+    if (!audioElement) return;
+
+    const updateTime = () => {
+      setCurrentTime(audioElement.currentTime);
+    };
+
+    audioElement.addEventListener('timeupdate', updateTime);
+    return () => {
+      audioElement.removeEventListener('timeupdate', updateTime);
+    };
+  }, [audioElement]);
 
   if (!isOpen) return null;
 
@@ -130,11 +146,11 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) 
 
           {/* Transport Controls */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '32px' }}>
-            <button onClick={playPrevious} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
+            <button onClick={playPrev} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>
               <SkipBack size={36} fill="currentColor" />
             </button>
             <button 
-              onClick={togglePlayPause} 
+              onClick={togglePlay} 
               style={{ 
                 background: '#fff', color: '#000', border: 'none', borderRadius: '50%',
                 width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center',
