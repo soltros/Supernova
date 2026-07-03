@@ -40,3 +40,4 @@ cache/
 *.wav
 lastfm_api_reference.pdf
 *.pdf
+/screenshots

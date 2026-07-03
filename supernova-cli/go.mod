@@ -1,3 +1,3 @@
-module github.com/soltros/Supernova/supernova-cli
+module main.go
 
-go 1.22
+go 1.26.4
