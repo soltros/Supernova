@@ -112,43 +112,47 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
 
   return (
     <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: '90px', // above player bar
-      background: 'rgba(0, 0, 0, 0.85)',
+      position: 'absolute',
+      bottom: '100%',
+      right: '24px',
+      width: '360px',
+      height: '500px',
+      marginBottom: '16px',
+      background: 'rgba(20, 20, 20, 0.95)',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      borderRadius: '24px',
+      boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
       backdropFilter: 'blur(20px)',
       zIndex: 1000,
       display: 'flex',
       flexDirection: 'column',
-      padding: '40px',
+      padding: '24px',
       color: '#fff',
-      animation: 'fadeIn 0.3s ease'
+      animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
     }}>
       <button 
         onClick={onClose}
-        style={{ position: 'absolute', top: '24px', right: '24px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}
+        style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '50%', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
-        <X size={32} />
+        <X size={16} />
       </button>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '32px' }}>
-        <Mic2 size={32} color="var(--accent-primary)" />
-        <h2 style={{ margin: 0, fontSize: '28px', fontWeight: 800 }}>Lyrics</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+        <Mic2 size={24} color="var(--accent-primary)" />
+        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 700 }}>Lyrics</h2>
       </div>
 
-      <div ref={containerRef} style={{ flex: 1, overflowY: 'auto', paddingRight: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div ref={containerRef} className="content-scroll" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {loading && <div className="loader"></div>}
         
         {error && (
-          <div style={{ color: 'var(--text-muted)', fontSize: '18px', textAlign: 'center', marginTop: '40px' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', marginTop: '40px' }}>
             {error}
           </div>
         )}
         
         {lyricsData && !loading && (
-          <div style={{ width: '100%', maxWidth: '800px', display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '100px' }}>
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '40px' }}>
             {syncedLines.length > 0 ? (
               // Synced Lyrics rendering
               syncedLines.map((line, idx) => {
@@ -159,14 +163,15 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
                     key={idx} 
                     className={`lyric-line ${isActive ? 'active' : ''}`}
                     style={{ 
-                      fontSize: isActive ? '36px' : '24px', 
-                      fontWeight: isActive ? 800 : 600,
+                      fontSize: isActive ? '20px' : '16px', 
+                      fontWeight: isActive ? 800 : 500,
                       color: isActive ? '#fff' : (isPassed ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.2)'),
                       margin: 0,
-                      transition: 'all 0.3s ease',
-                      textAlign: 'center',
+                      transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                      textAlign: 'left',
                       lineHeight: '1.4',
-                      transform: isActive ? 'scale(1.05)' : 'scale(1)'
+                      transform: isActive ? 'scale(1.02)' : 'scale(1)',
+                      transformOrigin: 'left center'
                     }}
                   >
                     {line.text || '♪'}
@@ -175,7 +180,7 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
               })
             ) : (
               // Plain text lyrics fallback
-              <div style={{ fontSize: '20px', lineHeight: '1.8', color: 'rgba(255,255,255,0.8)', textAlign: 'center', whiteSpace: 'pre-wrap' }}>
+              <div style={{ fontSize: '15px', lineHeight: '1.8', color: 'rgba(255,255,255,0.8)', textAlign: 'left', whiteSpace: 'pre-wrap' }}>
                 {lyricsData.plainLyrics}
               </div>
             )}

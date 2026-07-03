@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { FC, MouseEvent, ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronDown, Mic2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronDown, Mic2, Maximize } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import HeartButton from './HeartButton';
 import LyricsOverlay from './LyricsOverlay';
+import FullScreenPlayer from './FullScreenPlayer';
 
 const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
 
@@ -26,6 +27,7 @@ const PlayerBar: FC = () => {
   const [progress, setProgress] = useState(0);
   const [isMobileExpanded, setIsMobileExpanded] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   useEffect(() => {
     if (!audioElement) return;
@@ -181,11 +183,20 @@ const PlayerBar: FC = () => {
       >
         <button 
           className="control-btn" 
-          onClick={() => setShowLyrics(true)}
+          onClick={() => setShowLyrics(!showLyrics)}
           title="Lyrics"
           style={{ padding: '8px', opacity: showLyrics ? 1 : 0.7 }}
         >
           <Mic2 size={20} color={showLyrics ? "var(--accent-primary)" : "currentColor"} />
+        </button>
+
+        <button 
+          className="control-btn" 
+          onClick={() => setIsFullScreen(true)}
+          title="Full Screen"
+          style={{ padding: '8px' }}
+        >
+          <Maximize size={18} />
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -209,6 +220,7 @@ const PlayerBar: FC = () => {
       </div>
       
       <LyricsOverlay isOpen={showLyrics} onClose={() => setShowLyrics(false)} />
+      <FullScreenPlayer isOpen={isFullScreen} onClose={() => setIsFullScreen(false)} />
     </footer>
   );
 };
