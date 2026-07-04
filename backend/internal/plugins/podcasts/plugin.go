@@ -1,20 +1,21 @@
 package podcasts
 
 import (
+	"bytes"
+	"context"
 	"crypto/sha1"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
-	"context"
-	"encoding/xml"
-	"bytes"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/models"
 	"github.com/soltros/Supernova/internal/plugins"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type PodcastsPlugin struct {
@@ -47,14 +48,14 @@ func (p *PodcastsPlugin) Init(config plugins.PluginConfig) error {
 func (p *PodcastsPlugin) SetupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/plugins/podcasts/search", p.handleSearch)
 	mux.HandleFunc("GET /api/plugins/podcasts/episodes", p.handleEpisodes)
-	
+
 	mux.HandleFunc("GET /api/plugins/podcasts/subscriptions", p.handleGetSubscriptions)
 	mux.HandleFunc("POST /api/plugins/podcasts/subscriptions", p.handleSubscribe)
 	mux.HandleFunc("DELETE /api/plugins/podcasts/subscriptions", p.handleUnsubscribe)
-	
+
 	mux.HandleFunc("POST /api/plugins/podcasts/progress", p.handleSaveProgress)
 	mux.HandleFunc("POST /api/plugins/podcasts/progress/batch", p.handleGetProgress)
-	
+
 	mux.HandleFunc("GET /api/plugins/podcasts/opml/export", p.handleExportOPML)
 	mux.HandleFunc("POST /api/plugins/podcasts/opml/import", p.handleImportOPML)
 }
@@ -65,14 +66,14 @@ func (p *PodcastsPlugin) authenticate(r *http.Request) (string, error) {
 		return "", fmt.Errorf("missing token")
 	}
 	tokenString := authHeader[7:]
-	
+
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		return []byte(os.Getenv("JWT_SECRET")), nil
 	})
 	if err != nil || !token.Valid {
 		return "", fmt.Errorf("invalid token")
 	}
-	
+
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
 		return "", fmt.Errorf("invalid claims")
@@ -267,7 +268,7 @@ func (p *PodcastsPlugin) handleGetProgress(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "Invalid body", http.StatusBadRequest)
 		return
 	}
-	
+
 	prog, err := p.repo.GetPodcastProgress(r.Context(), userID, req.EpisodeIDs)
 	if err != nil {
 		http.Error(w, "Failed to get progress", http.StatusInternalServerError)
@@ -288,18 +289,18 @@ func (p *PodcastsPlugin) handleExportOPML(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Failed to get subscriptions", http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/xml")
 	w.Header().Set("Content-Disposition", "attachment; filename=\"supernova_podcasts.opml\"")
-	
+
 	w.Write([]byte("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<opml version=\"1.0\">\n<head><title>Supernova Podcast Subscriptions</title></head>\n<body>\n<outline text=\"Feeds\">\n"))
 	for _, sub := range subs {
 		var bufTitle bytes.Buffer
 		xml.EscapeText(&bufTitle, []byte(sub.Title))
-		
+
 		var bufURL bytes.Buffer
 		xml.EscapeText(&bufURL, []byte(sub.FeedURL))
-		
+
 		w.Write([]byte(fmt.Sprintf("\t<outline type=\"rss\" text=\"%s\" xmlUrl=\"%s\" />\n", bufTitle.String(), bufURL.String())))
 	}
 	w.Write([]byte("</outline>\n</body>\n</opml>"))
@@ -337,7 +338,7 @@ func (p *PodcastsPlugin) handleImportOPML(w http.ResponseWriter, r *http.Request
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
-	
+
 	// Parse OPML file
 	r.ParseMultipartForm(10 << 20) // 10 MB
 	file, _, err := r.FormFile("file")
@@ -352,24 +353,24 @@ func (p *PodcastsPlugin) handleImportOPML(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Invalid OPML file", http.StatusBadRequest)
 		return
 	}
-	
+
 	urls := extractFeeds(opml.Body.Outlines)
-	
+
 	// For each URL, fetch podcast info from PodcastIndex
 	go func(urls []string, userID string) {
 		for _, u := range urls {
-			resp, err := p.doPodcastIndexRequest("/podcasts/byfeedurl", "url="+u)
+			resp, err := p.doPodcastIndexRequest("/podcasts/byfeedurl", "url="+url.QueryEscape(u))
 			if err != nil || resp.StatusCode != 200 {
 				continue
 			}
-			
+
 			var result map[string]interface{}
 			if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
 				if feed, ok := result["feed"].(map[string]interface{}); ok {
 					idFloat, _ := feed["id"].(float64)
 					title, _ := feed["title"].(string)
 					img, _ := feed["image"].(string)
-					
+
 					sub := models.PodcastSubscription{
 						ID:       fmt.Sprintf("psub_%d", time.Now().UnixNano()),
 						UserID:   userID,

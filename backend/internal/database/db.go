@@ -49,10 +49,10 @@ func Init(dbPath string) (*DB, error) {
 	}
 
 	// CONCURRENCY TUNING:
-	// We cap max open connections so SQLite doesn't get overwhelmed with lock contention
-	// by our background worker pool. WAL mode handles this gracefully with a timeout.
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(5)
+	// We serialize all database access with 1 open connection. This prevents 
+	// SQLite 'database is locked' deadlocks when multiple goroutines read-then-write.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(time.Hour)
 
 	// Automatically run our embedded schema migrations
