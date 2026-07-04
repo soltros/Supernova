@@ -7,6 +7,7 @@ import HeartButton from '../components/HeartButton';
 const RadioPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'subscriptions'|'discover'>('subscriptions');
   const [query, setQuery] = useState('');
+  const [country, setCountry] = useState('');
   const [stations, setStations] = useState<any[]>([]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -51,13 +52,13 @@ const RadioPage: React.FC = () => {
 
   const searchStations = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query) return;
+    if (!query && !country) return;
     setLoading(true);
     setError(null);
     setOffset(0);
     try {
       const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
-      const response = await fetch(`${API_BASE_URL}/api/plugins/radio/search?q=${encodeURIComponent(query)}&limit=50&offset=0`, {
+      const response = await fetch(`${API_BASE_URL}/api/plugins/radio/search?q=${encodeURIComponent(query)}&country=${encodeURIComponent(country)}&limit=50&offset=0`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sn_token')}`
         }
@@ -75,12 +76,12 @@ const RadioPage: React.FC = () => {
   };
 
   const loadMore = async () => {
-    if (!query || loading) return;
+    if ((!query && !country) || loading) return;
     setLoading(true);
     const newOffset = offset + 50;
     try {
       const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
-      const response = await fetch(`${API_BASE_URL}/api/plugins/radio/search?q=${encodeURIComponent(query)}&limit=50&offset=${newOffset}`, {
+      const response = await fetch(`${API_BASE_URL}/api/plugins/radio/search?q=${encodeURIComponent(query)}&country=${encodeURIComponent(country)}&limit=50&offset=${newOffset}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sn_token')}`
         }
@@ -179,12 +180,30 @@ const RadioPage: React.FC = () => {
                 <Search size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input 
                   type="text" 
-                  placeholder="Search stations, genres, or countries..." 
+                  placeholder="Search stations or genres..." 
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   style={{
                     width: '100%',
                     padding: '16px 24px 16px 48px',
+                    borderRadius: '24px',
+                    border: '1px solid var(--border-glass)',
+                    background: 'var(--bg-glass)',
+                    color: 'var(--text-primary)',
+                    fontSize: '16px',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+              <div style={{ position: 'relative', flex: 0.5, maxWidth: '250px' }}>
+                <input 
+                  type="text" 
+                  placeholder="Country..." 
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '16px 24px 16px 24px',
                     borderRadius: '24px',
                     border: '1px solid var(--border-glass)',
                     background: 'var(--bg-glass)',

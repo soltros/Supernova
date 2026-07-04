@@ -86,8 +86,10 @@ func (p *RadioPlugin) authenticate(r *http.Request) (string, error) {
 
 func (p *RadioPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
-	if query == "" {
-		http.Error(w, "query parameter 'q' is required", http.StatusBadRequest)
+	country := r.URL.Query().Get("country")
+	
+	if query == "" && country == "" {
+		http.Error(w, "query parameter 'q' or 'country' is required", http.StatusBadRequest)
 		return
 	}
 
@@ -109,7 +111,12 @@ func (p *RadioPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	q := req.URL.Query()
-	q.Add("name", query)
+	if query != "" {
+		q.Add("name", query)
+	}
+	if country != "" {
+		q.Add("country", country)
+	}
 	q.Add("limit", limit)
 	q.Add("offset", offset)
 	q.Add("hidebroken", "true")
