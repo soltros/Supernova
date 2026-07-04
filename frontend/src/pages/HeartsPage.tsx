@@ -187,9 +187,9 @@ const HeartsPage: FC = () => {
           <div className="album-grid">
             {radioStations.map(station => (
               <Link key={station.stationuuid} to="/radio" state={{ station }} className="album-card" style={{ textDecoration: 'none' }}>
-                <div className="album-cover-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', height: '160px', borderRadius: '12px', overflow: 'hidden' }}>
+                <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
                   {station.favicon ? (
-                    <img src={station.favicon} alt={station.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={station.favicon} alt={station.name} style={{ width: '70%', height: '70%', objectFit: 'contain' }} />
                   ) : (
                     <span style={{ color: 'var(--text-muted)' }}>Radio</span>
                   )}
@@ -213,7 +213,7 @@ const HeartsPage: FC = () => {
           <div className="album-grid">
             {podcasts.map(podcast => (
               <Link key={podcast.id} to="/podcasts" state={{ podcast }} className="album-card" style={{ textDecoration: 'none' }}>
-                <div className="album-cover-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)', height: '160px', borderRadius: '12px', overflow: 'hidden' }}>
+                <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
                   {podcast.image ? (
                     <img src={podcast.image} alt={podcast.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
