@@ -194,12 +194,19 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
     // Update Lock Screen Metadata (Media Session API)
     if ('mediaSession' in navigator) {
+      const artUrl = (album as any).cover_art_url 
+        ? (album as any).cover_art_url 
+        : `${API_BASE_URL || window.location.origin}/api/art/album/${album.id}`;
+        
+      // Ensure absolute URL (if cover_art_url is a relative path somehow)
+      const absoluteArtUrl = artUrl.startsWith('http') ? artUrl : `${window.location.origin}${artUrl.startsWith('/') ? '' : '/'}${artUrl}`;
+
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.title,
-        artist: album.title, // In the future we will use the track's actual primary artist
+        artist: track.artist_name || album.title, // Prioritize track artist name
         album: album.title,
         artwork: [
-          { src: (album as any).cover_art_url ? (album as any).cover_art_url : `${API_BASE_URL}/api/art/album/${album.id}`, sizes: '500x500', type: 'image/jpeg' }
+          { src: absoluteArtUrl, sizes: '500x500', type: 'image/jpeg' }
         ]
       });
     }
