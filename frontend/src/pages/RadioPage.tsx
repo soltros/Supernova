@@ -250,7 +250,7 @@ const RadioPage: React.FC = () => {
                           className="btn-icon" 
                           onClick={(e) => isSubscribed ? handleUnsubscribe(e, station.stationuuid) : handleSubscribe(e, station)}
                           style={{ 
-                            color: isSubscribed ? 'var(--accent-primary)' : 'var(--text-muted)',
+                            color: isSubscribed ? '#00ff88' : 'var(--text-muted)',
                             background: isSubscribed ? 'rgba(0,255,136,0.1)' : 'transparent',
                             borderRadius: '50%',
                             padding: '6px'
@@ -340,7 +340,7 @@ const RadioPage: React.FC = () => {
                           className="btn-icon" 
                           onClick={(e) => handleUnsubscribe(e, sub.station_id)}
                           style={{ 
-                            color: 'var(--accent-primary)',
+                            color: '#00ff88',
                             background: 'rgba(0,255,136,0.1)',
                             borderRadius: '50%',
                             padding: '6px'
