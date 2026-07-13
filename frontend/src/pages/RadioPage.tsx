@@ -122,7 +122,9 @@ const RadioPage: React.FC = () => {
     const mockAlbum = {
       id: 'radio',
       title: tags,
-      cover_art_url: favicon || ''
+      cover_art_url: favicon || '',
+      release_year: new Date().getFullYear(),
+      cover_art_path: favicon || ''
     };
     
     if (internalPlay) {

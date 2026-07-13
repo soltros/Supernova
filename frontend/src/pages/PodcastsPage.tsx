@@ -120,7 +120,9 @@ const PodcastsPage: React.FC = () => {
     const mockAlbum = {
       id: 'podcast',
       title: 'Podcast Episode',
-      cover_art_url: episode.image || selectedPodcast.image || selectedPodcast.image_url || ''
+      cover_art_url: episode.image || selectedPodcast.image || selectedPodcast.image_url || '',
+      release_year: new Date().getFullYear(),
+      cover_art_path: episode.image || selectedPodcast.image || selectedPodcast.image_url || ''
     };
     
     // If we have progress, we'd ideally tell the player to start at that position
