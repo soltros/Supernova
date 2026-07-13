@@ -20,7 +20,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('sn_token'));
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const handleAuthError = () => logout();
@@ -42,8 +41,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('sn_user');
     localStorage.removeItem('sn_token');
   };
-
-  if (loading) return null;
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout }}>

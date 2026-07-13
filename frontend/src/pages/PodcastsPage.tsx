@@ -110,7 +110,12 @@ const PodcastsPage: React.FC = () => {
       title: episode.title,
       artist_name: selectedPodcast.title,
       duration_ms: episode.duration * 1000,
-      stream_url: episode.enclosureUrl
+      stream_url: episode.enclosureUrl,
+      album_id: 'podcast',
+      track_number: 0,
+      disc_number: 0,
+      format: 'podcast',
+      bitrate: 128
     };
     const mockAlbum = {
       id: 'podcast',

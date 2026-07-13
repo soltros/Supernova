@@ -112,7 +112,12 @@ const RadioPage: React.FC = () => {
       title: name,
       artist_name: locationStr,
       duration_ms: 0,
-      stream_url: streamUrl
+      stream_url: streamUrl,
+      album_id: 'radio',
+      track_number: 0,
+      disc_number: 0,
+      format: 'radio',
+      bitrate: 128
     };
     const mockAlbum = {
       id: 'radio',
