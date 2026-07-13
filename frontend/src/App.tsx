@@ -17,7 +17,7 @@ import PodcastsPage from './pages/PodcastsPage';
 import SearchPage from './pages/SearchPage';
 import { HeartsProvider } from './context/HeartsContext';
 import { PlaylistsProvider } from './context/PlaylistsContext';
-import { PlayerProvider } from './context/PlayerContext';
+
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 import './index.css';
@@ -34,7 +34,7 @@ function AppContent() {
   return (
     <HeartsProvider>
       <PlaylistsProvider>
-        <PlayerProvider>
+
           <div className="app-container">
             <Sidebar isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
             
@@ -59,7 +59,7 @@ function AppContent() {
 
             <PlayerBar />
           </div>
-        </PlayerProvider>
+
       </PlaylistsProvider>
     </HeartsProvider>
   );

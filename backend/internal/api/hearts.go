@@ -126,9 +126,9 @@ func (s *Server) handleImportHearts() http.HandlerFunc {
 			http.Error(w, "invalid backup format", http.StatusBadRequest)
 			return
 		}
-		for _, b := range backups {
-			// We silently ignore errors per-item so a partial failure doesn't crash the import
-			_ = s.repo.ImportHeartBackup(r.Context(), userID, b)
+		if err := s.repo.ImportHeartBackups(r.Context(), userID, backups); err != nil {
+			http.Error(w, "failed to import backups", http.StatusInternalServerError)
+			return
 		}
 		w.WriteHeader(http.StatusOK)
 	}

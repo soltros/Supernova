@@ -21,10 +21,10 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
   try {
     const response = await fetch(url, mergedOptions);
     if (response.status === 401) {
-      // Phantom User fix: If the backend explicitly rejects our token, wipe state and reload
+      // Phantom User fix: If the backend explicitly rejects our token, wipe state and dispatch event
       localStorage.removeItem('sn_user');
       localStorage.removeItem('sn_token');
-      window.location.reload();
+      window.dispatchEvent(new Event('auth_error'));
     }
     return response;
   } catch (error) {
@@ -188,7 +188,7 @@ export const apiService = {
       artist_name: artist,
       track_name: track,
       album_name: album,
-      duration: durationSec.toString()
+      duration: (durationSec || 0).toString()
     });
     // This goes through the backend plugin to avoid CORS and allow caching/rate-limiting
     const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/lrclib/lyrics?${params}`, {
@@ -364,7 +364,7 @@ export const apiService = {
     if (response.status === 401) {
       localStorage.removeItem('sn_user');
       localStorage.removeItem('sn_token');
-      window.location.reload();
+      window.dispatchEvent(new Event('auth_error'));
     }
     
     if (!response.ok) throw new Error('Failed to import OPML');

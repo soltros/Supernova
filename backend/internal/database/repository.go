@@ -190,7 +190,7 @@ func (r *Repository) ResetArtistEnrichment(ctx context.Context) error {
 
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE artists 
-		SET enriched = 0, image_url = '', bio = ''
+		SET image_url = '', bio = ''
 	`)
 	return err
 }

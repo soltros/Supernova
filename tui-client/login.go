@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -69,6 +70,10 @@ func (m loginModel) Update(msg tea.Msg) (loginModel, tea.Cmd) {
 			if s == "enter" && m.focusIndex == len(m.inputs) {
 				instance := m.inputs[0].Value()
 				if instance != "" {
+					if _, err := url.ParseRequestURI(instance); err != nil {
+						m.err = fmt.Errorf("invalid instance URL: %v", err)
+						return m, nil
+					}
 					api.BaseURL = instance
 				}
 				username := m.inputs[1].Value()

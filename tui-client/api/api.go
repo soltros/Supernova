@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/soltros/Supernova/tui-client/models"
 )
@@ -13,11 +14,16 @@ var BaseURL = "http://localhost:8080/api"
 
 var JWTToken string
 
+var httpClient = &http.Client{Timeout: 10 * time.Second}
+
 func Login(username, password string) error {
 	payload := map[string]string{"username": username, "password": password}
-	body, _ := json.Marshal(payload)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
 
-	resp, err := http.Post(BaseURL+"/auth/login", "application/json", bytes.NewBuffer(body))
+	resp, err := httpClient.Post(BaseURL+"/auth/login", "application/json", bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}
@@ -28,16 +34,21 @@ func Login(username, password string) error {
 	}
 
 	var authResp models.AuthResponse
-	json.NewDecoder(resp.Body).Decode(&authResp)
+	if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
+		return err
+	}
 	JWTToken = authResp.Token
 	return nil
 }
 
 func Register(username, password string) error {
 	payload := map[string]string{"username": username, "password": password}
-	body, _ := json.Marshal(payload)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
 
-	resp, err := http.Post(BaseURL+"/auth/register", "application/json", bytes.NewBuffer(body))
+	resp, err := httpClient.Post(BaseURL+"/auth/register", "application/json", bytes.NewBuffer(body))
 	if err != nil {
 		return err
 	}
@@ -54,7 +65,7 @@ func Fetch(endpoint string, target interface{}) error {
 	req, _ := http.NewRequest("GET", BaseURL+endpoint, nil)
 	req.Header.Set("Authorization", "Bearer "+JWTToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -64,16 +75,22 @@ func Fetch(endpoint string, target interface{}) error {
 		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
-	return json.NewDecoder(resp.Body).Decode(target)
+	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
+		return err
+	}
+	return nil
 }
 
 func Post(endpoint string, payload interface{}) error {
-	body, _ := json.Marshal(payload)
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
 	req, _ := http.NewRequest("POST", BaseURL+endpoint, bytes.NewBuffer(body))
 	req.Header.Set("Authorization", "Bearer "+JWTToken)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}

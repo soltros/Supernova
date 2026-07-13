@@ -11,21 +11,29 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/dhowden/tag"
 	"github.com/soltros/Supernova/internal/models"
 	"golang.org/x/image/draw"
 )
 
+var (
+	artCacheDir string
+	artCacheOnce sync.Once
+)
+
 // getArtCacheDir resolves the directory for storing extracted/resized cover art
 func getArtCacheDir() string {
-	path := os.Getenv("ART_CACHE_PATH")
-	if path == "" {
-		// Default to ./data/art_cache to stay in the same data folder as the default SQLite db
-		path = filepath.Join(".", "data", "art_cache")
-	}
-	os.MkdirAll(path, 0755)
-	return path
+	artCacheOnce.Do(func() {
+		artCacheDir = os.Getenv("ART_CACHE_PATH")
+		if artCacheDir == "" {
+			// Default to ./data/art_cache to stay in the same data folder as the default SQLite db
+			artCacheDir = filepath.Join(".", "data", "art_cache")
+		}
+		os.MkdirAll(artCacheDir, 0755)
+	})
+	return artCacheDir
 }
 
 // processAndSaveImage resizes large images to 500x500, strictly enforces JPEG encoding, and caches them.

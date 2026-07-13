@@ -324,7 +324,7 @@ func (r *Repository) GetAlbums(ctx context.Context, artistID string, limit, offs
 		query += ` WHERE aa.artist_id = ?`
 		args = append(args, artistID)
 	}
-	query += ` ORDER BY a.title ASC LIMIT ? OFFSET ?`
+	query += ` GROUP BY a.id ORDER BY a.title ASC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -734,39 +734,46 @@ func (r *Repository) ExportHearts(ctx context.Context, userID string) ([]models.
 	return backups, nil
 }
 
-// ImportHeartBackup attempts to restore a user's favorite using its permanent reference
-func (r *Repository) ImportHeartBackup(ctx context.Context, userID string, backup models.HeartBackup) error {
-	var query string
-	var err error
-	id := generateUUID()
+// ImportHeartBackups attempts to restore a user's favorites using their permanent references in a batch
+func (r *Repository) ImportHeartBackups(ctx context.Context, userID string, backups []models.HeartBackup) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 
-	if backup.EntityType == "track" {
-		query = `
-			INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id)
-			SELECT ?, ?, 'track', id FROM tracks WHERE file_path = ?
-		`
-		_, err = r.db.ExecContext(ctx, query, id, userID, backup.Reference)
-	} else if backup.EntityType == "album" {
-		query = `
-			INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id)
-			SELECT ?, ?, 'album', id FROM albums WHERE title = ?
-		`
-		_, err = r.db.ExecContext(ctx, query, id, userID, backup.Reference)
-	} else if backup.EntityType == "artist" {
-		query = `
-			INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id)
-			SELECT ?, ?, 'artist', id FROM artists WHERE name = ?
-		`
-		_, err = r.db.ExecContext(ctx, query, id, userID, backup.Reference)
-	} else if backup.EntityType == "playlist" {
-		query = `
-			INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id)
-			SELECT ?, ?, 'playlist', id FROM playlists WHERE name = ? AND user_id = ?
-		`
-		_, err = r.db.ExecContext(ctx, query, id, userID, backup.Reference, userID)
+	for _, backup := range backups {
+		var query string
+		id := generateUUID()
+
+		if backup.EntityType == "track" {
+			query = `
+				INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id)
+				SELECT ?, ?, 'track', id FROM tracks WHERE file_path = ?
+			`
+			_, _ = tx.ExecContext(ctx, query, id, userID, backup.Reference)
+		} else if backup.EntityType == "album" {
+			query = `
+				INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id)
+				SELECT ?, ?, 'album', id FROM albums WHERE title = ?
+			`
+			_, _ = tx.ExecContext(ctx, query, id, userID, backup.Reference)
+		} else if backup.EntityType == "artist" {
+			query = `
+				INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id)
+				SELECT ?, ?, 'artist', id FROM artists WHERE name = ?
+			`
+			_, _ = tx.ExecContext(ctx, query, id, userID, backup.Reference)
+		} else if backup.EntityType == "playlist" {
+			query = `
+				INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id)
+				SELECT ?, ?, 'playlist', id FROM playlists WHERE name = ? AND user_id = ?
+			`
+			_, _ = tx.ExecContext(ctx, query, id, userID, backup.Reference, userID)
+		}
 	}
 
-	return err
+	return tx.Commit()
 }
 
 // ScrobbleTrack records a successful track play into the user's history
@@ -780,9 +787,11 @@ func (r *Repository) ScrobbleTrack(ctx context.Context, userID, trackID string) 
 // GetRecentScrobbles returns the user's most recently listened to tracks
 func (r *Repository) GetRecentScrobbles(ctx context.Context, userID string, limit int) ([]models.Track, error) {
 	query := `
-		SELECT t.id, t.album_id, t.title, t.track_number, t.disc_number, t.duration_ms, t.format, t.bitrate
+		SELECT t.id, t.album_id, t.title, t.track_number, t.disc_number, t.duration_ms, t.format, t.bitrate, art.id, art.name
 		FROM tracks t
 		JOIN scrobbles s ON t.id = s.track_id
+		LEFT JOIN track_artists ta ON t.id = ta.track_id
+		LEFT JOIN artists art ON ta.artist_id = art.id
 		WHERE s.user_id = ?
 		ORDER BY s.listened_at DESC
 		LIMIT ?
@@ -796,8 +805,15 @@ func (r *Repository) GetRecentScrobbles(ctx context.Context, userID string, limi
 	var tracks []models.Track
 	for rows.Next() {
 		var t models.Track
-		if err := rows.Scan(&t.ID, &t.AlbumID, &t.Title, &t.TrackNumber, &t.DiscNumber, &t.DurationMs, &t.Format, &t.Bitrate); err != nil {
+		var artID, artName *string
+		if err := rows.Scan(&t.ID, &t.AlbumID, &t.Title, &t.TrackNumber, &t.DiscNumber, &t.DurationMs, &t.Format, &t.Bitrate, &artID, &artName); err != nil {
 			return nil, err
+		}
+		if artID != nil {
+			t.ArtistID = *artID
+		}
+		if artName != nil {
+			t.ArtistName = *artName
 		}
 		tracks = append(tracks, t)
 	}

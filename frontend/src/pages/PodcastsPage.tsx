@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { Play, Search, Mic, ChevronLeft, Download, Upload, Plus, Check } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import HeartButton from '../components/HeartButton';
@@ -15,7 +16,7 @@ const PodcastsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { internalPlay } = usePlayer() as any;
+  const { internalPlay } = usePlayer();
 
   const loadSubscriptions = async () => {
     try {
@@ -393,7 +394,7 @@ const PodcastsPage: React.FC = () => {
                         <div style={{ fontWeight: 600, marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {episode.title}
                         </div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }} dangerouslySetInnerHTML={{ __html: episode.description }} />
+                        <div style={{ fontSize: '13px', color: 'var(--text-muted)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(episode.description) }} />
                         
                         {prog && prog.position_ms > 0 && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>

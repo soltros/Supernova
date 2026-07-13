@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"sync"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -87,10 +89,12 @@ func register(username, password string) error {
 	return nil
 }
 
+var httpClient = &http.Client{Timeout: 10 * time.Second}
+
 func fetchAPI(endpoint string, target interface{}) error {
 	req, _ := http.NewRequest("GET", instanceURL+endpoint, nil)
 	req.Header.Set("Authorization", "Bearer "+jwtToken)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -106,7 +110,7 @@ func postAPI(endpoint string, payload interface{}) error {
 	req, _ := http.NewRequest("POST", instanceURL+endpoint, bytes.NewBuffer(body))
 	req.Header.Set("Authorization", "Bearer "+jwtToken)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -206,7 +210,14 @@ func main() {
 			streamURL := fmt.Sprintf("%s/stream/%s", instanceURL, track.ID)
 			headerArg := fmt.Sprintf("Authorization: Bearer %s", jwtToken)
 			currentFFPlay = exec.Command("ffplay", "-headers", headerArg, "-nodisp", "-autoexit", streamURL)
-			currentFFPlay.Start()
+			err := currentFFPlay.Start()
+			if err != nil {
+				dialog.ShowError(err, w)
+				return
+			}
+			go func(cmd *exec.Cmd) {
+				_ = cmd.Wait()
+			}(currentFFPlay)
 			statusLabel.SetText(fmt.Sprintf("▶ %s", track.Title))
 		}
 
@@ -233,33 +244,47 @@ func main() {
 		var artists []Artist
 		var albums []Album
 		var tracks []Track
+		var musicMu sync.RWMutex
 
 		artistsList := widget.NewList(
-			func() int { return len(artists) },
+			func() int { musicMu.RLock(); defer musicMu.RUnlock(); return len(artists) },
 			func() fyne.CanvasObject { return widget.NewLabel("Artist Name") },
-			func(i widget.ListItemID, o fyne.CanvasObject) { o.(*widget.Label).SetText(artists[i].Name) },
+			func(i widget.ListItemID, o fyne.CanvasObject) {
+				musicMu.RLock()
+				defer musicMu.RUnlock()
+				o.(*widget.Label).SetText(artists[i].Name)
+			},
 		)
 		albumsList := widget.NewList(
-			func() int { return len(albums) },
+			func() int { musicMu.RLock(); defer musicMu.RUnlock(); return len(albums) },
 			func() fyne.CanvasObject { return widget.NewLabel("Album Title") },
 			func(i widget.ListItemID, o fyne.CanvasObject) {
+				musicMu.RLock()
+				defer musicMu.RUnlock()
 				o.(*widget.Label).SetText(fmt.Sprintf("%s (%d)", albums[i].Title, albums[i].Year))
 			},
 		)
 		tracksList := widget.NewList(
-			func() int { return len(tracks) },
+			func() int { musicMu.RLock(); defer musicMu.RUnlock(); return len(tracks) },
 			func() fyne.CanvasObject { return widget.NewLabel("Track Title") },
 			func(i widget.ListItemID, o fyne.CanvasObject) {
+				musicMu.RLock()
+				defer musicMu.RUnlock()
 				o.(*widget.Label).SetText(fmt.Sprintf("%d. %s [%s]", tracks[i].TrackNumber, tracks[i].Title, formatTime(tracks[i].Duration)))
 			},
 		)
 
 		artistsList.OnSelected = func(id widget.ListItemID) {
 			go func() {
+				musicMu.RLock()
+				artistID := artists[id].ID
+				musicMu.RUnlock()
 				var newAlbums []Album
-				if err := fetchAPI("/albums?limit=1000&artist_id="+artists[id].ID, &newAlbums); err == nil {
+				if err := fetchAPI("/albums?limit=1000&artist_id="+artistID, &newAlbums); err == nil {
+					musicMu.Lock()
 					albums = newAlbums
 					tracks = nil
+					musicMu.Unlock()
 					albumsList.Refresh()
 					tracksList.Refresh()
 				}
@@ -267,15 +292,23 @@ func main() {
 		}
 		albumsList.OnSelected = func(id widget.ListItemID) {
 			go func() {
+				musicMu.RLock()
+				albumID := albums[id].ID
+				musicMu.RUnlock()
 				var newTracks []Track
-				if err := fetchAPI("/tracks?limit=1000&album_id="+albums[id].ID, &newTracks); err == nil {
+				if err := fetchAPI("/tracks?limit=1000&album_id="+albumID, &newTracks); err == nil {
+					musicMu.Lock()
 					tracks = newTracks
+					musicMu.Unlock()
 					tracksList.Refresh()
 				}
 			}()
 		}
 		tracksList.OnSelected = func(id widget.ListItemID) {
-			playTrack(tracks[id])
+			musicMu.RLock()
+			track := tracks[id]
+			musicMu.RUnlock()
+			playTrack(track)
 		}
 
 		artistsBox := container.NewBorder(widget.NewLabelWithStyle("Artists", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), nil, nil, nil, artistsList)
@@ -287,44 +320,65 @@ func main() {
 
 		// 2. Hearts View
 		var heartsTracks []Track
+		var heartsMu sync.RWMutex
 		heartsList := widget.NewList(
-			func() int { return len(heartsTracks) },
+			func() int { heartsMu.RLock(); defer heartsMu.RUnlock(); return len(heartsTracks) },
 			func() fyne.CanvasObject { return widget.NewLabel("Hearted Track") },
 			func(i widget.ListItemID, o fyne.CanvasObject) {
+				heartsMu.RLock()
+				defer heartsMu.RUnlock()
 				o.(*widget.Label).SetText(heartsTracks[i].Title)
 			},
 		)
 		heartsList.OnSelected = func(id widget.ListItemID) {
-			playTrack(heartsTracks[id])
+			heartsMu.RLock()
+			track := heartsTracks[id]
+			heartsMu.RUnlock()
+			playTrack(track)
 		}
 		heartsView := container.NewBorder(widget.NewLabelWithStyle("Favorite Tracks", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), nil, nil, nil, heartsList)
 
 		// 3. Playlists View
 		var playlists []Playlist
 		var playlistTracks []Track
+		var playlistsMu sync.RWMutex
 		playlistsList := widget.NewList(
-			func() int { return len(playlists) },
+			func() int { playlistsMu.RLock(); defer playlistsMu.RUnlock(); return len(playlists) },
 			func() fyne.CanvasObject { return widget.NewLabel("Playlist") },
-			func(i widget.ListItemID, o fyne.CanvasObject) { o.(*widget.Label).SetText(playlists[i].Name) },
+			func(i widget.ListItemID, o fyne.CanvasObject) {
+				playlistsMu.RLock()
+				defer playlistsMu.RUnlock()
+				o.(*widget.Label).SetText(playlists[i].Name)
+			},
 		)
 		playlistTracksList := widget.NewList(
-			func() int { return len(playlistTracks) },
+			func() int { playlistsMu.RLock(); defer playlistsMu.RUnlock(); return len(playlistTracks) },
 			func() fyne.CanvasObject { return widget.NewLabel("Playlist Track") },
 			func(i widget.ListItemID, o fyne.CanvasObject) {
+				playlistsMu.RLock()
+				defer playlistsMu.RUnlock()
 				o.(*widget.Label).SetText(playlistTracks[i].Title)
 			},
 		)
 		playlistsList.OnSelected = func(id widget.ListItemID) {
 			go func() {
+				playlistsMu.RLock()
+				playlistID := playlists[id].ID
+				playlistsMu.RUnlock()
 				var newTracks []Track
-				if err := fetchAPI("/playlists/"+playlists[id].ID+"/tracks", &newTracks); err == nil {
+				if err := fetchAPI("/playlists/"+playlistID+"/tracks", &newTracks); err == nil {
+					playlistsMu.Lock()
 					playlistTracks = newTracks
+					playlistsMu.Unlock()
 					playlistTracksList.Refresh()
 				}
 			}()
 		}
 		playlistTracksList.OnSelected = func(id widget.ListItemID) {
-			playTrack(playlistTracks[id])
+			playlistsMu.RLock()
+			track := playlistTracks[id]
+			playlistsMu.RUnlock()
+			playTrack(track)
 		}
 		playlistsView := container.NewHSplit(
 			container.NewBorder(widget.NewLabelWithStyle("Playlists", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), nil, nil, nil, playlistsList),
@@ -333,15 +387,21 @@ func main() {
 
 		// 4. Scrobbles View
 		var scrobbles []Track
+		var scrobblesMu sync.RWMutex
 		scrobblesList := widget.NewList(
-			func() int { return len(scrobbles) },
+			func() int { scrobblesMu.RLock(); defer scrobblesMu.RUnlock(); return len(scrobbles) },
 			func() fyne.CanvasObject { return widget.NewLabel("Scrobbled Track") },
 			func(i widget.ListItemID, o fyne.CanvasObject) {
+				scrobblesMu.RLock()
+				defer scrobblesMu.RUnlock()
 				o.(*widget.Label).SetText(scrobbles[i].Title)
 			},
 		)
 		scrobblesList.OnSelected = func(id widget.ListItemID) {
-			playTrack(scrobbles[id])
+			scrobblesMu.RLock()
+			track := scrobbles[id]
+			scrobblesMu.RUnlock()
+			playTrack(track)
 		}
 		scrobblesView := container.NewBorder(widget.NewLabelWithStyle("Recent Scrobbles", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}), nil, nil, nil, scrobblesList)
 
@@ -367,7 +427,9 @@ func main() {
 				go func() {
 					var details HeartDetails
 					if err := fetchAPI("/hearts/details", &details); err == nil {
+						heartsMu.Lock()
 						heartsTracks = details.Tracks
+						heartsMu.Unlock()
 						heartsList.Refresh()
 					}
 				}()
@@ -376,7 +438,9 @@ func main() {
 				go func() {
 					var p []Playlist
 					if err := fetchAPI("/playlists", &p); err == nil {
+						playlistsMu.Lock()
 						playlists = p
+						playlistsMu.Unlock()
 						playlistsList.Refresh()
 					}
 				}()
@@ -385,7 +449,9 @@ func main() {
 				go func() {
 					var s []Track
 					if err := fetchAPI("/scrobbles/recent", &s); err == nil {
+						scrobblesMu.Lock()
 						scrobbles = s
+						scrobblesMu.Unlock()
 						scrobblesList.Refresh()
 					}
 				}()
@@ -408,7 +474,9 @@ func main() {
 		go func() {
 			var initArtists []Artist
 			if err := fetchAPI("/artists?limit=1000", &initArtists); err == nil {
+				musicMu.Lock()
 				artists = initArtists
+				musicMu.Unlock()
 				artistsList.Refresh()
 			}
 		}()
@@ -420,10 +488,11 @@ func main() {
 		return container.NewBorder(topPlayerBar, nil, nil, nil, mainContent)
 	}
 
-	w.ShowAndRun()
+	myApp.Lifecycle().SetOnExited(func() {
+		if currentFFPlay != nil && currentFFPlay.Process != nil {
+			currentFFPlay.Process.Kill()
+		}
+	})
 
-	// Cleanup on exit
-	if currentFFPlay != nil && currentFFPlay.Process != nil {
-		currentFFPlay.Process.Kill()
-	}
+	w.ShowAndRun()
 }

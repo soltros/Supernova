@@ -41,8 +41,14 @@ func (p mprisPlayer) Stop() *dbus.Error {
 }
 
 func (p mprisPlayer) Play() *dbus.Error {
-	if CurrentState != Playing && len(Queue) > 0 {
-		PlayTrack(CurrentIndex)
+	mu.Lock()
+	state := currentState
+	qLen := len(queue)
+	idx := currentIndex
+	mu.Unlock()
+
+	if state != Playing && qLen > 0 {
+		PlayTrack(idx)
 	}
 	return nil
 }

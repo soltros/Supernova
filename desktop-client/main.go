@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -9,6 +10,13 @@ import (
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
 	"github.com/soltros/Supernova/desktop-client/api"
+)
+
+const (
+	defaultWindowWidth  = 800
+	defaultWindowHeight = 600
+	defaultAlbumLimit   = 50
+	defaultAlbumOffset  = 0
 )
 
 func main() {
@@ -25,7 +33,7 @@ func main() {
 
 func loadCSS() {
 	cssProvider := gtk.NewCSSProvider()
-	cssProvider.LoadFromData(`
+	err := cssProvider.LoadFromData(`
 		window {
 			background-color: rgba(30, 30, 35, 0.65); /* Semi-transparent dark glass */
 		}
@@ -57,17 +65,24 @@ func loadCSS() {
 			color: #aaaaaa;
 		}
 	`)
-	gtk.StyleContextAddProviderForDisplay(
-		gdk.DisplayGetDefault(),
-		cssProvider,
-		uint(gtk.STYLE_PROVIDER_PRIORITY_APPLICATION),
-	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load CSS: %v\n", err)
+	}
+
+	display := gdk.DisplayGetDefault()
+	if display != nil {
+		gtk.StyleContextAddProviderForDisplay(
+			display,
+			cssProvider,
+			uint(gtk.STYLE_PROVIDER_PRIORITY_APPLICATION),
+		)
+	}
 }
 
 func activate(app *gtk.Application) {
 	window := gtk.NewApplicationWindow(app)
 	window.SetTitle("Supernova")
-	window.SetDefaultSize(800, 600)
+	window.SetDefaultSize(defaultWindowWidth, defaultWindowHeight)
 
 	// In GTK4, to get a custom headerbar we need to set the titlebar
 	header := gtk.NewHeaderBar()
@@ -97,8 +112,14 @@ func activate(app *gtk.Application) {
 	}
 	client := api.NewClient(baseURL)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	window.ConnectCloseRequest(func() bool {
+		cancel()
+		return false
+	})
+
 	go func() {
-		albums, err := client.GetAlbums(50, 0)
+		albums, err := client.GetAlbums(ctx, defaultAlbumLimit, defaultAlbumOffset)
 		
 		glib.IdleAdd(func() {
 			if err != nil {

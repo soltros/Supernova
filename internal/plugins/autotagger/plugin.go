@@ -5,15 +5,21 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"sync/atomic"
 
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/models"
 	"github.com/soltros/Supernova/internal/plugins"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type AutoTaggerPlugin struct {
-	repo *database.Repository
+	repo      *database.Repository
+	isRunning atomic.Bool
+	ctx       context.Context
+	cancel    context.CancelFunc
 }
 
 func init() {
@@ -34,29 +40,58 @@ func (p *AutoTaggerPlugin) Description() string {
 
 func (p *AutoTaggerPlugin) Init(config plugins.PluginConfig) error {
 	p.repo = config.Repo
+	p.ctx, p.cancel = context.WithCancel(context.Background())
 	return nil
 }
 
+func (p *AutoTaggerPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, pwd, ok := r.BasicAuth()
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="restricted"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		user, hash, err := p.repo.GetUserByUsername(r.Context(), u)
+		if err != nil || user == nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(pwd)); err != nil {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+}
+
 func (p *AutoTaggerPlugin) SetupRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/api/plugins/autotagger/run", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/plugins/autotagger/run", p.auth(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 		p.handleRunTagger(w, r)
-	})
+	}))
 }
 
 func (p *AutoTaggerPlugin) handleRunTagger(w http.ResponseWriter, r *http.Request) {
-	go p.runTaggingJob()
+	if !p.isRunning.CompareAndSwap(false, true) {
+		http.Error(w, "Job already running", http.StatusConflict)
+		return
+	}
+	go func() {
+		defer p.isRunning.Store(false)
+		p.runTaggingJob(p.ctx)
+	}()
 	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte(`{"status": "auto-tagger job started in background"}`))
 }
 
-func (p *AutoTaggerPlugin) runTaggingJob() {
+func (p *AutoTaggerPlugin) runTaggingJob(ctx context.Context) {
 	log.Println("[AutoTagger] Starting background tagging job...")
-	ctx := context.Background()
 	db := p.repo.DB()
+	trackPrefixRegex := regexp.MustCompile(`^\d+[\s\-\.]+(.*)`)
 
 	// Query tracks with "Unknown Artist", "Unknown Album", or titles like "Track %"
 	rows, err := db.QueryContext(ctx, `
@@ -93,11 +128,8 @@ func (p *AutoTaggerPlugin) runTaggingJob() {
 			
 			// Remove leading track numbers (e.g., "01 - Song" -> "Song", "1. Song" -> "Song")
 			title := baseName
-			for i, char := range title {
-				if char < '0' || char > '9' {
-					title = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(title[i:]), "-"))
-					break
-				}
+			if matches := trackPrefixRegex.FindStringSubmatch(title); len(matches) > 1 {
+				title = matches[1]
 			}
 			if title == "" {
 				title = baseName

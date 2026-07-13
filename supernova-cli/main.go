@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -18,7 +19,11 @@ type Config struct {
 }
 
 func getConfigPath() string {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println("Error getting home directory:", err)
+		os.Exit(1)
+	}
 	return filepath.Join(home, ".config", "supernova", "credentials.json")
 }
 
@@ -35,23 +40,54 @@ func loadConfig() (*Config, error) {
 	return &c, nil
 }
 
+func requireConfig() *Config {
+	c, err := loadConfig()
+	if err != nil {
+		fmt.Println("Not logged in. Please run `sn login` first.")
+		os.Exit(1)
+	}
+	return c
+}
+
 func saveConfig(c *Config) error {
 	path := getConfigPath()
-	os.MkdirAll(filepath.Dir(path), 0755)
-	data, _ := json.MarshalIndent(c, "", "  ")
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
 	return os.WriteFile(path, data, 0600)
 }
 
-func doRequest(method, endpoint string, body io.Reader, token string) ([]byte, error) {
-	c, err := loadConfig()
-	if err != nil && token == "" && endpoint != "/api/auth/login" && endpoint != "/api/auth/register" {
-		return nil, fmt.Errorf("could not load config, please login first")
+func doAuthRequest(method, url string, body io.Reader) ([]byte, error) {
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	url := endpoint
-	if c != nil {
-		url = c.URL + endpoint
-	}
+	return io.ReadAll(resp.Body)
+}
+
+func doRequest(method, endpoint string, body io.Reader, token string) ([]byte, error) {
+	c := requireConfig()
+	url := c.URL + endpoint
 
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
@@ -65,7 +101,9 @@ func doRequest(method, endpoint string, body io.Reader, token string) ([]byte, e
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -80,10 +118,7 @@ func doRequest(method, endpoint string, body io.Reader, token string) ([]byte, e
 }
 
 func downloadFile(endpoint, dest string) error {
-	c, err := loadConfig()
-	if err != nil {
-		return fmt.Errorf("could not load config, please login first")
-	}
+	c := requireConfig()
 
 	req, err := http.NewRequest("GET", c.URL+endpoint, nil)
 	if err != nil {
@@ -91,7 +126,9 @@ func downloadFile(endpoint, dest string) error {
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -176,11 +213,15 @@ func main() {
 	case "register":
 		requireArgs(5, "sn register <url> <username> <password>")
 		url := strings.TrimRight(os.Args[2], "/")
-		payload, _ := json.Marshal(map[string]string{
+		payload, err := json.Marshal(map[string]string{
 			"username": os.Args[3],
 			"password": os.Args[4],
 		})
-		_, err := doRequest("POST", url+"/api/auth/register", bytes.NewBuffer(payload), "")
+		if err != nil {
+			fmt.Println("Error encoding JSON:", err)
+			os.Exit(1)
+		}
+		_, err = doAuthRequest("POST", url+"/api/auth/register", bytes.NewBuffer(payload))
 		if err != nil {
 			fmt.Println("Registration failed:", err)
 			os.Exit(1)
@@ -190,11 +231,15 @@ func main() {
 	case "login":
 		requireArgs(5, "sn login <url> <username> <password>")
 		url := strings.TrimRight(os.Args[2], "/")
-		payload, _ := json.Marshal(map[string]string{
+		payload, err := json.Marshal(map[string]string{
 			"username": os.Args[3],
 			"password": os.Args[4],
 		})
-		data, err := doRequest("POST", url+"/api/auth/login", bytes.NewBuffer(payload), "")
+		if err != nil {
+			fmt.Println("Error encoding JSON:", err)
+			os.Exit(1)
+		}
+		data, err := doAuthRequest("POST", url+"/api/auth/login", bytes.NewBuffer(payload))
 		if err != nil {
 			fmt.Println("Login request failed:", err)
 			os.Exit(1)
@@ -219,7 +264,7 @@ func main() {
 	// PUBLIC LIBRARY
 	// ---------------------------------------------------------
 	case "artists":
-		c, _ := loadConfig()
+		c := requireConfig()
 		if len(os.Args) >= 3 {
 			data, err := doRequest("GET", "/api/artists/"+os.Args[2], nil, c.Token)
 			if err != nil {
@@ -234,15 +279,10 @@ func main() {
 			fmt.Println("Error:", err)
 			os.Exit(1)
 		}
-		var result []map[string]interface{}
-		json.Unmarshal(data, &result)
-		fmt.Printf("Found %d artists:\n", len(result))
-		for _, a := range result {
-			fmt.Printf("- %s (ID: %v)\n", a["name"], a["id"])
-		}
+		printPrettyJSON(data)
 
 	case "albums":
-		c, _ := loadConfig()
+		c := requireConfig()
 		if len(os.Args) >= 3 {
 			data, err := doRequest("GET", "/api/albums/"+os.Args[2], nil, c.Token)
 			if err != nil {
@@ -257,15 +297,10 @@ func main() {
 			fmt.Println("Error:", err)
 			os.Exit(1)
 		}
-		var result []map[string]interface{}
-		json.Unmarshal(data, &result)
-		fmt.Printf("Found %d albums:\n", len(result))
-		for _, a := range result {
-			fmt.Printf("- %s by %s (ID: %v)\n", a["title"], a["artist_name"], a["id"])
-		}
+		printPrettyJSON(data)
 
 	case "tracks":
-		c, _ := loadConfig()
+		c := requireConfig()
 		endpoint := "/api/tracks"
 		if len(os.Args) == 4 {
 			filterType := os.Args[2]
@@ -291,9 +326,10 @@ func main() {
 	// ---------------------------------------------------------
 	case "play":
 		requireArgs(3, "sn play <track_id>")
-		c, err := loadConfig()
-		if err != nil {
-			fmt.Println("Not logged in. Please run `sn login` first.")
+		c := requireConfig()
+		
+		if _, err := exec.LookPath("mpv"); err != nil {
+			fmt.Println("Error: 'mpv' media player not found in PATH.")
 			os.Exit(1)
 		}
 		
@@ -341,7 +377,7 @@ func main() {
 	// USER DATA & FAVORITES
 	// ---------------------------------------------------------
 	case "dashboard":
-		c, _ := loadConfig()
+		c := requireConfig()
 		data, err := doRequest("GET", "/api/dashboard", nil, c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
@@ -350,7 +386,7 @@ func main() {
 		printPrettyJSON(data)
 
 	case "hearts":
-		c, _ := loadConfig()
+		c := requireConfig()
 		data, err := doRequest("GET", "/api/hearts", nil, c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
@@ -359,7 +395,7 @@ func main() {
 		printPrettyJSON(data)
 
 	case "hearts-details":
-		c, _ := loadConfig()
+		c := requireConfig()
 		data, err := doRequest("GET", "/api/hearts/details", nil, c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
@@ -369,12 +405,16 @@ func main() {
 
 	case "heart":
 		requireArgs(4, "sn heart <entity_type> <entity_id>")
-		c, _ := loadConfig()
-		payload, _ := json.Marshal(map[string]string{
+		c := requireConfig()
+		payload, err := json.Marshal(map[string]string{
 			"entity_type": os.Args[2],
 			"entity_id":   os.Args[3],
 		})
-		_, err := doRequest("POST", "/api/hearts", bytes.NewBuffer(payload), c.Token)
+		if err != nil {
+			fmt.Println("Error encoding JSON:", err)
+			os.Exit(1)
+		}
+		_, err = doRequest("POST", "/api/hearts", bytes.NewBuffer(payload), c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
 			os.Exit(1)
@@ -383,12 +423,16 @@ func main() {
 
 	case "unheart":
 		requireArgs(4, "sn unheart <entity_type> <entity_id>")
-		c, _ := loadConfig()
-		payload, _ := json.Marshal(map[string]string{
+		c := requireConfig()
+		payload, err := json.Marshal(map[string]string{
 			"entity_type": os.Args[2],
 			"entity_id":   os.Args[3],
 		})
-		_, err := doRequest("DELETE", "/api/hearts", bytes.NewBuffer(payload), c.Token)
+		if err != nil {
+			fmt.Println("Error encoding JSON:", err)
+			os.Exit(1)
+		}
+		_, err = doRequest("DELETE", "/api/hearts", bytes.NewBuffer(payload), c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
 			os.Exit(1)
@@ -399,7 +443,7 @@ func main() {
 	// PLAYLISTS
 	// ---------------------------------------------------------
 	case "playlists":
-		c, _ := loadConfig()
+		c := requireConfig()
 		data, err := doRequest("GET", "/api/playlists", nil, c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
@@ -409,10 +453,14 @@ func main() {
 
 	case "playlist-create":
 		requireArgs(3, "sn playlist-create <name>")
-		c, _ := loadConfig()
-		payload, _ := json.Marshal(map[string]string{
+		c := requireConfig()
+		payload, err := json.Marshal(map[string]string{
 			"name": os.Args[2],
 		})
+		if err != nil {
+			fmt.Println("Error encoding JSON:", err)
+			os.Exit(1)
+		}
 		data, err := doRequest("POST", "/api/playlists", bytes.NewBuffer(payload), c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
@@ -422,7 +470,7 @@ func main() {
 
 	case "playlist-delete":
 		requireArgs(3, "sn playlist-delete <id>")
-		c, _ := loadConfig()
+		c := requireConfig()
 		_, err := doRequest("DELETE", "/api/playlists/"+os.Args[2], nil, c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
@@ -432,7 +480,7 @@ func main() {
 
 	case "playlist-tracks":
 		requireArgs(3, "sn playlist-tracks <id>")
-		c, _ := loadConfig()
+		c := requireConfig()
 		data, err := doRequest("GET", "/api/playlists/"+os.Args[2]+"/tracks", nil, c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
@@ -442,11 +490,15 @@ func main() {
 
 	case "playlist-add":
 		requireArgs(4, "sn playlist-add <playlist_id> <track_id>")
-		c, _ := loadConfig()
-		payload, _ := json.Marshal(map[string]string{
+		c := requireConfig()
+		payload, err := json.Marshal(map[string]string{
 			"track_id": os.Args[3],
 		})
-		_, err := doRequest("POST", "/api/playlists/"+os.Args[2]+"/tracks", bytes.NewBuffer(payload), c.Token)
+		if err != nil {
+			fmt.Println("Error encoding JSON:", err)
+			os.Exit(1)
+		}
+		_, err = doRequest("POST", "/api/playlists/"+os.Args[2]+"/tracks", bytes.NewBuffer(payload), c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
 			os.Exit(1)
@@ -455,7 +507,7 @@ func main() {
 
 	case "playlist-remove":
 		requireArgs(4, "sn playlist-remove <playlist_id> <track_id>")
-		c, _ := loadConfig()
+		c := requireConfig()
 		_, err := doRequest("DELETE", fmt.Sprintf("/api/playlists/%s/tracks/%s", os.Args[2], os.Args[3]), nil, c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
@@ -464,7 +516,7 @@ func main() {
 		fmt.Println("Track removed from playlist.")
 
 	case "playlist-export":
-		c, _ := loadConfig()
+		c := requireConfig()
 		data, err := doRequest("GET", "/api/playlists/export", nil, c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
@@ -477,11 +529,15 @@ func main() {
 	// ---------------------------------------------------------
 	case "scrobble":
 		requireArgs(3, "sn scrobble <track_id>")
-		c, _ := loadConfig()
-		payload, _ := json.Marshal(map[string]string{
+		c := requireConfig()
+		payload, err := json.Marshal(map[string]string{
 			"track_id": os.Args[2],
 		})
-		_, err := doRequest("POST", "/api/scrobbles", bytes.NewBuffer(payload), c.Token)
+		if err != nil {
+			fmt.Println("Error encoding JSON:", err)
+			os.Exit(1)
+		}
+		_, err = doRequest("POST", "/api/scrobbles", bytes.NewBuffer(payload), c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
 			os.Exit(1)
@@ -489,7 +545,7 @@ func main() {
 		fmt.Println("Track scrobbled successfully.")
 
 	case "scrobbles":
-		c, _ := loadConfig()
+		c := requireConfig()
 		data, err := doRequest("GET", "/api/scrobbles/recent", nil, c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
@@ -502,11 +558,7 @@ func main() {
 	// ---------------------------------------------------------
 	case "import-navidrome":
 		requireArgs(3, "sn import-navidrome <path-to-json> [optional-path-prefix]")
-		c, err := loadConfig()
-		if err != nil {
-			fmt.Println("Not logged in.")
-			os.Exit(1)
-		}
+		c := requireConfig()
 
 		filePath := os.Args[2]
 		prefix := ""
@@ -560,7 +612,11 @@ func main() {
 			})
 		}
 
-		payload, _ := json.Marshal(backups)
+		payload, err := json.Marshal(backups)
+		if err != nil {
+			fmt.Println("Error encoding JSON:", err)
+			os.Exit(1)
+		}
 		_, err = doRequest("POST", "/api/hearts/import", bytes.NewBuffer(payload), c.Token)
 		if err != nil {
 			fmt.Println("Error importing favorites:", err)
@@ -570,11 +626,7 @@ func main() {
 
 	case "import-m3u":
 		requireArgs(4, "sn import-m3u <playlist-name> <path-to-m3u> [optional-path-prefix]")
-		c, err := loadConfig()
-		if err != nil {
-			fmt.Println("Not logged in.")
-			os.Exit(1)
-		}
+		c := requireConfig()
 
 		playlistName := os.Args[2]
 		filePath := os.Args[3]
@@ -616,7 +668,11 @@ func main() {
 			},
 		}
 
-		payload, _ := json.Marshal(backups)
+		payload, err := json.Marshal(backups)
+		if err != nil {
+			fmt.Println("Error encoding JSON:", err)
+			os.Exit(1)
+		}
 		_, err = doRequest("POST", "/api/playlists/import", bytes.NewBuffer(payload), c.Token)
 		if err != nil {
 			fmt.Println("Error importing playlist:", err)

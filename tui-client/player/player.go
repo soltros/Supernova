@@ -18,36 +18,48 @@ const (
 )
 
 var (
-	Queue         []models.Track
-	CurrentIndex  int
-	CurrentState  State
+	queue         []models.Track
+	currentIndex  int
+	currentState  State
 	currentFFPlay *exec.Cmd
 	mu            sync.Mutex
 	
 	OnStateChange func(state State, track *models.Track)
 )
 
+func GetQueueLength() int {
+	mu.Lock()
+	defer mu.Unlock()
+	return len(queue)
+}
+
+func GetCurrentState() State {
+	mu.Lock()
+	defer mu.Unlock()
+	return currentState
+}
+
 func AddToQueue(track models.Track) {
 	mu.Lock()
 	defer mu.Unlock()
-	Queue = append(Queue, track)
+	queue = append(queue, track)
 }
 
 func ClearQueue() {
 	mu.Lock()
 	defer mu.Unlock()
-	Queue = []models.Track{}
-	CurrentIndex = 0
+	queue = []models.Track{}
+	currentIndex = 0
 }
 
 func PlayTrack(index int) {
 	mu.Lock()
-	if index < 0 || index >= len(Queue) {
+	if index < 0 || index >= len(queue) {
 		mu.Unlock()
 		return
 	}
-	CurrentIndex = index
-	track := Queue[index]
+	currentIndex = index
+	track := queue[index]
 	mu.Unlock()
 
 	Stop()
@@ -55,36 +67,39 @@ func PlayTrack(index int) {
 	streamURL := fmt.Sprintf("%s/stream/%s", api.BaseURL, track.ID)
 	headerArg := fmt.Sprintf("Authorization: Bearer %s", api.JWTToken)
 	
-	currentFFPlay = exec.Command("ffplay", "-headers", headerArg, "-nodisp", "-autoexit", streamURL)
-	currentFFPlay.Start()
+	cmd := exec.Command("ffplay", "-headers", headerArg, "-nodisp", "-autoexit", streamURL)
+	cmd.Start()
 
-	CurrentState = Playing
+	mu.Lock()
+	currentFFPlay = cmd
+	currentState = Playing
+	mu.Unlock()
 	
 	// Wait for process to exit to play next
-	go func(cmd *exec.Cmd, idx int) {
-		cmd.Wait()
+	go func(c *exec.Cmd, idx int) {
+		c.Wait()
 		mu.Lock()
-		if CurrentState == Playing && CurrentIndex == idx {
+		if currentState == Playing && currentIndex == idx {
 			// Auto play next
 			mu.Unlock()
 			Next()
 			return
 		}
 		mu.Unlock()
-	}(currentFFPlay, CurrentIndex)
+	}(cmd, index)
 
 	if OnStateChange != nil {
-		OnStateChange(CurrentState, &track)
+		OnStateChange(Playing, &track)
 	}
 	
 	// Update MPRIS if initialized
-	UpdateMPRIS(track, CurrentState)
+	UpdateMPRIS(track, Playing)
 }
 
 func Next() {
 	mu.Lock()
-	nextIdx := CurrentIndex + 1
-	if nextIdx >= len(Queue) {
+	nextIdx := currentIndex + 1
+	if nextIdx >= len(queue) {
 		mu.Unlock()
 		Stop()
 		return
@@ -95,7 +110,7 @@ func Next() {
 
 func Prev() {
 	mu.Lock()
-	prevIdx := CurrentIndex - 1
+	prevIdx := currentIndex - 1
 	if prevIdx < 0 {
 		prevIdx = 0
 	}
@@ -104,20 +119,29 @@ func Prev() {
 }
 
 func Stop() {
+	mu.Lock()
 	if currentFFPlay != nil && currentFFPlay.Process != nil {
 		currentFFPlay.Process.Kill()
 	}
-	CurrentState = Stopped
+	currentState = Stopped
+	mu.Unlock()
+
 	if OnStateChange != nil {
-		OnStateChange(CurrentState, nil)
+		OnStateChange(Stopped, nil)
 	}
 }
 
 func TogglePause() {
+	mu.Lock()
+	state := currentState
+	qLen := len(queue)
+	idx := currentIndex
+	mu.Unlock()
+
 	// Simple stop for now since ffplay doesn't natively pause via headless stdin reliably
-	if CurrentState == Playing {
+	if state == Playing {
 		Stop()
-	} else if CurrentState == Stopped && len(Queue) > 0 {
-		PlayTrack(CurrentIndex)
+	} else if state == Stopped && qLen > 0 {
+		PlayTrack(idx)
 	}
 }

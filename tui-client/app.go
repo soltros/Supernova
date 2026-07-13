@@ -82,6 +82,11 @@ func initialAppModel() appModel {
 type artistsLoadedMsg []list.Item
 type albumsLoadedMsg []list.Item
 type tracksLoadedMsg []list.Item
+type errMsg struct{ err error }
+type StateChangeMsg struct {
+	State player.State
+	Track *models.Track
+}
 
 func fetchArtists() tea.Cmd {
 	return func() tea.Msg {
@@ -90,8 +95,9 @@ func fetchArtists() tea.Cmd {
 			items := make([]list.Item, len(artists))
 			for i, a := range artists { items[i] = artistItem{a} }
 			return artistsLoadedMsg(items)
+		} else {
+			return errMsg{err}
 		}
-		return nil
 	}
 }
 
@@ -102,8 +108,9 @@ func fetchAlbums(artistID string) tea.Cmd {
 			items := make([]list.Item, len(albums))
 			for i, a := range albums { items[i] = albumItem{a} }
 			return albumsLoadedMsg(items)
+		} else {
+			return errMsg{err}
 		}
-		return nil
 	}
 }
 
@@ -114,8 +121,9 @@ func fetchTracks(albumID string) tea.Cmd {
 			items := make([]list.Item, len(tracks))
 			for i, t := range tracks { items[i] = trackItem{t} }
 			return tracksLoadedMsg(items)
+		} else {
+			return errMsg{err}
 		}
-		return nil
 	}
 }
 
@@ -136,6 +144,13 @@ func (m appModel) Update(msg tea.Msg) (appModel, tea.Cmd) {
 		m.tracksList.SetSize(paneW, paneH)
 		m.queueList.SetSize(paneW, paneH)
 
+	case errMsg:
+		m.status = fmt.Sprintf("Error: %v", msg.err)
+		
+	case StateChangeMsg:
+		// Trigger a re-render to update the status bar
+		return m, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
@@ -150,8 +165,8 @@ func (m appModel) Update(msg tea.Msg) (appModel, tea.Cmd) {
 				if i, ok := m.tracksList.SelectedItem().(trackItem); ok {
 					player.AddToQueue(i.Track)
 					m.queueList.InsertItem(len(m.queueList.Items()), i)
-					if player.CurrentState == player.Stopped {
-						player.PlayTrack(len(player.Queue) - 1)
+					if player.GetCurrentState() == player.Stopped {
+						player.PlayTrack(player.GetQueueLength() - 1)
 					}
 					m.status = fmt.Sprintf("Enqueued: %s", i.Track.Title)
 				}
@@ -161,12 +176,16 @@ func (m appModel) Update(msg tea.Msg) (appModel, tea.Cmd) {
 	case artistsLoadedMsg:
 		cmds = append(cmds, m.artistsList.SetItems(msg))
 		if len(msg) > 0 {
-			cmds = append(cmds, fetchAlbums(msg[0].(artistItem).ID))
+			if item, ok := msg[0].(artistItem); ok {
+				cmds = append(cmds, fetchAlbums(item.ID))
+			}
 		}
 	case albumsLoadedMsg:
 		cmds = append(cmds, m.albumsList.SetItems(msg))
 		if len(msg) > 0 {
-			cmds = append(cmds, fetchTracks(msg[0].(albumItem).ID))
+			if item, ok := msg[0].(albumItem); ok {
+				cmds = append(cmds, fetchTracks(item.ID))
+			}
 		}
 	case tracksLoadedMsg:
 		cmds = append(cmds, m.tracksList.SetItems(msg))
@@ -177,12 +196,16 @@ func (m appModel) Update(msg tea.Msg) (appModel, tea.Cmd) {
 	case focusArtists:
 		m.artistsList, cmd = m.artistsList.Update(msg)
 		if _, ok := msg.(tea.KeyMsg); ok && m.artistsList.SelectedItem() != nil {
-			cmds = append(cmds, fetchAlbums(m.artistsList.SelectedItem().(artistItem).ID))
+			if item, ok := m.artistsList.SelectedItem().(artistItem); ok {
+				cmds = append(cmds, fetchAlbums(item.ID))
+			}
 		}
 	case focusAlbums:
 		m.albumsList, cmd = m.albumsList.Update(msg)
 		if _, ok := msg.(tea.KeyMsg); ok && m.albumsList.SelectedItem() != nil {
-			cmds = append(cmds, fetchTracks(m.albumsList.SelectedItem().(albumItem).ID))
+			if item, ok := m.albumsList.SelectedItem().(albumItem); ok {
+				cmds = append(cmds, fetchTracks(item.ID))
+			}
 		}
 	case focusTracks:
 		m.tracksList, cmd = m.tracksList.Update(msg)
@@ -222,7 +245,7 @@ func (m appModel) View() string {
 	)
 	
 	statusStr := ""
-	if player.CurrentState == player.Playing {
+	if player.GetCurrentState() == player.Playing {
 		statusStr = lipgloss.NewStyle().Foreground(secondaryColor).Render("▶ Playing")
 	} else {
 		statusStr = "⏹ Stopped"

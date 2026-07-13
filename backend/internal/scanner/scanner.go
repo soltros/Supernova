@@ -188,14 +188,28 @@ func (s *Scanner) Watch() {
 						// Recursively scan asynchronously in case the user dragged a folder
 						filepath.WalkDir(event.Name, func(p string, d os.DirEntry, err error) error {
 							if err == nil && !d.IsDir() && isAudioFile(p) {
-								s.realtimeJobs <- p // Non-blocking dispatch
+								go func(path string) {
+									time.Sleep(2 * time.Second)
+									select {
+									case s.realtimeJobs <- path:
+									default:
+										log.Printf("realtimeJobs buffer full, dropping %s", path)
+									}
+								}(p)
 							} else if err == nil && d.IsDir() {
 								s.watcher.Add(p)
 							}
 							return nil
 						})
 					} else if isAudioFile(event.Name) {
-						s.realtimeJobs <- event.Name // Non-blocking dispatch
+						go func(path string) {
+							time.Sleep(2 * time.Second)
+							select {
+							case s.realtimeJobs <- path:
+							default:
+								log.Printf("realtimeJobs buffer full, dropping %s", path)
+							}
+						}(event.Name)
 					}
 				}
 

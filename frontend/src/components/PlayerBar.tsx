@@ -28,6 +28,7 @@ const PlayerBar: FC = () => {
   const [isMobileExpanded, setIsMobileExpanded] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [prevVolume, setPrevVolume] = useState(1);
 
   useEffect(() => {
     if (!audioElement) return;
@@ -200,7 +201,14 @@ const PlayerBar: FC = () => {
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => changeVolume(volume === 0 ? 1 : 0)}>
+          <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => {
+            if (volume === 0) {
+              changeVolume(prevVolume > 0 ? prevVolume : 1);
+            } else {
+              setPrevVolume(volume);
+              changeVolume(0);
+            }
+          }}>
             {volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
           </span>
           <input 

@@ -51,8 +51,8 @@ func Init(dbPath string) (*DB, error) {
 	// CONCURRENCY TUNING:
 	// We serialize all database access with 1 open connection. This prevents 
 	// SQLite 'database is locked' deadlocks when multiple goroutines read-then-write.
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(10)
 	db.SetConnMaxLifetime(time.Hour)
 
 	// Automatically run our embedded schema migrations

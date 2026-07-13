@@ -18,6 +18,7 @@ interface PlayerState {
   togglePlay: () => void;
   seekTo: (percent: number) => void;
   changeVolume: (level: number) => void;
+  internalPlay: (track: Track, album: Album, options?: any) => void;
 }
 
 const PlayerContext = createContext<PlayerState | undefined>(undefined);
@@ -33,6 +34,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
   // Playback Queue State
   const [queue, setQueue] = useState<Track[]>([]);
   const [queueIndex, setQueueIndex] = useState(0);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   
@@ -51,6 +53,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const audio = new Audio();
     audio.volume = 1.0;
     audioRef.current = audio;
+    setAudioElement(audio);
 
     audio.addEventListener('timeupdate', () => {
       if (audio.duration && isFinite(audio.duration)) {
@@ -178,7 +181,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     audioRef.current.pause();
     const token = localStorage.getItem('sn_token');
     const tokenQuery = token ? `?token=${token}` : '';
-    audioRef.current.src = (track as any).stream_url ? (track as any).stream_url : `${API_BASE_URL}/api/stream/${track.id}${tokenQuery}`;
+    audioRef.current.src = track.stream_url ? track.stream_url : `${API_BASE_URL}/api/stream/${track.id}${tokenQuery}`;
     
     if (options && options.start_position_ms && options.start_position_ms > 0) {
       audioRef.current.currentTime = options.start_position_ms / 1000;
@@ -194,8 +197,8 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
     // Update Lock Screen Metadata (Media Session API)
     if ('mediaSession' in navigator) {
-      const artUrl = (album as any).cover_art_url 
-        ? (album as any).cover_art_url 
+      const artUrl = album.cover_art_url 
+        ? album.cover_art_url 
         : `${API_BASE_URL || window.location.origin}/api/art/album/${album.id}`;
         
       // Ensure absolute URL (if cover_art_url is a relative path somehow)
@@ -297,7 +300,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const value = useMemo(() => ({
     currentTrack, currentAlbum, isPlaying, 
     duration, volume, queue, queueIndex,
-    audioElement: audioRef.current,
+    audioElement,
     playContext, playNext, playPrev, togglePlay, seekTo, changeVolume, internalPlay
   }), [
     currentTrack, currentAlbum, isPlaying, duration, volume, queue, queueIndex,

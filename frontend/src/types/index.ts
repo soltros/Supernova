@@ -5,6 +5,7 @@ export interface Album {
   cover_art_path: string;
   artist_id?: string;
   artist_name?: string;
+  cover_art_url?: string;
 }
 
 export interface Artist {
@@ -27,6 +28,7 @@ export interface Track {
   artist_id?: string;
   artist_name?: string;
   album_title?: string;
+  stream_url?: string;
 }
 
 export interface User {

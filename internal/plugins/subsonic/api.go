@@ -4,11 +4,30 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"mime"
 	"net/http"
+	"path/filepath"
+	"strconv"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+func getPagination(r *http.Request, defaultSize int) (int, int) {
+	size := defaultSize
+	offset := 0
+	if s := r.URL.Query().Get("size"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			size = v
+		}
+	}
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil {
+			offset = v
+		}
+	}
+	return size, offset
+}
 
 // auth middleware checks the subsonic credentials (u, p)
 func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
@@ -37,7 +56,7 @@ func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 			pwd = string(decoded)
 		}
 
-		user, hash, err := p.repo.GetUserByUsername(context.Background(), u)
+		user, hash, err := p.repo.GetUserByUsername(r.Context(), u)
 		if err != nil || user == nil {
 			p.writeError(w, r, 40, "Wrong username or password.")
 			return
@@ -104,7 +123,8 @@ func (p *SubsonicPlugin) handleGetLicense(w http.ResponseWriter, r *http.Request
 
 func (p *SubsonicPlugin) handleGetIndexes(w http.ResponseWriter, r *http.Request) {
 	// Subsonic expects an alphabetic index of artists
-	artists, err := p.repo.GetArtists(context.Background(), 1000, 0)
+	size, offset := getPagination(r, 1000)
+	artists, err := p.repo.GetArtists(r.Context(), size, offset)
 	if err != nil {
 		p.writeError(w, r, 0, "Database error")
 		return
@@ -143,7 +163,8 @@ func (p *SubsonicPlugin) handleGetIndexes(w http.ResponseWriter, r *http.Request
 
 func (p *SubsonicPlugin) handleGetArtists(w http.ResponseWriter, r *http.Request) {
 	// Modern clients use getArtists (returns ID3 tags, grouped differently)
-	artists, err := p.repo.GetArtists(context.Background(), 1000, 0)
+	size, offset := getPagination(r, 1000)
+	artists, err := p.repo.GetArtists(r.Context(), size, offset)
 	if err != nil {
 		p.writeError(w, r, 0, "Database error")
 		return
@@ -182,12 +203,18 @@ func (p *SubsonicPlugin) handleGetArtists(w http.ResponseWriter, r *http.Request
 
 func (p *SubsonicPlugin) handleGetArtist(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
-	artist, err := p.repo.GetArtistByID(context.Background(), id)
+	artist, err := p.repo.GetArtistByID(r.Context(), id)
 	if err != nil || artist == nil {
 		p.writeError(w, r, 70, "Artist not found")
 		return
 	}
-	albums, _ := p.repo.GetAlbums(context.Background(), id, 100, 0)
+	
+	size, offset := getPagination(r, 100)
+	albums, err := p.repo.GetAlbums(r.Context(), id, size, offset)
+	if err != nil {
+		p.writeError(w, r, 0, "Database error")
+		return
+	}
 	
 	var albumList []map[string]interface{}
 	for _, al := range albums {
@@ -213,10 +240,14 @@ func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.
 	id := r.URL.Query().Get("id")
 	
 	// First check if it's an artist
-	artist, err := p.repo.GetArtistByID(context.Background(), id)
+	artist, err := p.repo.GetArtistByID(r.Context(), id)
 	if err == nil && artist != nil {
 		// It's an artist, return their albums as directories
-		albums, _ := p.repo.GetAlbumsByArtistID(context.Background(), id)
+		albums, err := p.repo.GetAlbumsByArtistID(r.Context(), id)
+		if err != nil {
+			p.writeError(w, r, 0, "Database error")
+			return
+		}
 		var children []map[string]interface{}
 		for _, album := range albums {
 			children = append(children, map[string]interface{}{
@@ -240,11 +271,19 @@ func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.
 	}
 
 	// Try as an album
-	album, err := p.repo.GetAlbumByID(context.Background(), id)
+	album, err := p.repo.GetAlbumByID(r.Context(), id)
 	if err == nil && album != nil {
-		tracks, _ := p.repo.GetTracksByAlbumID(context.Background(), id)
+		tracks, err := p.repo.GetTracksByAlbumID(r.Context(), id)
+		if err != nil {
+			p.writeError(w, r, 0, "Database error")
+			return
+		}
 		var children []map[string]interface{}
 		for _, track := range tracks {
+			contentType := mime.TypeByExtension(filepath.Ext(track.FilePath))
+			if contentType == "" {
+				contentType = "audio/" + track.Format
+			}
 			children = append(children, map[string]interface{}{
 				"id":          track.ID,
 				"parent":      id,
@@ -256,7 +295,7 @@ func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.
 				"duration":    track.DurationMs / 1000,
 				"path":        track.FilePath,
 				"coverArt":    album.ID,
-				"contentType": "audio/" + track.Format,
+				"contentType": contentType,
 				"suffix":      track.Format,
 			})
 		}
@@ -275,16 +314,25 @@ func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.
 
 func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
-	album, err := p.repo.GetAlbumByID(context.Background(), id)
+	album, err := p.repo.GetAlbumByID(r.Context(), id)
 	if err != nil || album == nil {
 		p.writeError(w, r, 70, "Album not found")
 		return
 	}
 	
-	tracks, _ := p.repo.GetTracks(context.Background(), id, "", 100, 0)
+	size, offset := getPagination(r, 100)
+	tracks, err := p.repo.GetTracks(r.Context(), id, "", size, offset)
+	if err != nil {
+		p.writeError(w, r, 0, "Database error")
+		return
+	}
 	
 	var songList []map[string]interface{}
 	for _, t := range tracks {
+		contentType := mime.TypeByExtension(filepath.Ext(t.FilePath))
+		if contentType == "" {
+			contentType = "audio/" + t.Format
+		}
 		songList = append(songList, map[string]interface{}{
 			"id":       t.ID,
 			"title":    t.Title,
@@ -295,7 +343,7 @@ func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) 
 			"coverArt": album.ID,
 			"duration": t.DurationMs / 1000,
 			"path":     t.FilePath,
-			"contentType": "audio/flac", // Fallback, would need real mime type
+			"contentType": contentType,
 		})
 	}
 
@@ -317,7 +365,7 @@ func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) 
 
 func (p *SubsonicPlugin) handleStream(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
-	track, err := p.repo.GetTrackByID(context.Background(), id)
+	track, err := p.repo.GetTrackByID(r.Context(), id)
 	if err != nil || track == nil {
 		http.Error(w, "Not found", 404)
 		return

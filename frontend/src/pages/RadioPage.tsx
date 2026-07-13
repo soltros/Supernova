@@ -15,7 +15,7 @@ const RadioPage: React.FC = () => {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   
-  const { internalPlay } = usePlayer() as any;
+  const { internalPlay } = usePlayer();
 
   useEffect(() => {
     fetchSubscriptions();

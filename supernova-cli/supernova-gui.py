@@ -188,31 +188,20 @@ class SupernovaGUI:
                 except json.JSONDecodeError:
                     pass
 
-            # 2. Fallback for the plain text lists output by Go CLI (Artists/Albums)
-            parsed_list = []
-            for line in output.split('\n'):
-                line = line.strip()
-                if line.startswith('- ') and '(ID:' in line:
-                    parts = line[2:].rsplit('(ID:', 1)
-                    if len(parts) == 2:
-                        name_part = parts[0].strip()
-                        item_id = parts[1].replace(')', '').strip()
-                        if ' by ' in name_part:
-                            title, artist = name_part.rsplit(' by ', 1)
-                            parsed_list.append({"title": title, "artist_name": artist, "id": item_id})
-                        else:
-                            parsed_list.append({"name": name_part, "id": item_id})
-            return parsed_list
+            return []
 
         except subprocess.CalledProcessError as e:
-            print(f"CLI Execution Error:\n{e.stderr}")
-            return []
+            err_msg = f"CLI Error: {e.stderr.strip()}" if e.stderr else f"CLI exited with {e.returncode}"
+            print(err_msg)
+            return {"error": err_msg}
         except FileNotFoundError:
-            print(f"Error: {SN_CMD} not found. Ensure the binary exists in this directory or PATH.")
-            return []
+            err_msg = f"Error: {SN_CMD} not found."
+            print(err_msg)
+            return {"error": err_msg}
         except Exception as e:
-            print(f"Subprocess Error: {e}")
-            return []
+            err_msg = f"Subprocess Error: {e}"
+            print(err_msg)
+            return {"error": err_msg}
 
     def load_data(self, endpoint):
         self.status_var.set(f"Loading {endpoint}...")
@@ -228,6 +217,10 @@ class SupernovaGUI:
         threading.Thread(target=fetch, daemon=True).start()
 
     def _populate_view(self, endpoint, data):
+        if isinstance(data, dict) and "error" in data:
+            self.status_var.set(data["error"])
+            return
+
         if not isinstance(data, list):
             if isinstance(data, dict) and "items" in data:
                 data = data["items"]
@@ -280,12 +273,18 @@ class SupernovaGUI:
         self.status_var.set(display_text)
 
         try:
+            kwargs = {}
+            if os.name == 'nt':
+                kwargs['creationflags'] = subprocess.CREATE_NEW_PROCESS_GROUP
+            else:
+                kwargs['preexec_fn'] = os.setsid
+
             self.current_process = subprocess.Popen(
                 [SN_CMD, "play", str(track_id)],
-                preexec_fn=os.setsid,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stderr=subprocess.DEVNULL,
+                **kwargs
             )
         except FileNotFoundError:
             self.status_var.set("Error: sn binary not found.")
@@ -293,7 +292,10 @@ class SupernovaGUI:
 
     def stop_playback(self):
         if self.current_process and self.current_process.poll() is None:
-            os.killpg(os.getpgid(self.current_process.pid), signal.SIGTERM)
+            if os.name == 'nt':
+                self.current_process.send_signal(signal.CTRL_BREAK_EVENT)
+            else:
+                os.killpg(os.getpgid(self.current_process.pid), signal.SIGTERM)
             self.current_process.wait()
             self.status_var.set("Playback Stopped")
 

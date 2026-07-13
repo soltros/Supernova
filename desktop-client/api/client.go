@@ -2,11 +2,14 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
+	"time"
 )
 
 // DefaultBaseURL is the default base URL for the Supernova API.
@@ -24,8 +27,8 @@ func NewClient(baseURL string) *Client {
 		baseURL = DefaultBaseURL
 	}
 	return &Client{
-		BaseURL:    baseURL,
-		HTTPClient: &http.Client{},
+		BaseURL:    strings.TrimRight(baseURL, "/"),
+		HTTPClient: &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
@@ -67,31 +70,31 @@ type Scrobble struct {
 // 1. Library (Metadata)
 // ==========================================
 
-func (c *Client) GetAlbums(limit, offset int) ([]Album, error) {
+func (c *Client) GetAlbums(ctx context.Context, limit, offset int) ([]Album, error) {
 	reqURL := fmt.Sprintf("%s/api/albums?limit=%d&offset=%d", c.BaseURL, limit, offset)
 	var albums []Album
-	err := c.doGet(reqURL, &albums)
+	err := c.doGet(ctx, reqURL, &albums)
 	return albums, err
 }
 
-func (c *Client) GetAlbum(id string) (*Album, error) {
-	reqURL := fmt.Sprintf("%s/api/albums/%s", c.BaseURL, id)
+func (c *Client) GetAlbum(ctx context.Context, id string) (*Album, error) {
+	reqURL := fmt.Sprintf("%s/api/albums/%s", c.BaseURL, url.PathEscape(id))
 	var album Album
-	err := c.doGet(reqURL, &album)
+	err := c.doGet(ctx, reqURL, &album)
 	return &album, err
 }
 
-func (c *Client) GetTracks(albumID string, limit, offset int) ([]Track, error) {
-	reqURL := fmt.Sprintf("%s/api/tracks?album_id=%s&limit=%d&offset=%d", c.BaseURL, albumID, limit, offset)
+func (c *Client) GetTracks(ctx context.Context, albumID string, limit, offset int) ([]Track, error) {
+	reqURL := fmt.Sprintf("%s/api/tracks?album_id=%s&limit=%d&offset=%d", c.BaseURL, url.QueryEscape(albumID), limit, offset)
 	var tracks []Track
-	err := c.doGet(reqURL, &tracks)
+	err := c.doGet(ctx, reqURL, &tracks)
 	return tracks, err
 }
 
-func (c *Client) GetArtists(limit, offset int) ([]Artist, error) {
+func (c *Client) GetArtists(ctx context.Context, limit, offset int) ([]Artist, error) {
 	reqURL := fmt.Sprintf("%s/api/artists?limit=%d&offset=%d", c.BaseURL, limit, offset)
 	var artists []Artist
-	err := c.doGet(reqURL, &artists)
+	err := c.doGet(ctx, reqURL, &artists)
 	return artists, err
 }
 
@@ -100,8 +103,11 @@ func (c *Client) GetArtists(limit, offset int) ([]Artist, error) {
 // ==========================================
 
 // StreamAudioURL returns the URL to stream the audio file natively.
-func (c *Client) StreamAudioURL(id, format, bitrate, timeOffset string) string {
-	u, _ := url.Parse(fmt.Sprintf("%s/api/stream/%s", c.BaseURL, id))
+func (c *Client) StreamAudioURL(id, format, bitrate, timeOffset string) (string, error) {
+	u, err := url.Parse(fmt.Sprintf("%s/api/stream/%s", c.BaseURL, url.PathEscape(id)))
+	if err != nil {
+		return "", err
+	}
 	q := u.Query()
 	if format != "" {
 		q.Set("format", format)
@@ -113,37 +119,40 @@ func (c *Client) StreamAudioURL(id, format, bitrate, timeOffset string) string {
 		q.Set("time", timeOffset)
 	}
 	u.RawQuery = q.Encode()
-	return u.String()
+	return u.String(), nil
 }
 
 // AlbumArtURL returns the URL for the album art image.
 func (c *Client) AlbumArtURL(id string) string {
-	return fmt.Sprintf("%s/api/art/album/%s", c.BaseURL, id)
+	return fmt.Sprintf("%s/api/art/album/%s", c.BaseURL, url.PathEscape(id))
 }
 
 // ==========================================
 // 3. Hearts (Favorites)
 // ==========================================
 
-func (c *Client) GetHearts() ([]Heart, error) {
+func (c *Client) GetHearts(ctx context.Context) ([]Heart, error) {
 	reqURL := fmt.Sprintf("%s/api/hearts", c.BaseURL)
 	var hearts []Heart
-	err := c.doGet(reqURL, &hearts)
+	err := c.doGet(ctx, reqURL, &hearts)
 	return hearts, err
 }
 
-func (c *Client) AddHeart(entityType, entityID string) error {
+func (c *Client) AddHeart(ctx context.Context, entityType, entityID string) error {
 	reqURL := fmt.Sprintf("%s/api/hearts", c.BaseURL)
 	heart := Heart{
 		EntityType: entityType,
 		EntityID:   entityID,
 	}
-	return c.doPost(reqURL, heart, nil)
+	return c.doPost(ctx, reqURL, heart, nil)
 }
 
-func (c *Client) RemoveHeart(entityType, entityID string) error {
-	reqURL := fmt.Sprintf("%s/api/hearts?entity_type=%s&entity_id=%s", c.BaseURL, entityType, entityID)
-	req, err := http.NewRequest(http.MethodDelete, reqURL, nil)
+func (c *Client) RemoveHeart(ctx context.Context, entityType, entityID string) error {
+	q := url.Values{}
+	q.Set("entity_type", entityType)
+	q.Set("entity_id", entityID)
+	reqURL := fmt.Sprintf("%s/api/hearts?%s", c.BaseURL, q.Encode())
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, reqURL, nil)
 	if err != nil {
 		return err
 	}
@@ -153,15 +162,16 @@ func (c *Client) RemoveHeart(entityType, entityID string) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status: %s", resp.Status)
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status: %s, body: %s", resp.Status, string(body))
 	}
 	return nil
 }
 
 // ExportHearts returns the JSON backup of all hearts.
-func (c *Client) ExportHearts() ([]byte, error) {
+func (c *Client) ExportHearts(ctx context.Context) ([]byte, error) {
 	reqURL := fmt.Sprintf("%s/api/hearts/export", c.BaseURL)
-	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -171,14 +181,15 @@ func (c *Client) ExportHearts() ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("unexpected status: %s", resp.Status)
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status: %s, body: %s", resp.Status, string(body))
 	}
 	return io.ReadAll(resp.Body)
 }
 
-func (c *Client) ImportHearts(backupJSON []byte) error {
+func (c *Client) ImportHearts(ctx context.Context, backupJSON []byte) error {
 	reqURL := fmt.Sprintf("%s/api/hearts/import", c.BaseURL)
-	req, err := http.NewRequest(http.MethodPost, reqURL, bytes.NewBuffer(backupJSON))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewBuffer(backupJSON))
 	if err != nil {
 		return err
 	}
@@ -189,7 +200,8 @@ func (c *Client) ImportHearts(backupJSON []byte) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status: %s", resp.Status)
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status: %s, body: %s", resp.Status, string(body))
 	}
 	return nil
 }
@@ -198,18 +210,18 @@ func (c *Client) ImportHearts(backupJSON []byte) error {
 // 4. Scrobbling (Listen History)
 // ==========================================
 
-func (c *Client) LogScrobble(trackID string) error {
+func (c *Client) LogScrobble(ctx context.Context, trackID string) error {
 	reqURL := fmt.Sprintf("%s/api/scrobbles", c.BaseURL)
 	scrobble := Scrobble{
 		TrackID: trackID,
 	}
-	return c.doPost(reqURL, scrobble, nil)
+	return c.doPost(ctx, reqURL, scrobble, nil)
 }
 
-func (c *Client) GetRecentScrobbles() ([]Scrobble, error) {
+func (c *Client) GetRecentScrobbles(ctx context.Context) ([]Scrobble, error) {
 	reqURL := fmt.Sprintf("%s/api/scrobbles/recent", c.BaseURL)
 	var scrobbles []Scrobble
-	err := c.doGet(reqURL, &scrobbles)
+	err := c.doGet(ctx, reqURL, &scrobbles)
 	return scrobbles, err
 }
 
@@ -217,34 +229,46 @@ func (c *Client) GetRecentScrobbles() ([]Scrobble, error) {
 // Helper Methods
 // ==========================================
 
-func (c *Client) doGet(url string, v interface{}) error {
-	resp, err := c.HTTPClient.Get(url)
+func (c *Client) doGet(ctx context.Context, url string, v interface{}) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status: %s", resp.Status)
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status: %s, body: %s", resp.Status, string(body))
 	}
 
 	return json.NewDecoder(resp.Body).Decode(v)
 }
 
-func (c *Client) doPost(url string, body interface{}, response interface{}) error {
+func (c *Client) doPost(ctx context.Context, url string, body interface{}, response interface{}) error {
 	b, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
 
-	resp, err := c.HTTPClient.Post(url, "application/json", bytes.NewBuffer(b))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status: %s", resp.Status)
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status: %s, body: %s", resp.Status, string(respBody))
 	}
 
 	if response != nil {

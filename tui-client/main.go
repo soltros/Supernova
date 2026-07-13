@@ -23,6 +23,8 @@ var (
 		Foreground(accentColor).
 		Bold(true).
 		Margin(1, 0, 1, 0)
+		
+	Program *tea.Program
 )
 
 type rootModel struct {
@@ -49,8 +51,9 @@ func (m rootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.isLoggedIn = true
 			player.InitMPRIS()
 			player.OnStateChange = func(state player.State, track *models.Track) {
-				// We won't try to send async msgs to bubbletea right now for state changes
-				// just rely on standard updates or tick
+				if Program != nil {
+					Program.Send(StateChangeMsg{State: state, Track: track})
+				}
 			}
 			return m, m.app.Init() // start app data fetch
 		}
@@ -71,8 +74,8 @@ func (m rootModel) View() string {
 }
 
 func main() {
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
+	Program = tea.NewProgram(initialModel(), tea.WithAltScreen())
+	if _, err := Program.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
 	}
