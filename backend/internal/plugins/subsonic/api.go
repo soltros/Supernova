@@ -473,10 +473,24 @@ func (p *SubsonicPlugin) handleGetPlaylist(w http.ResponseWriter, r *http.Reques
 }
 
 func (p *SubsonicPlugin) handleGetAlbumList(w http.ResponseWriter, r *http.Request) {
-	// Simple implementation for getAlbumList/getAlbumList2
-	// Supports type (newest, random, frequent, recent, alphabeticalByName, alphabeticalByArtist)
-	// We'll just return GetAlbums for now regardless of type as a placeholder to make clients happy
-	albums, err := p.repo.GetAlbums(context.Background(), "", 100, 0)
+	listType := r.URL.Query().Get("type")
+	
+	var albums []models.Album
+	var err error
+
+	if listType == "starred" {
+		u, ok := r.Context().Value("user").(*models.User)
+		if ok && u != nil {
+			_, albums, _, _, err = p.repo.GetHeartDetails(context.Background(), u.ID)
+		} else {
+			p.writeError(w, r, 0, "Not authenticated")
+			return
+		}
+	} else {
+		// Placeholder for other types (newest, random, frequent, recent, etc.)
+		albums, err = p.repo.GetAlbums(context.Background(), "", 100, 0)
+	}
+
 	if err != nil {
 		p.writeError(w, r, 0, "Database error")
 		return
@@ -512,4 +526,29 @@ func (p *SubsonicPlugin) handleGetAlbumList(w http.ResponseWriter, r *http.Reque
 			"album": albumList,
 		},
 	})
+}
+
+func (p *SubsonicPlugin) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		http.Error(w, "missing id parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Try as album ID first
+	if album, err := p.repo.GetAlbumByID(context.Background(), id); err == nil && album != nil && album.CoverArtPath != "" {
+		http.ServeFile(w, r, album.CoverArtPath)
+		return
+	}
+
+	// Fallback: try as track ID to fetch track's album cover art
+	if track, err := p.repo.GetTrackByID(context.Background(), id); err == nil && track != nil && track.AlbumID != "" {
+		if album, err := p.repo.GetAlbumByID(context.Background(), track.AlbumID); err == nil && album != nil && album.CoverArtPath != "" {
+			http.ServeFile(w, r, album.CoverArtPath)
+			return
+		}
+	}
+
+	// Fallback: artist cover art could be supported if added to schema, currently ignoring
+	http.Error(w, "Cover art not found", http.StatusNotFound)
 }
