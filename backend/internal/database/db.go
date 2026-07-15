@@ -137,6 +137,7 @@ func Init(dbPath string) (*DB, error) {
 				created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 			);
 			ALTER TABLE tracks ADD COLUMN file_modified_at INTEGER DEFAULT 0;
+			ALTER TABLE albums ADD COLUMN bio TEXT;
 		`)
 		if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
 			return nil, fmt.Errorf("migration to v4 failed: %w", err)

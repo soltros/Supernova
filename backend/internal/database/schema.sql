@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS albums (
     release_year INTEGER,
     musicbrainz_id TEXT,
     cover_art_path TEXT,
+    bio TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

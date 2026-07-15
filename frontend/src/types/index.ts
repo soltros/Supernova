@@ -6,6 +6,7 @@ export interface Album {
   artist_id?: string;
   artist_name?: string;
   cover_art_url?: string;
+  bio?: string;
 }
 
 export interface Artist {

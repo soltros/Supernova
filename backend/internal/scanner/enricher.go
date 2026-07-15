@@ -49,6 +49,8 @@ func (e *Enricher) Start(ctx context.Context) {
 				return
 			case <-e.trigger:
 				e.processQueue(ctx)
+				e.processArtistQueue(ctx)
+				e.processAlbumQueue(ctx)
 			}
 		}
 	}()
@@ -188,6 +190,65 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 					}
 				}
 				log.Printf("Updated top tracks popularity for artist: %s", a.Name)
+			}
+		}
+	}
+}
+
+// processAlbumQueue iterates over the database finding albums missing LastFM bios/track durations
+func (e *Enricher) processAlbumQueue(ctx context.Context) {
+	for {
+		albums, err := e.repo.GetAlbumsMissingBio(ctx, 10)
+		if err != nil {
+			log.Printf("Enricher DB error: %v", err)
+			return
+		}
+
+		if len(albums) == 0 {
+			log.Println("Enricher finished processing all pending album bios. Sleeping.")
+			return
+		}
+
+		for _, a := range albums {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			if e.lastfm == nil {
+				_ = e.repo.UpdateAlbumBio(ctx, a.AlbumID, "NOT_FOUND")
+				continue
+			}
+
+			info, err := e.lastfm.GetAlbumInfo(a.ArtistName, a.AlbumTitle)
+			if err != nil || info == nil {
+				log.Printf("No LastFM data found for album: %s by %s", a.AlbumTitle, a.ArtistName)
+				_ = e.repo.UpdateAlbumBio(ctx, a.AlbumID, "NOT_FOUND")
+				continue
+			}
+
+			bio := info.Album.Wiki.Summary
+			if bio == "" {
+				bio = "NOT_FOUND" // mark to avoid retrying
+			}
+
+			err = e.repo.UpdateAlbumBio(ctx, a.AlbumID, bio)
+			if err != nil {
+				log.Printf("Failed to update album bio in DB for %s: %v", a.AlbumTitle, err)
+			} else if bio != "NOT_FOUND" {
+				log.Printf("Successfully enriched album bio via LastFM: %s", a.AlbumTitle)
+			}
+
+			// Update track durations from Last.fm response
+			for _, track := range info.Album.Tracks.Track {
+				if track.Duration != "" {
+					var durSecs int
+					fmt.Sscanf(track.Duration, "%d", &durSecs)
+					if durSecs > 0 {
+						_ = e.repo.UpdateTrackDuration(ctx, a.AlbumID, track.Name, durSecs*1000)
+					}
+				}
 			}
 		}
 	}

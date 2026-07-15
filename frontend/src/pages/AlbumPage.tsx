@@ -7,6 +7,7 @@ import { usePlayer } from '../context/PlayerContext';
 import HeartButton from '../components/HeartButton';
 import AddToPlaylistMenu from '../components/AddToPlaylistMenu';
 import type { Album, Track } from '../types';
+import DOMPurify from 'dompurify';
 
 const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
 
@@ -108,9 +109,15 @@ const AlbumPage: FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Tracklist */}
       <div className="page-container">
+        {album.bio && album.bio !== 'NOT_FOUND' && (
+          <div style={{ marginBottom: '48px', maxWidth: '800px' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '16px' }}>About</h2>
+            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '15px' }} dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(album.bio) }}></p>
+          </div>
+        )}
+
+        {/* Tracklist */}
         <div className="track-list">
         {tracks.map(track => {
           const isThisTrackPlaying = currentTrack?.id === track.id;

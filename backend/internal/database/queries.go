@@ -294,6 +294,21 @@ func (r *Repository) UpdateArtistInfo(ctx context.Context, id, imageUrl, bio str
 	return err
 }
 
+// UpdateAlbumBio updates the bio/summary of an album.
+func (r *Repository) UpdateAlbumBio(ctx context.Context, id, bio string) error {
+	query := `UPDATE albums SET bio = ? WHERE id = ?`
+	_, err := r.db.ExecContext(ctx, query, bio, id)
+	return err
+}
+
+// UpdateTrackDuration updates the duration of a track if it's currently 0.
+// Matches by album_id and a case-insensitive track title.
+func (r *Repository) UpdateTrackDuration(ctx context.Context, albumID string, title string, durationMs int) error {
+	query := `UPDATE tracks SET duration_ms = ? WHERE album_id = ? AND title COLLATE NOCASE = ? AND (duration_ms = 0 OR duration_ms IS NULL)`
+	_, err := r.db.ExecContext(ctx, query, durationMs, albumID, title)
+	return err
+}
+
 func (r *Repository) GetUnenrichedArtists(ctx context.Context, limit int) ([]models.Artist, error) {
 	query := `SELECT id, name, musicbrainz_id, image_url, bio FROM artists WHERE image_url = '' OR image_url IS NULL LIMIT ?`
 	rows, err := r.db.QueryContext(ctx, query, limit)
@@ -475,6 +490,37 @@ func (r *Repository) GetUnenrichedAlbums(ctx context.Context, limit int) ([]Unen
 	return albums, nil
 }
 
+// GetAlbumsMissingBio fetches albums that don't have a bio/summary fetched from Last.fm yet.
+func (r *Repository) GetAlbumsMissingBio(ctx context.Context, limit int) ([]UnenrichedAlbum, error) {
+	query := `
+		SELECT 
+			a.id, a.title, 
+			art.id, art.name,
+			t.title
+		FROM albums a
+		JOIN album_artists aa ON a.id = aa.album_id AND aa.role = 'primary'
+		JOIN artists art ON aa.artist_id = art.id
+		LEFT JOIN tracks t ON a.id = t.album_id
+		WHERE (a.bio = '' OR a.bio IS NULL) AND a.bio != 'NOT_FOUND'
+		GROUP BY a.id
+		LIMIT ?
+	`
+	rows, err := r.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var albums []UnenrichedAlbum
+	for rows.Next() {
+		var a UnenrichedAlbum
+		if err := rows.Scan(&a.AlbumID, &a.AlbumTitle, &a.ArtistID, &a.ArtistName, &a.TrackTitle); err == nil {
+			albums = append(albums, a)
+		}
+	}
+	return albums, nil
+}
+
 // UpdateMBIDs securely saves the official MusicBrainz IDs found by the background worker.
 func (r *Repository) UpdateMBIDs(ctx context.Context, albumID, albumMBID, artistID, artistMBID string) error {
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -510,15 +556,15 @@ func (r *Repository) GetTrackByID(ctx context.Context, id string) (*models.Track
 // GetAlbumByID fetches a single album by its ID.
 func (r *Repository) GetAlbumByID(ctx context.Context, id string) (*models.Album, error) {
 	query := `
-		SELECT a.id, a.title, a.release_year, a.musicbrainz_id, a.cover_art_path, art.id, art.name
+		SELECT a.id, a.title, a.release_year, a.musicbrainz_id, a.cover_art_path, a.bio, art.id, art.name
 		FROM albums a
 		LEFT JOIN album_artists aa ON a.id = aa.album_id AND aa.role = 'primary'
 		LEFT JOIN artists art ON aa.artist_id = art.id
 		WHERE a.id = ?
 	`
 	var a models.Album
-	var artID, artName *string
-	err := r.db.QueryRowContext(ctx, query, id).Scan(&a.ID, &a.Title, &a.ReleaseYear, &a.MusicBrainzID, &a.CoverArtPath, &artID, &artName)
+	var artID, artName, bio *string
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&a.ID, &a.Title, &a.ReleaseYear, &a.MusicBrainzID, &a.CoverArtPath, &bio, &artID, &artName)
 	if err != nil {
 		return nil, err
 	}
@@ -527,6 +573,9 @@ func (r *Repository) GetAlbumByID(ctx context.Context, id string) (*models.Album
 	}
 	if artName != nil {
 		a.ArtistName = *artName
+	}
+	if bio != nil {
+		a.Bio = *bio
 	}
 	return &a, nil
 }
