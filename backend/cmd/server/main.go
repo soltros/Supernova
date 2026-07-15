@@ -14,6 +14,7 @@ import (
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/external"
 	"github.com/soltros/Supernova/internal/plugins"
+	_ "github.com/soltros/Supernova/internal/plugins/albummerger"
 	_ "github.com/soltros/Supernova/internal/plugins/artistmerger"
 	_ "github.com/soltros/Supernova/internal/plugins/autotagger"
 	_ "github.com/soltros/Supernova/internal/plugins/deduper"
