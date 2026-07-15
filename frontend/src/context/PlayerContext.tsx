@@ -73,8 +73,13 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         lastTimeRef.current = audio.currentTime;
 
         const durationSeconds = activeTrack.duration_ms / 1000;
-        // Scrobble if 30 seconds of REAL playback have passed, or 50% of the song (whichever is smaller)
-        const threshold = Math.min(30, durationSeconds * 0.5);
+        // Last.fm Scrobble rules: >= 30 seconds total duration, and scrobble at 50% or 4 mins (240s)
+        let threshold = 30; // fallback if duration is unknown
+        if (durationSeconds >= 30) {
+          threshold = Math.min(240, durationSeconds * 0.5);
+        } else if (durationSeconds > 0 && durationSeconds < 30) {
+          threshold = Infinity; // Track too short to scrobble
+        }
         if (accumulatedPlayTimeRef.current >= threshold) {
           hasScrobbledRef.current = true;
           apiService.scrobbleTrack(activeTrack.id).catch(e => console.error("Scrobble failed:", e));
@@ -191,6 +196,14 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     try {
       playPromiseRef.current = audioRef.current.play();
       await playPromiseRef.current;
+      
+      // Notify Last.fm that the track is now playing
+      const lastfmSession = localStorage.getItem('lastfm_session');
+      if (lastfmSession) {
+        const artist = track.artist_name || 'Unknown Artist';
+        apiService.updateNowPlayingToLastFm(lastfmSession, artist, track.title)
+          .catch(e => console.error("Last.fm Now Playing failed:", e));
+      }
     } catch (e) {
       console.log("Playback interrupted safely by next track load.");
     }
