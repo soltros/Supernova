@@ -39,6 +39,32 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) 
     };
   }, [audioElement]);
 
+  useEffect(() => {
+    if (isOpen) {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          console.error("Error attempting to enable fullscreen:", err);
+        });
+      }
+    } else {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(err => {
+          console.error("Error attempting to exit fullscreen:", err);
+        });
+      }
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && isOpen) {
+        onClose();
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleProgressClick = (e: MouseEvent<HTMLDivElement>) => {
