@@ -69,7 +69,9 @@ func (r *Repository) GetArtistsByLetter(ctx context.Context, letter string, limi
 
 // Search queries artists, albums, and tracks for the given query string.
 func (r *Repository) Search(ctx context.Context, query string, limit int) (map[string]interface{}, error) {
-	likeQuery := "%" + query + "%"
+	// Replace spaces with '%' to allow fuzzy matching (e.g., ignoring punctuation like apostrophes)
+	fuzzyTerm := strings.ReplaceAll(query, " ", "%")
+	likeQuery := "%" + fuzzyTerm + "%"
 	
 	// Search Artists
 	artistRows, err := r.db.QueryContext(ctx, `SELECT id, name, image_url FROM artists WHERE name LIKE ? LIMIT ?`, likeQuery, limit)

@@ -61,7 +61,7 @@ const SearchPage: FC = () => {
             {artists.length > 0 && (
               <section className="dashboard-section">
                 <h2 className="section-title">Artists</h2>
-                <div className="grid">
+                <div className="album-grid">
                   {artists.map((artist) => (
                     <ArtistCard 
                       key={artist.id} 
@@ -75,7 +75,7 @@ const SearchPage: FC = () => {
             {albums.length > 0 && (
               <section className="dashboard-section">
                 <h2 className="section-title">Albums</h2>
-                <div className="grid">
+                <div className="album-grid">
                   {albums.map((album) => (
                     <AlbumCard 
                       key={album.id} 
@@ -96,10 +96,10 @@ const SearchPage: FC = () => {
                     return (
                       <div 
                         key={track.id}
-                        className={`track-item ${isCurrentTrack ? 'active' : ''}`}
-                        onDoubleClick={() => playContext(tracks, index, { id: 'search', title: `Search: ${query}`, release_year: 0, cover_art_path: '', artist_id: '', artist_name: '' } as Album)}
+                        className={`track-row ${isCurrentTrack ? 'playing' : ''}`}
+                        onClick={() => playContext(tracks, index, { id: 'search', title: `Search: ${query}`, release_year: 0, cover_art_path: '', artist_id: '', artist_name: '' } as Album)}
                       >
-                        <div className="track-index">
+                        <div className="track-number">
                           {isCurrentTrack && isPlaying ? (
                             <div className="playing-indicator" style={{ background: 'var(--accent-primary)', width: '16px', height: '16px', borderRadius: '50%' }} />
                           ) : (
@@ -107,12 +107,11 @@ const SearchPage: FC = () => {
                           )}
                         </div>
                         
-                        <div className="track-info">
-                          <div className="track-title" style={{ color: isCurrentTrack ? 'var(--accent-primary)' : 'var(--text-primary)' }}>{track.title}</div>
-                          <div className="track-artist">{track.artist_name}</div>
+                        <div className="track-title-cell">
+                          <div className="track-title-text" style={{ color: isCurrentTrack ? 'var(--accent-primary)' : 'var(--text-primary)' }}>{track.title}</div>
+                          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>{track.artist_name} • {track.album_title}</div>
                         </div>
 
-                        <div className="track-album">{track.album_title}</div>
                         <div className="track-actions">
                           <HeartButton entityType="track" entityId={track.id} />
                         </div>
