@@ -107,49 +107,6 @@ func (c *LastFmClient) GetArtistTopTracks(artistName string) (*ArtistTopTracksRe
 	return &data, nil
 }
 
-// --- 2. ALBUM INFO ---
-
-type AlbumInfoResponse struct {
-	Album struct {
-		Name   string `json:"name"`
-		Artist string `json:"artist"`
-		Tracks struct {
-			Track []struct {
-				Name     string `json:"name"`
-				Duration string `json:"duration"`
-			} `json:"track"`
-		} `json:"tracks"`
-		Wiki struct {
-			Summary string `json:"summary"`
-			Content string `json:"content"`
-		} `json:"wiki"`
-	} `json:"album"`
-}
-
-// GetAlbumInfo fetches rich metadata for an album, including its bio/wiki and track durations.
-func (c *LastFmClient) GetAlbumInfo(artistName, albumName string) (*AlbumInfoResponse, error) {
-	params := url.Values{}
-	params.Add("method", "album.getinfo")
-	params.Add("artist", artistName)
-	params.Add("album", albumName)
-	params.Add("api_key", c.apiKey)
-	params.Add("format", "json")
-
-	reqURL := fmt.Sprintf("%s?%s", lastFmBaseURL, params.Encode())
-	resp, err := c.client.Get(reqURL)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var data AlbumInfoResponse
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, err
-	}
-
-	return &data, nil
-}
-
 // --- 3. SCROBBLING (Authenticated Write Operations) ---
 
 // generateSignature creates an MD5 signature. Last.fm requires this for all write operations (like scrobbling)
@@ -298,6 +255,10 @@ type AlbumInfoResponse struct {
 				Duration string `json:"duration"` // Returned as string seconds often
 			} `json:"track"`
 		} `json:"tracks"`
+		Wiki struct {
+			Summary string `json:"summary"`
+			Content string `json:"content"`
+		} `json:"wiki"`
 	} `json:"album"`
 	Error   int    `json:"error"`
 	Message string `json:"message"`

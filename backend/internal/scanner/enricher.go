@@ -221,8 +221,8 @@ func (e *Enricher) processAlbumQueue(ctx context.Context) {
 				continue
 			}
 
-			info, err := e.lastfm.GetAlbumInfo(a.ArtistName, a.AlbumTitle)
-			if err != nil || info == nil {
+			info, err := e.lastfm.GetAlbumInfo(a.ArtistName, a.AlbumTitle, "", 0)
+			if err != nil || info == nil || info.Error > 0 {
 				log.Printf("No LastFM data found for album: %s by %s", a.AlbumTitle, a.ArtistName)
 				_ = e.repo.UpdateAlbumBio(ctx, a.AlbumID, "NOT_FOUND")
 				continue

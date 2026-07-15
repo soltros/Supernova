@@ -37,6 +37,7 @@ type Album struct {
 	ReleaseYear   int    `json:"release_year"`
 	MusicBrainzID string `json:"musicbrainz_id"`
 	CoverArtPath  string `json:"cover_art_path"`
+	Bio           string `json:"bio"`
 	ArtistID      string `json:"artist_id,omitempty"`
 	ArtistName    string `json:"artist_name,omitempty"`
 }
