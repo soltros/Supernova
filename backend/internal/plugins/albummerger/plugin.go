@@ -165,17 +165,18 @@ func (p *AlbumMergerPlugin) runMergeJob() {
 			}
 
 			// Deduplicate tracks for this canonical album based on track name
-			rowsT, err := db.QueryContext(ctx, "SELECT id, title, bitrate FROM tracks WHERE album_id = ? ORDER BY title, bitrate DESC", canonical.id)
+			rowsT, err := db.QueryContext(ctx, "SELECT id, title, bitrate, file_path FROM tracks WHERE album_id = ? ORDER BY title, bitrate DESC", canonical.id)
 			if err == nil {
 				type trackData struct {
-					id      string
-					title   string
-					bitrate int
+					id       string
+					title    string
+					bitrate  int
+					filePath string
 				}
 				var tData []trackData
 				for rowsT.Next() {
 					var t trackData
-					if err := rowsT.Scan(&t.id, &t.title, &t.bitrate); err == nil {
+					if err := rowsT.Scan(&t.id, &t.title, &t.bitrate, &t.filePath); err == nil {
 						tData = append(tData, t)
 					}
 				}
@@ -187,6 +188,7 @@ func (p *AlbumMergerPlugin) runMergeJob() {
 					if seen[normT] {
 						// Delete duplicate lower-quality track
 						log.Printf("[AlbumMerger] Removing duplicate track '%s' from canonical album '%s'\n", t.title, canonical.title)
+						db.ExecContext(ctx, "INSERT OR IGNORE INTO ignored_files (file_path, reason) VALUES (?, 'albummerger')", t.filePath)
 						db.ExecContext(ctx, "DELETE FROM tracks WHERE id = ?", t.id)
 						dedupeCount++
 					} else {

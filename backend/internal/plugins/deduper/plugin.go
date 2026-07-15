@@ -59,7 +59,7 @@ func (p *DeduperPlugin) runDeduperJob() {
 
 	// Find tracks that have the same title and album, but keep the one with the highest bitrate
 	rows, err := db.QueryContext(ctx, `
-		SELECT t.id, t.title, a.title, t.bitrate
+		SELECT t.id, t.title, a.title, t.bitrate, t.file_path
 		FROM tracks t
 		JOIN albums a ON t.album_id = a.id
 		ORDER BY t.title, a.title, t.bitrate DESC
@@ -70,16 +70,17 @@ func (p *DeduperPlugin) runDeduperJob() {
 	}
 
 	type trackData struct {
-		id      string
-		title   string
-		album   string
-		bitrate int
+		id       string
+		title    string
+		album    string
+		bitrate  int
+		filePath string
 	}
 
 	var allTracks []trackData
 	for rows.Next() {
 		var t trackData
-		if err := rows.Scan(&t.id, &t.title, &t.album, &t.bitrate); err == nil {
+		if err := rows.Scan(&t.id, &t.title, &t.album, &t.bitrate, &t.filePath); err == nil {
 			allTracks = append(allTracks, t)
 		}
 	}
@@ -94,6 +95,7 @@ func (p *DeduperPlugin) runDeduperJob() {
 			// It's a duplicate and since we ordered by bitrate DESC, this is the lower quality one.
 			// We delete it from the database so it's "hidden" from the UI.
 			log.Printf("[Deduper] Hiding duplicate track: %s (Bitrate: %d)\n", t.title, t.bitrate)
+			db.ExecContext(ctx, "INSERT OR IGNORE INTO ignored_files (file_path, reason) VALUES (?, 'deduper')", t.filePath)
 			db.ExecContext(ctx, "DELETE FROM tracks WHERE id = ?", t.id)
 			deleteCount++
 		} else {

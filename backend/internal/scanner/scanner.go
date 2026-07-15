@@ -227,12 +227,18 @@ func (s *Scanner) Close() error {
 
 // extractMetadata extracts metadata without hitting the database
 func (s *Scanner) extractMetadata(path string) *models.TrackMetadata {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil
+	}
+	
 	// Fast, purely native Go metadata extraction
 	meta, err := metadata.Extract(path)
 	if err != nil {
 		return nil
 	}
 	meta.FilePath = path
+	meta.FileModifiedAt = info.ModTime().Unix()
 	return meta
 }
 

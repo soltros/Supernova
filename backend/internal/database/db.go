@@ -128,5 +128,21 @@ func Init(dbPath string) (*DB, error) {
 		db.Exec("PRAGMA user_version = 3")
 	}
 
+	if version < 4 {
+		log.Println("Migrating database to version 4 (Plugin Persistence)...")
+		_, err = db.Exec(`
+			CREATE TABLE IF NOT EXISTS ignored_files (
+				file_path TEXT PRIMARY KEY,
+				reason TEXT,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			);
+			ALTER TABLE tracks ADD COLUMN file_modified_at INTEGER DEFAULT 0;
+		`)
+		if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+			return nil, fmt.Errorf("migration to v4 failed: %w", err)
+		}
+		db.Exec("PRAGMA user_version = 4")
+	}
+
 	return &DB{db}, nil
 }

@@ -31,6 +31,24 @@ func (r *Repository) UpsertTrack(ctx context.Context, meta *models.TrackMetadata
 	r.writeMu.Lock()
 	defer r.writeMu.Unlock()
 
+	// 1. Check if the file is explicitly ignored (e.g., deleted by deduper)
+	var dummy string
+	err := r.db.QueryRowContext(ctx, "SELECT file_path FROM ignored_files WHERE file_path = ?", meta.FilePath).Scan(&dummy)
+	if err == nil {
+		// File is in the ignored list, skip it entirely
+		return nil
+	}
+
+	// 2. Check if the file has been modified since it was last scanned.
+	// This ensures that plugin overrides (e.g. from AutoTagger or AlbumMerger) are not reverted
+	// unless the actual ID3 tags in the physical file are updated.
+	var existingModTime int64
+	err = r.db.QueryRowContext(ctx, "SELECT file_modified_at FROM tracks WHERE file_path = ?", meta.FilePath).Scan(&existingModTime)
+	if err == nil && existingModTime >= meta.FileModifiedAt && meta.FileModifiedAt > 0 {
+		// File hasn't changed, skip upsert to preserve database state
+		return nil
+	}
+
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -78,17 +96,18 @@ func (r *Repository) UpsertTrack(ctx context.Context, meta *models.TrackMetadata
 	// 5. Insert the Track itself (Upsert on FilePath conflict)
 	var trackID string
 	err = tx.QueryRowContext(ctx, `
-		INSERT INTO tracks (id, album_id, title, track_number, disc_number, duration_ms, file_path, format, bitrate)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO tracks (id, album_id, title, track_number, disc_number, duration_ms, file_path, format, bitrate, file_modified_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(file_path) DO UPDATE SET
 			title=excluded.title,
 			album_id=excluded.album_id,
 			track_number=excluded.track_number,
 			disc_number=excluded.disc_number,
 			duration_ms=excluded.duration_ms,
-			bitrate=excluded.bitrate
+			bitrate=excluded.bitrate,
+			file_modified_at=CASE WHEN excluded.file_modified_at > 0 THEN excluded.file_modified_at ELSE tracks.file_modified_at END
 		RETURNING id
-	`, generateUUID(), albumID, meta.Title, meta.TrackNumber, meta.DiscNumber, meta.DurationMs, meta.FilePath, meta.Format, meta.Bitrate).Scan(&trackID)
+	`, generateUUID(), albumID, meta.Title, meta.TrackNumber, meta.DiscNumber, meta.DurationMs, meta.FilePath, meta.Format, meta.Bitrate, meta.FileModifiedAt).Scan(&trackID)
 	
 	if err != nil {
 		return fmt.Errorf("failed to insert track: %w", err)

@@ -18,6 +18,7 @@ type TrackMetadata struct {
 	Bitrate        int
 	FilePath       string // Crucial for database unique constraints and streaming
 	CoverArtPath   string // Extracted embedded image or folder image path
+	FileModifiedAt int64  // Used to prevent overwriting plugin changes during re-scans
 }
 
 // Artist represents a row in the artists table for JSON API responses

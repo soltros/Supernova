@@ -34,7 +34,14 @@ CREATE TABLE IF NOT EXISTS tracks (
     bitrate INTEGER,
     file_path TEXT UNIQUE NOT NULL,
     popularity INTEGER DEFAULT 0,
+    file_modified_at INTEGER DEFAULT 0,
     FOREIGN KEY (album_id) REFERENCES albums (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS ignored_files (
+    file_path TEXT PRIMARY KEY,
+    reason TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS hearts (
