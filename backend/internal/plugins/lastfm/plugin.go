@@ -167,5 +167,7 @@ func (p *LastFmPlugin) handleGetSession(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(session)
+	json.NewEncoder(w).Encode(map[string]string{
+		"session_key": session,
+	})
 }

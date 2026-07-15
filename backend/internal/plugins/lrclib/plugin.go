@@ -35,7 +35,7 @@ func (p *LRCLibPlugin) Description() string {
 
 func (p *LRCLibPlugin) Init(config plugins.PluginConfig) error {
 	p.client = &http.Client{
-		Timeout: 5 * time.Second,
+		Timeout: 15 * time.Second,
 	}
 	return nil
 }
@@ -82,6 +82,7 @@ func (p *LRCLibPlugin) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := p.client.Do(req)
 	if err != nil {
+		log.Printf("[LRCLib] Request failed: %v\n", err)
 		http.Error(w, "failed to connect to lrclib", http.StatusBadGateway)
 		return
 	}
