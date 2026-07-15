@@ -152,5 +152,50 @@ func (p *AlbumMergerPlugin) runMergeJob() {
 		}
 	}
 
-	log.Printf("[AlbumMerger] Background merge job completed. Merged %d duplicate albums.\n", mergeCount)
+	// 3. Deduplicate tracks on merged canonical albums to prevent duplicates from deluxe versions
+	dedupeCount := 0
+	for _, group := range groups {
+		if len(group) > 1 {
+			// Find canonical ID
+			canonical := group[0]
+			for _, a := range group {
+				if len(a.title) < len(canonical.title) {
+					canonical = a
+				}
+			}
+
+			// Deduplicate tracks for this canonical album based on track name
+			rowsT, err := db.QueryContext(ctx, "SELECT id, title, bitrate FROM tracks WHERE album_id = ? ORDER BY title, bitrate DESC", canonical.id)
+			if err == nil {
+				type trackData struct {
+					id      string
+					title   string
+					bitrate int
+				}
+				var tData []trackData
+				for rowsT.Next() {
+					var t trackData
+					if err := rowsT.Scan(&t.id, &t.title, &t.bitrate); err == nil {
+						tData = append(tData, t)
+					}
+				}
+				rowsT.Close()
+
+				seen := make(map[string]bool)
+				for _, t := range tData {
+					normT := strings.ToLower(strings.TrimSpace(t.title))
+					if seen[normT] {
+						// Delete duplicate lower-quality track
+						log.Printf("[AlbumMerger] Removing duplicate track '%s' from canonical album '%s'\n", t.title, canonical.title)
+						db.ExecContext(ctx, "DELETE FROM tracks WHERE id = ?", t.id)
+						dedupeCount++
+					} else {
+						seen[normT] = true
+					}
+				}
+			}
+		}
+	}
+
+	log.Printf("[AlbumMerger] Background merge job completed. Merged %d duplicate albums and removed %d duplicate tracks.\n", mergeCount, dedupeCount)
 }
