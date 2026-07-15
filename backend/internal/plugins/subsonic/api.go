@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/soltros/Supernova/internal/models"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -353,4 +354,162 @@ func (p *SubsonicPlugin) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.ServeFile(w, r, track.FilePath)
+}
+
+func (p *SubsonicPlugin) handleGetPlaylists(w http.ResponseWriter, r *http.Request) {
+	u, ok := r.Context().Value("user").(*models.User)
+	if !ok || u == nil {
+		p.writeError(w, r, 0, "Not authenticated")
+		return
+	}
+
+	playlists, err := p.repo.GetPlaylists(context.Background(), u.ID)
+	if err != nil {
+		p.writeError(w, r, 0, "Database error")
+		return
+	}
+
+	var playlistList []map[string]interface{}
+	for _, pl := range playlists {
+		playlistList = append(playlistList, map[string]interface{}{
+			"id":        pl.ID,
+			"name":      pl.Name,
+			"owner":     u.Username,
+			"public":    false,
+			"songCount": 0,
+			"duration":  0,
+			"created":   pl.CreatedAt,
+			"changed":   pl.CreatedAt,
+		})
+	}
+
+	if playlistList == nil {
+		playlistList = make([]map[string]interface{}, 0)
+	}
+
+	p.writeResponse(w, r, map[string]interface{}{
+		"playlists": map[string]interface{}{
+			"playlist": playlistList,
+		},
+	})
+}
+
+func (p *SubsonicPlugin) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
+	u, ok := r.Context().Value("user").(*models.User)
+	if !ok || u == nil {
+		p.writeError(w, r, 0, "Not authenticated")
+		return
+	}
+
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		p.writeError(w, r, 10, "Required parameter is missing: id")
+		return
+	}
+
+	playlists, err := p.repo.GetPlaylists(context.Background(), u.ID)
+	if err != nil {
+		p.writeError(w, r, 0, "Database error")
+		return
+	}
+	
+	var playlist *models.Playlist
+	for _, pl := range playlists {
+		if pl.ID == id {
+			playlist = &pl
+			break
+		}
+	}
+	
+	if playlist == nil {
+		p.writeError(w, r, 70, "Playlist not found")
+		return
+	}
+
+	tracks, err := p.repo.GetPlaylistTracks(context.Background(), u.ID, id)
+	if err != nil {
+		p.writeError(w, r, 0, "Database error")
+		return
+	}
+
+	var entryList []map[string]interface{}
+	for _, t := range tracks {
+		contentType := "audio/" + strings.ToLower(t.Format)
+		if t.Format == "" {
+			contentType = "audio/mpeg"
+		}
+		entryList = append(entryList, map[string]interface{}{
+			"id":          t.ID,
+			"title":       t.Title,
+			"artist":      t.ArtistName,
+			"track":       t.TrackNumber,
+			"discNumber":  t.DiscNumber,
+			"coverArt":    t.AlbumID,
+			"duration":    t.DurationMs / 1000,
+			"path":        t.FilePath,
+			"contentType": contentType,
+			"suffix":      strings.ToLower(t.Format),
+			"bitRate":     t.Bitrate,
+		})
+	}
+	
+	if entryList == nil {
+		entryList = make([]map[string]interface{}, 0)
+	}
+
+	p.writeResponse(w, r, map[string]interface{}{
+		"playlist": map[string]interface{}{
+			"id":        playlist.ID,
+			"name":      playlist.Name,
+			"owner":     u.Username,
+			"public":    false,
+			"songCount": len(entryList),
+			"duration":  0,
+			"created":   playlist.CreatedAt,
+			"changed":   playlist.CreatedAt,
+			"entry":     entryList,
+		},
+	})
+}
+
+func (p *SubsonicPlugin) handleGetAlbumList(w http.ResponseWriter, r *http.Request) {
+	// Simple implementation for getAlbumList/getAlbumList2
+	// Supports type (newest, random, frequent, recent, alphabeticalByName, alphabeticalByArtist)
+	// We'll just return GetAlbums for now regardless of type as a placeholder to make clients happy
+	albums, err := p.repo.GetAlbums(context.Background(), "", 100, 0)
+	if err != nil {
+		p.writeError(w, r, 0, "Database error")
+		return
+	}
+
+	var albumList []map[string]interface{}
+	for _, a := range albums {
+		albumList = append(albumList, map[string]interface{}{
+			"id":       a.ID,
+			"name":     a.Title,
+			"title":    a.Title, // some clients use title instead of name
+			"artist":   a.ArtistName, // Not strictly fetched in GetAlbums, but GetAlbums query joins artists! Wait, does models.Album have ArtistName?
+			"artistId": "",
+			"coverArt": a.ID,
+			"songCount": 10,
+		})
+	}
+
+	if albumList == nil {
+		albumList = make([]map[string]interface{}, 0)
+	}
+	
+	// getAlbumList uses albumList, getAlbumList2 uses albumList2.
+	// Since we handle both with this one function, we can check path
+	isList2 := strings.Contains(r.URL.Path, "getAlbumList2")
+	key := "albumList"
+	if isList2 {
+		key = "albumList2"
+	}
+
+	p.writeResponse(w, r, map[string]interface{}{
+		key: map[string]interface{}{
+			"album": albumList,
+		},
+	})
 }

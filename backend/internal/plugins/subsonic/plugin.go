@@ -63,21 +63,28 @@ func (p *SubsonicPlugin) SetupRoutes(mux *http.ServeMux) {
 		hGetLicense(w, r)
 	})
 
-	// Browsing (GET)
-	mux.HandleFunc("/rest/getIndexes", p.auth(p.handleGetIndexes))
-	mux.HandleFunc("/rest/getArtists", p.auth(p.handleGetArtists))
-	mux.HandleFunc("/rest/getArtist", p.auth(p.handleGetArtist))
-	mux.HandleFunc("/rest/getMusicDirectory", p.auth(p.handleGetMusicDirectory))
-	mux.HandleFunc("/rest/getAlbum", p.auth(p.handleGetAlbum))
+	// Register routes with and without .view suffix
+	routes := map[string]http.HandlerFunc{
+		"/rest/getIndexes":        p.auth(p.handleGetIndexes),
+		"/rest/getArtists":        p.auth(p.handleGetArtists),
+		"/rest/getArtist":         p.auth(p.handleGetArtist),
+		"/rest/getMusicDirectory": p.auth(p.handleGetMusicDirectory),
+		"/rest/getAlbum":          p.auth(p.handleGetAlbum),
+		"/rest/getAlbumList":      p.auth(p.handleGetAlbumList),
+		"/rest/getAlbumList2":     p.auth(p.handleGetAlbumList),
+		"/rest/getPlaylists":      p.auth(p.handleGetPlaylists),
+		"/rest/getPlaylist":       p.auth(p.handleGetPlaylist),
+		"/rest/stream":            p.auth(p.handleStream),
+		"/rest/star":              p.auth(p.handleStar),
+		"/rest/unstar":            p.auth(p.handleUnstar),
+		"/rest/getStarred":        p.auth(p.handleGetStarred),
+		"/rest/getStarred2":       p.auth(p.handleGetStarred),
+	}
 
-	// Streaming
-	mux.HandleFunc("/rest/stream", p.auth(p.handleStream))
-
-	// Media Annotation (Supernova Hearts mapping)
-	mux.HandleFunc("/rest/star", p.auth(p.handleStar))
-	mux.HandleFunc("/rest/unstar", p.auth(p.handleUnstar))
-	mux.HandleFunc("/rest/getStarred", p.auth(p.handleGetStarred))
-	mux.HandleFunc("/rest/getStarred2", p.auth(p.handleGetStarred))
+	for path, handler := range routes {
+		mux.HandleFunc(path, handler)
+		mux.HandleFunc(path+".view", handler)
+	}
 }
 
 func (p *SubsonicPlugin) handlePing(w http.ResponseWriter, r *http.Request) {
