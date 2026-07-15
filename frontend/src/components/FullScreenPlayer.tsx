@@ -101,7 +101,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) 
         
         {/* Large Album Art */}
         <div style={{
-          width: '100%', maxWidth: '500px', aspectRatio: '1/1',
+          width: '100%', maxWidth: 'min(500px, 45vh)', aspectRatio: '1/1',
           borderRadius: '16px', overflow: 'hidden',
           boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',

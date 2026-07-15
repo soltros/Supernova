@@ -48,18 +48,18 @@ const HomePage: FC = () => {
     return (
       <div 
         key={`${contextId}-${track.id}-${index}`}
-        className="track-row"
+        className={`track-row ${isCurrentlyPlaying ? 'playing' : ''}`}
         onDoubleClick={() => playContext(contextTracks, index, { id: contextId, title: 'Home Tracks', release_year: 0, cover_art_path: '', artist_id: '', artist_name: '' } as Album)}
       >
         <div className="track-number">
           {isCurrentlyPlaying && isPlaying ? (
-            <div className="playing-indicator" style={{ background: 'var(--primary-color)', width: '16px', height: '16px', borderRadius: '50%' }} />
+            <div className="playing-indicator" style={{ background: 'var(--accent-primary)', width: '16px', height: '16px', borderRadius: '50%' }} />
           ) : (
             <span>{index + 1}</span>
           )}
         </div>
         <div className="track-title-cell" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div className="track-title-text" style={{ color: isCurrentlyPlaying ? 'var(--primary-color)' : 'var(--text-primary)' }}>
+          <div className="track-title-text" style={{ color: isCurrentlyPlaying ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
             {track.title}
           </div>
           {track.artist_id && (
