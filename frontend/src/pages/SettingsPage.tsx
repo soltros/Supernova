@@ -181,6 +181,19 @@ const SettingsPage: React.FC = () => {
                 </button>
               )}
 
+              {plugins.some(p => p.id === 'albummerger' && p.enabled) && (
+                <button 
+                  onClick={() => {
+                    const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
+                    fetch(`${API_BASE_URL}/api/plugins/albummerger/run`, { method: 'POST' });
+                    alert("Album merger job started in the background. Check backend logs for progress.");
+                  }}
+                  style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', color: '#3b82f6', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Merge Similar Albums
+                </button>
+              )}
+
               {scanStatus.status === 'scanning' && (
                 <span style={{ color: 'var(--text-secondary)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div className="loader" style={{ width: '16px', height: '16px', borderWidth: '2px', borderColor: 'rgba(255,255,255,0.1)', borderTopColor: 'var(--accent-primary)' }}></div>
