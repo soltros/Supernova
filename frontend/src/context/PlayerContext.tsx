@@ -19,6 +19,8 @@ interface PlayerState {
   seekTo: (percent: number) => void;
   changeVolume: (level: number) => void;
   internalPlay: (track: Track, album: Album, options?: any) => void;
+  insertNext: (track: Track) => void;
+  enqueue: (track: Track) => void;
 }
 
 const PlayerContext = createContext<PlayerState | undefined>(undefined);
@@ -240,6 +242,27 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const insertNext = (track: Track) => {
+    if (queueRef.current.length === 0) {
+      if (currentAlbum) playContext([track], 0, currentAlbum);
+      return;
+    }
+    const newQueue = [...queueRef.current];
+    newQueue.splice(queueIndexRef.current + 1, 0, track);
+    setQueue(newQueue);
+    queueRef.current = newQueue;
+  };
+
+  const enqueue = (track: Track) => {
+    if (queueRef.current.length === 0) {
+      if (currentAlbum) playContext([track], 0, currentAlbum);
+      return;
+    }
+    const newQueue = [...queueRef.current, track];
+    setQueue(newQueue);
+    queueRef.current = newQueue;
+  };
+
   const playNext = () => {
     if (queueIndexRef.current < queueRef.current.length - 1) {
       const nextIdx = queueIndexRef.current + 1;
@@ -314,10 +337,10 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     currentTrack, currentAlbum, isPlaying, 
     duration, volume, queue, queueIndex,
     audioElement,
-    playContext, playNext, playPrev, togglePlay, seekTo, changeVolume, internalPlay
+    playContext, playNext, playPrev, togglePlay, seekTo, changeVolume, internalPlay, insertNext, enqueue
   }), [
     currentTrack, currentAlbum, isPlaying, duration, volume, queue, queueIndex,
-    playContext, playNext, playPrev, togglePlay, seekTo, changeVolume
+    audioElement, playContext, playNext, playPrev, togglePlay, seekTo, changeVolume, internalPlay, insertNext, enqueue
   ]);
 
   return (

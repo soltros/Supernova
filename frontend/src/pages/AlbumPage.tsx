@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Play, Download } from 'lucide-react';
+import { Play, Download, PlaySquare, ListPlus } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { apiService } from '../services/api';
 import { usePlayer } from '../context/PlayerContext';
 import HeartButton from '../components/HeartButton';
@@ -21,8 +22,8 @@ const formatTime = (ms: number) => {
 
 const AlbumPage: FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { playContext, currentTrack, isPlaying } = usePlayer();
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: any | null } | null>(null);
+  const { playContext, currentTrack, isPlaying, insertNext, enqueue } = usePlayer();
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: any } | null>(null);
 
   useEffect(() => {
     const handleClick = () => setContextMenu(null);
@@ -148,7 +149,7 @@ const AlbumPage: FC = () => {
               onClick={() => playContext(tracks, tracks.findIndex(t => t.id === track.id), album)}
               onContextMenu={(e) => {
                 e.preventDefault();
-                setContextMenu({ x: e.pageX, y: e.pageY, track });
+                setContextMenu({ x: e.clientX, y: e.clientY, track });
               }}
             >
               <div className="track-number">
@@ -189,24 +190,54 @@ const AlbumPage: FC = () => {
     </div>
     
       {/* Context Menu */}
-      {contextMenu && contextMenu.track && (
-        <div style={{
-          position: 'absolute', top: contextMenu.y, left: contextMenu.x, zIndex: 1000,
-          background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '8px 0',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.5)', minWidth: '160px'
-        }}>
-          <div 
-            style={{ padding: '10px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-primary)', fontSize: '14px', transition: 'background 0.2s' }}
-            onClick={() => {
-              const token = localStorage.getItem('sn_token');
-              window.location.href = `${API_BASE_URL}/api/download/track/${contextMenu.track.id}?token=${token}`;
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-          >
-            <Download size={16} /> Download Track
+      {contextMenu && contextMenu.track && createPortal(
+        <>
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }} onClick={() => setContextMenu(null)} onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }} />
+          <div style={{
+            position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 1000,
+            background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '8px 0',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)', minWidth: '160px',
+            animation: 'fadeIn 0.1s ease'
+          }}>
+            <div 
+              style={{ padding: '10px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-primary)', fontSize: '14px', transition: 'background 0.2s' }}
+              onClick={() => {
+                insertNext(contextMenu.track);
+                setContextMenu(null);
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <PlaySquare size={16} /> Play Next
+            </div>
+            
+            <div 
+              style={{ padding: '10px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-primary)', fontSize: '14px', transition: 'background 0.2s' }}
+              onClick={() => {
+                enqueue(contextMenu.track);
+                setContextMenu(null);
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <ListPlus size={16} /> Add to Queue
+            </div>
+            
+            <div 
+              style={{ padding: '10px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-primary)', fontSize: '14px', transition: 'background 0.2s' }}
+              onClick={() => {
+                const token = localStorage.getItem('sn_token');
+                window.location.href = `${API_BASE_URL}/api/download/track/${contextMenu.track.id}?token=${token}`;
+                setContextMenu(null);
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              <Download size={16} /> Download Track
+            </div>
           </div>
-        </div>
+        </>,
+        document.body
       )}
     </div>
   );
