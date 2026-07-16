@@ -375,7 +375,7 @@ func (r *Repository) GetAlbums(ctx context.Context, artistID string, limit, offs
 // GetTracks returns tracks from the library. It can optionally be filtered by a specific album.
 func (r *Repository) GetTracks(ctx context.Context, albumID string, artistID string, limit, offset int) ([]models.Track, error) {
 	query := `
-		SELECT t.id, t.album_id, t.title, t.track_number, t.disc_number, t.duration_ms, t.format, t.bitrate, art.id, art.name
+		SELECT t.id, t.album_id, t.title, t.track_number, t.disc_number, t.duration_ms, t.format, t.bitrate, t.file_path, art.id, art.name
 		FROM tracks t
 		LEFT JOIN track_artists ta ON t.id = ta.track_id
 		LEFT JOIN artists art ON ta.artist_id = art.id
@@ -416,7 +416,7 @@ func (r *Repository) GetTracks(ctx context.Context, albumID string, artistID str
 	for rows.Next() {
 		var t models.Track
 		var artID, artName *string
-		if err := rows.Scan(&t.ID, &t.AlbumID, &t.Title, &t.TrackNumber, &t.DiscNumber, &t.DurationMs, &t.Format, &t.Bitrate, &artID, &artName); err != nil {
+		if err := rows.Scan(&t.ID, &t.AlbumID, &t.Title, &t.TrackNumber, &t.DiscNumber, &t.DurationMs, &t.Format, &t.Bitrate, &t.FilePath, &artID, &artName); err != nil {
 			return nil, err
 		}
 		if artID != nil {
