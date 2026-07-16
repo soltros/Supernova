@@ -12,8 +12,10 @@ Built with a highly-concurrent Go backend and a Progressive Web App (PWA) React 
 - **Last.fm Enrichment:** A background daemon automatically fetches missing artist bios, high-resolution imagery, and global popularity rankings without blocking the user interface.
 - **Scrub-Proof Scrobbling:** An internal playback engine calculates true listen thresholds, accurately logging your playback history independently of external services.
 - **Hearts & Playlists System:** Full relational schema to favorite tracks, albums, and artists. Supports custom user playlists, ordering, and robust JSON export/import data portability.
+- **Glassmorphism UI:** A stunning, highly dynamic React frontend built strictly around glassmorphism. It features blurred contextual backgrounds, smooth micro-animations, and viewport-aware right-click context menus rather than cheap native dialogs.
 - **Progressive Web App (PWA):** Installs directly to your Desktop, iOS, or Android homescreen as a standalone native-feeling application.
 - **Extensible Plugin Architecture:** An `interface`-based registry system allowing modular features like Internet Radio, synchronized lyrics, and third-party scrobblers to be added and enabled seamlessly.
+- **Comprehensive Wiki:** Full documentation covering the database architecture, design philosophy, API, and plugin internals is available on our [GitHub Wiki](https://github.com/soltros/Supernova/wiki).
 
 ## Getting Started
 
@@ -59,6 +61,8 @@ Authorization: Bearer <your_jwt_token>
 
 #### Streaming & Media
 - `GET /api/stream/{id}` - The core audio streaming endpoint. Supports HTTP Range Requests for seeking and buffering. Can be injected directly into `<audio src="...">` tags.
+- `GET /api/download/track/{id}` - Forces a raw file download of the requested track.
+- `GET /api/download/album/{id}` - Dynamically streams and compresses an entire album into a `.zip` archive on the fly.
 - `GET /api/art/album/{id}` - Serves extracted and highly-optimized embedded cover art.
 
 #### Authentication
@@ -195,17 +199,23 @@ A fully safe, non-destructive metadata enricher that fixes your library without 
 - **Background Processing:** Runs as an asynchronous background job, gracefully patching your Supernova database to fix "Unknown Artist" or generic "Track 1" entries.
 - **Database-Only Execution:** Ensures your pristine local file tags are never overwritten or corrupted.
 
-### 6. Artist Merger (`/api/plugins/artistmerger/*`)
+### 6. Album Merger (`/api/plugins/albummerger/*`)
+A critical library tool that consolidates split albums caused by minor variations in metadata tags (like mismatched release years).
+**Featureset:**
+- **Canonical Merging:** Groups albums with identical titles by the same artist and merges them into a single canonical record.
+- **Relational Re-routing:** Uses strict SQL transactions to safely migrate all tracks and user favorites over to the canonical album before deleting the duplicates.
+
+### 7. Artist Merger (`/api/plugins/artistmerger/*`)
 A powerful library cleaner that groups similar artists to eliminate frustrating duplicates from bad metadata.
 **Featureset:**
 - **String Normalization:** Intelligently strips out punctuation, spaces, and prefixes (like "The " or "A ") to find matches.
 - **Canonical Merging:** Automatically detects pairs like "Beatles" and "The Beatles" or "AC DC" and "AC/DC", picking the best formatted name as the canonical artist.
 - **Relational Re-routing:** Safely migrates all albums, tracks, and favorites pointing to the duplicates over to the canonical artist before deleting the orphaned records.
 
-### 7. Deduper ("Hide Duplicates") (`/api/plugins/deduper/*`)
-An automatic library cleaner that identifies duplicate tracks (same title, same album) and gracefully deletes the lower quality (lower bitrate) version from your database, keeping your library pristine.
+### 8. Deduper ("Hide Duplicates") (`/api/plugins/deduper/*`)
+An automatic library cleaner that identifies duplicate tracks (same title, same album) and gracefully masks the lower quality (lower bitrate) version from your database, keeping your library pristine without deleting user files.
 
-### 8. Podcasts (`/api/plugins/podcasts/*`)
+### 9. Podcasts (`/api/plugins/podcasts/*`)
 A powerful podcast client integrated directly into Supernova, powered by the open PodcastIndex directory.
 **Featureset:**
 - **Massive Directory:** Search and browse millions of podcasts using the PodcastIndex API.
