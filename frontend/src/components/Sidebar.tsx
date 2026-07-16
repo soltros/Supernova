@@ -1,5 +1,5 @@
 import type { FC } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePlaylists } from '../context/PlaylistsContext';
 
@@ -41,16 +41,16 @@ const Sidebar: FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen, onClo
         {playlists.length > 0 && (
           <div style={{ marginLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px', borderLeft: '1px solid var(--border-glass)', paddingLeft: '8px' }}>
             {playlists.map(playlist => (
-              <NavLink 
+              <Link 
                 key={playlist.id}
                 to="/playlists" 
                 state={{ selectedPlaylistId: playlist.id }}
-                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                className="nav-item"
                 style={{ fontSize: '13px', padding: '8px 12px', opacity: 0.8 }}
                 onClick={onClose}
               >
                 {playlist.name}
-              </NavLink>
+              </Link>
             ))}
           </div>
         )}

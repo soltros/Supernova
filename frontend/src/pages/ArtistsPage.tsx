@@ -12,16 +12,20 @@ const ArtistsPage: React.FC = () => {
   const [activeLetter, setActiveLetter] = useState<string>('A');
 
   useEffect(() => {
+    let isMounted = true;
     setLoading(true);
     apiService.fetchArtists(500, 0, activeLetter)
       .then(data => {
+        if (!isMounted) return;
         setArtists(data || []);
         setLoading(false);
       })
       .catch(err => {
+        if (!isMounted) return;
         console.error("Failed to fetch artists:", err);
         setLoading(false);
       });
+    return () => { isMounted = false; };
   }, [activeLetter]);
 
   return (

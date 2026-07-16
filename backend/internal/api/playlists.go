@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/soltros/Supernova/internal/models"
 )
@@ -34,6 +35,10 @@ func (s *Server) handleCreatePlaylist() http.HandlerFunc {
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request format", http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(req.Name) == "" {
+			http.Error(w, "playlist name is required", http.StatusBadRequest)
 			return
 		}
 
@@ -93,6 +98,10 @@ func (s *Server) handleAddTrackToPlaylist() http.HandlerFunc {
 			http.Error(w, "invalid request format", http.StatusBadRequest)
 			return
 		}
+		if req.TrackID == "" {
+			http.Error(w, "track_id is required", http.StatusBadRequest)
+			return
+		}
 
 		if err := s.repo.AddTrackToPlaylist(r.Context(), userID, playlistID, req.TrackID); err != nil {
 			http.Error(w, "failed to add track to playlist", http.StatusInternalServerError)
@@ -138,6 +147,7 @@ func (s *Server) handleImportPlaylists() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := r.Context().Value(userIDKey).(string)
 
+		r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
 		var backups []models.PlaylistBackup
 		if err := json.NewDecoder(r.Body).Decode(&backups); err != nil {
 			http.Error(w, "invalid backup format", http.StatusBadRequest)
@@ -145,7 +155,10 @@ func (s *Server) handleImportPlaylists() http.HandlerFunc {
 		}
 
 		for _, b := range backups {
-			_ = s.repo.ImportPlaylistBackup(r.Context(), userID, b)
+			if err := s.repo.ImportPlaylistBackup(r.Context(), userID, b); err != nil {
+				http.Error(w, "failed to import some playlists", http.StatusInternalServerError)
+				return
+			}
 		}
 
 		w.WriteHeader(http.StatusOK)

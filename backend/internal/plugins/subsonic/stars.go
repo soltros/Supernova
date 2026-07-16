@@ -22,7 +22,11 @@ func (p *SubsonicPlugin) resolveEntityType(ctx context.Context, id string) strin
 }
 
 func (p *SubsonicPlugin) handleStar(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(*models.User)
+	user, ok := r.Context().Value(userContextKey).(*models.User)
+	if !ok || user == nil {
+		p.writeError(w, r, 0, "Not authenticated")
+		return
+	}
 	
 	r.ParseForm()
 	ids := r.Form["id"]
@@ -44,7 +48,11 @@ func (p *SubsonicPlugin) handleStar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *SubsonicPlugin) handleUnstar(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(*models.User)
+	user, ok := r.Context().Value(userContextKey).(*models.User)
+	if !ok || user == nil {
+		p.writeError(w, r, 0, "Not authenticated")
+		return
+	}
 
 	r.ParseForm()
 	ids := r.Form["id"]
@@ -66,7 +74,11 @@ func (p *SubsonicPlugin) handleUnstar(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *SubsonicPlugin) handleGetStarred(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(*models.User)
+	user, ok := r.Context().Value(userContextKey).(*models.User)
+	if !ok || user == nil {
+		p.writeError(w, r, 0, "Not authenticated")
+		return
+	}
 
 	tracks, albums, artists, _, err := p.repo.GetHeartDetails(context.Background(), user.ID)
 	if err != nil {

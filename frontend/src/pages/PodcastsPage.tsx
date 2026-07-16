@@ -20,20 +20,18 @@ const PodcastsPage: React.FC = () => {
 
   const { internalPlay } = usePlayer();
 
-  const loadSubscriptions = async () => {
+  const loadSubscriptions = React.useCallback(async () => {
     try {
       const subs = await apiService.getPodcastSubscriptions();
       setSubscriptions(subs || []);
     } catch (err: any) {
       console.error(err);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (activeTab === 'subscriptions' && !selectedPodcast) {
-      loadSubscriptions();
-    }
-  }, [activeTab, selectedPodcast]);
+    loadSubscriptions();
+  }, [loadSubscriptions]);
 
   const searchPodcasts = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -47,7 +45,7 @@ const PodcastsPage: React.FC = () => {
       const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
       const response = await fetch(`${API_BASE_URL}/api/plugins/podcasts/search?q=${encodeURIComponent(query)}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('sn_token')}`
         }
       });
       if (!response.ok) {
@@ -77,7 +75,7 @@ const PodcastsPage: React.FC = () => {
       
       const response = await fetch(`${API_BASE_URL}/api/plugins/podcasts/episodes?id=${feedId}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('sn_token')}`
         }
       });
       if (!response.ok) {

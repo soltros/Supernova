@@ -88,7 +88,7 @@ const RadioPage: React.FC = () => {
       });
       if (!response.ok) throw new Error('Search failed');
       const data = await response.json();
-      setStations([...stations, ...(data || [])]);
+      setStations(prev => [...prev, ...(data || [])]);
       setOffset(newOffset);
       setHasMore((data || []).length === 50);
     } catch (err) {

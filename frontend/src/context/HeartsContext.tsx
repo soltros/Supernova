@@ -1,4 +1,4 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import type { FC, ReactNode } from 'react';
 import { apiService } from '../services/api';
 
@@ -28,7 +28,7 @@ export const HeartsProvider: FC<{ children: ReactNode }> = ({ children }) => {
     refreshHearts();
   }, [refreshHearts]);
 
-  const toggleHeart = async (entityType: string, entityId: string) => {
+  const toggleHeart = useCallback(async (entityType: string, entityId: string) => {
     const currentlyHearted = heartedIds.has(entityId);
     
     // Optimistic UI update
@@ -56,12 +56,16 @@ export const HeartsProvider: FC<{ children: ReactNode }> = ({ children }) => {
         return next;
       });
     }
-  };
+  }, [heartedIds]);
 
-  const isHearted = (entityId: string) => heartedIds.has(entityId);
+  const isHearted = useCallback((entityId: string) => heartedIds.has(entityId), [heartedIds]);
+
+  const value = React.useMemo(() => ({
+    heartedIds, toggleHeart, isHearted, refreshHearts
+  }), [heartedIds, toggleHeart, isHearted, refreshHearts]);
 
   return (
-    <HeartsContext.Provider value={{ heartedIds, toggleHeart, isHearted, refreshHearts }}>
+    <HeartsContext.Provider value={value}>
       {children}
     </HeartsContext.Provider>
   );

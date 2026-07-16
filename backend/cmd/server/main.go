@@ -104,7 +104,7 @@ func main() {
 		Addr:         ":" + port,
 		Handler:      apiServer,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: 0, // Disable for streaming; use per-route timeouts for API endpoints
 		IdleTimeout:  60 * time.Second,
 	}
 

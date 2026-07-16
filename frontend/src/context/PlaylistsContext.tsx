@@ -1,4 +1,4 @@
-import { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import type { FC, ReactNode } from 'react';
 import { apiService } from '../services/api';
 import type { Playlist } from '../types';
@@ -28,19 +28,23 @@ export const PlaylistsProvider: FC<{ children: ReactNode }> = ({ children }) => 
     refreshPlaylists();
   }, [refreshPlaylists]);
 
-  const createPlaylist = async (name: string) => {
+  const createPlaylist = useCallback(async (name: string) => {
     const newPlaylist = await apiService.createPlaylist(name);
     await refreshPlaylists();
     return newPlaylist;
-  };
+  }, [refreshPlaylists]);
 
-  const deletePlaylist = async (id: string) => {
+  const deletePlaylist = useCallback(async (id: string) => {
     await apiService.deletePlaylist(id);
     await refreshPlaylists();
-  };
+  }, [refreshPlaylists]);
+
+  const value = React.useMemo(() => ({
+    playlists, refreshPlaylists, createPlaylist, deletePlaylist
+  }), [playlists, refreshPlaylists, createPlaylist, deletePlaylist]);
 
   return (
-    <PlaylistsContext.Provider value={{ playlists, refreshPlaylists, createPlaylist, deletePlaylist }}>
+    <PlaylistsContext.Provider value={value}>
       {children}
     </PlaylistsContext.Provider>
   );

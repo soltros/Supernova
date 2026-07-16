@@ -3,6 +3,7 @@ package lastfm
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/soltros/Supernova/internal/database"
@@ -83,10 +84,10 @@ func (p *LastFmPlugin) handleGetAuthUrl(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Last.fm API key not configured on server", http.StatusServiceUnavailable)
 		return
 	}
-	url := "http://www.last.fm/api/auth/?api_key=" + apiKey + "&cb=" + cb
+	urlStr := "https://www.last.fm/api/auth/?api_key=" + url.QueryEscape(apiKey) + "&cb=" + url.QueryEscape(cb)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"url": url,
+		"url": urlStr,
 	})
 }
 

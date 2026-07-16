@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import type { FC, MouseEvent, ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronDown, Mic2, Maximize } from 'lucide-react';
@@ -57,9 +57,9 @@ const PlayerBar: FC = () => {
     seekTo(percent);
   };
 
-  const handleVolumeChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleVolumeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     changeVolume(parseFloat(e.target.value));
-  };
+  }, [changeVolume]);
 
   // If the browser hasn't calculated duration yet, fallback to our database metadata
   const displayDuration = duration || (currentTrack ? currentTrack.duration_ms / 1000 : 0);
@@ -85,7 +85,7 @@ const PlayerBar: FC = () => {
         <div className="album-art-container" style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
           {currentAlbum ? (
             <img 
-              src={(currentAlbum as any).cover_art_url ? (currentAlbum as any).cover_art_url : `${API_BASE_URL}/api/art/album/${currentAlbum.id}`} 
+              src={currentAlbum.cover_art_url ? currentAlbum.cover_art_url : `${API_BASE_URL}/api/art/album/${currentAlbum.id}`} 
               alt="art"
               className={`track-art-small ${isPlaying ? 'playing' : ''}`}
               onError={(e) => {

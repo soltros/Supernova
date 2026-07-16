@@ -18,7 +18,7 @@ interface PlayerState {
   togglePlay: () => void;
   seekTo: (percent: number) => void;
   changeVolume: (level: number) => void;
-  internalPlay: (track: Track, album: Album, options?: any) => void;
+  internalPlay: (track: Track, album: Album, options?: { podcast_episode_id?: string, start_position_ms?: number }) => void;
   insertNext: (track: Track) => void;
   enqueue: (track: Track) => void;
 }
@@ -168,7 +168,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     };
   }, []);
 
-  const internalPlay = async (track: Track, album: Album, options?: { podcast_episode_id?: string, start_position_ms?: number }) => {
+  const internalPlay = useCallback(async (track: Track, album: Album, options?: { podcast_episode_id?: string, start_position_ms?: number }) => {
     hasScrobbledRef.current = false;
     accumulatedPlayTimeRef.current = 0;
     lastTimeRef.current = 0;
@@ -228,9 +228,9 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         ]
       });
     }
-  };
+  }, []);
 
-  const playContext = useCallback((tracks: Track[], startIndex: number, album: Album) => {
+  const playContext = useCallback(async (tracks: Track[], startIndex: number, album: Album) => {
     setQueue(tracks);
     setQueueIndex(startIndex);
     
@@ -238,11 +238,10 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     queueIndexRef.current = startIndex;
     albumRef.current = album;
     
-    internalPlay(tracks[startIndex], album);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    await internalPlay(tracks[startIndex], album);
+  }, [internalPlay]);
 
-  const insertNext = (track: Track) => {
+  const insertNext = useCallback((track: Track) => {
     if (queueRef.current.length === 0) {
       if (currentAlbum) playContext([track], 0, currentAlbum);
       return;
@@ -251,9 +250,9 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     newQueue.splice(queueIndexRef.current + 1, 0, track);
     setQueue(newQueue);
     queueRef.current = newQueue;
-  };
+  }, [currentAlbum, playContext]);
 
-  const enqueue = (track: Track) => {
+  const enqueue = useCallback((track: Track) => {
     if (queueRef.current.length === 0) {
       if (currentAlbum) playContext([track], 0, currentAlbum);
       return;
@@ -261,14 +260,15 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const newQueue = [...queueRef.current, track];
     setQueue(newQueue);
     queueRef.current = newQueue;
-  };
+  }, [currentAlbum, playContext]);
 
-  const playNext = () => {
+  const playNext = useCallback(() => {
     if (queueIndexRef.current < queueRef.current.length - 1) {
       const nextIdx = queueIndexRef.current + 1;
       setQueueIndex(nextIdx);
       queueIndexRef.current = nextIdx;
-      internalPlay(queueRef.current[nextIdx], albumRef.current!);
+      if (!albumRef.current) return;
+      internalPlay(queueRef.current[nextIdx], albumRef.current);
     } else {
       setIsPlaying(false);
       if (audioRef.current) {
@@ -276,9 +276,9 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         audioRef.current.currentTime = 0;
       }
     }
-  };
+  }, [internalPlay]);
 
-  const playPrev = () => {
+  const playPrev = useCallback(() => {
     if (!audioRef.current) return;
     
     if (audioRef.current.currentTime > 3) {
@@ -290,14 +290,15 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       const prevIdx = queueIndexRef.current - 1;
       setQueueIndex(prevIdx);
       queueIndexRef.current = prevIdx;
-      internalPlay(queueRef.current[prevIdx], albumRef.current!);
+      if (!albumRef.current) return;
+      internalPlay(queueRef.current[prevIdx], albumRef.current);
     }
-  };
+  }, [internalPlay]);
 
   playNextRef.current = playNext;
   playPrevRef.current = playPrev;
 
-  const togglePlay = async () => {
+  const togglePlay = useCallback(async () => {
     if (!audioRef.current || !currentTrack) return;
     
     if (playPromiseRef.current) {
@@ -314,9 +315,9 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
         console.log("Playback resumed and instantly interrupted.");
       }
     }
-  };
+  }, [currentTrack, isPlaying]);
 
-  const seekTo = (percent: number) => {
+  const seekTo = useCallback((percent: number) => {
     if (!audioRef.current) return;
     const activeDuration = duration || (currentTrack ? currentTrack.duration_ms / 1000 : 0);
     if (!activeDuration) return;
@@ -324,14 +325,14 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const newTime = (percent / 100) * activeDuration;
     audioRef.current.currentTime = newTime;
     lastTimeRef.current = newTime; // Prevent scrub spikes
-  };
+  }, [currentTrack, duration]);
 
-  const changeVolume = (level: number) => {
+  const changeVolume = useCallback((level: number) => {
     if (!audioRef.current) return;
     const safeLevel = Math.max(0, Math.min(1, level));
     audioRef.current.volume = safeLevel;
     setVolume(safeLevel);
-  };
+  }, []);
 
   const value = useMemo(() => ({
     currentTrack, currentAlbum, isPlaying, 

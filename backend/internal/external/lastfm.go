@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const lastFmBaseURL = "http://ws.audioscrobbler.com/2.0/"
+const lastFmBaseURL = "https://ws.audioscrobbler.com/2.0/"
 
 // LastFmClient handles communication with the Last.fm API
 type LastFmClient struct {
@@ -463,7 +463,7 @@ func (c *LastFmClient) ScrapeArtistImage(artistName string) string {
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := io.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024)) // 1MB limit
 	if err != nil {
 		return ""
 	}

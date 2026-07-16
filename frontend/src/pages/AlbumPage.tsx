@@ -140,13 +140,13 @@ const AlbumPage: FC = () => {
 
         {/* Tracklist */}
         <div className="track-list">
-        {tracks.map(track => {
+        {tracks.map((track, index) => {
           const isThisTrackPlaying = currentTrack?.id === track.id;
           return (
             <div 
               key={track.id} 
               className={`track-row ${isThisTrackPlaying ? 'playing' : ''}`}
-              onClick={() => playContext(tracks, tracks.findIndex(t => t.id === track.id), album)}
+              onClick={() => playContext(tracks, index, album)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 setContextMenu({ x: e.clientX, y: e.clientY, track });

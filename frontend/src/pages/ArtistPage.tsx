@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { useParams } from 'react-router-dom';
 import { Play, Download } from 'lucide-react';
@@ -23,6 +23,11 @@ const ArtistPage: FC = () => {
   
   const [artist, setArtist] = useState<Artist | null>(null);
   const [albums, setAlbums] = useState<Album[]>([]);
+  
+  const mockArtistAlbum = React.useMemo(() => {
+    if (!artist) return null;
+    return { id: `artist-${artist.id}`, title: `${artist.name} Top Tracks`, release_year: 0, cover_art_path: '', artist_id: artist.id, artist_name: artist.name } as Album;
+  }, [artist]);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDownloadingDiscography, setIsDownloadingDiscography] = useState(false);
@@ -141,8 +146,8 @@ const ArtistPage: FC = () => {
               transition: 'var(--transition-fast)'
             }}
             onClick={() => {
-              if (tracks.length > 0) {
-                playContext(tracks, 0, { id: `artist-${artist.id}`, title: `${artist.name} Top Tracks`, release_year: 0, cover_art_path: '', artist_id: artist.id, artist_name: artist.name } as Album);
+              if (tracks.length > 0 && mockArtistAlbum) {
+                playContext(tracks, 0, mockArtistAlbum);
               }
             }}
             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
@@ -204,7 +209,7 @@ const ArtistPage: FC = () => {
                   <div 
                     key={track.id}
                     className={`track-row ${isCurrentlyPlaying ? 'playing' : ''}`}
-                    onDoubleClick={() => playContext(tracks, index, { id: `artist-${artist.id}`, title: `${artist.name} Top Tracks`, release_year: 0, cover_art_path: '', artist_id: artist.id, artist_name: artist.name } as Album)}
+                    onDoubleClick={() => { if (mockArtistAlbum) playContext(tracks, index, mockArtistAlbum); }}
                   >
                     <div className="track-number">
                       {isCurrentlyPlaying && isPlaying ? (
@@ -223,7 +228,7 @@ const ArtistPage: FC = () => {
                         className="play-btn-small" 
                         onClick={(e) => {
                           e.stopPropagation();
-                          playContext(tracks, index, { id: `artist-${artist.id}`, title: `${artist.name} Top Tracks`, release_year: 0, cover_art_path: '', artist_id: artist.id, artist_name: artist.name } as Album);
+                          if (mockArtistAlbum) playContext(tracks, index, mockArtistAlbum);
                         }}
                       >
                         <Play size={18} fill="currentColor" />

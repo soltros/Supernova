@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 )
 
 type Manager struct {
@@ -12,16 +13,19 @@ type Manager struct {
 	enabled  map[string]bool
 }
 
-var globalManager *Manager
+var (
+	globalManager *Manager
+	once          sync.Once
+)
 
 // GetManager returns the singleton plugin manager, initializing it if necessary
 func GetManager() *Manager {
-	if globalManager == nil {
+	once.Do(func() {
 		globalManager = &Manager{
 			registry: make(map[string]Plugin),
 			enabled:  make(map[string]bool),
 		}
-	}
+	})
 	return globalManager
 }
 

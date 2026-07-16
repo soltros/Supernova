@@ -43,6 +43,10 @@ func (p *ArtistMergerPlugin) SetupRoutes(mux *http.ServeMux) {
 }
 
 func (p *ArtistMergerPlugin) handleRunMerger(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	go p.runMergeJob()
 	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte(`{"status": "artist-merger job started in background"}`))
@@ -115,21 +119,46 @@ func (p *ArtistMergerPlugin) runMergeJob() {
 				
 				log.Printf("[ArtistMerger] Merging '%s' into '%s'\n", a.name, canonical.name)
 
+				tx, err := db.BeginTx(ctx, nil)
+				if err != nil {
+					log.Printf("[ArtistMerger] Failed to begin transaction: %v", err)
+					continue
+				}
+
 				// Update album_artists
-				_, err := db.ExecContext(ctx, "UPDATE OR IGNORE album_artists SET artist_id = ? WHERE artist_id = ?", canonical.id, a.id)
-				if err == nil {
-					db.ExecContext(ctx, "DELETE FROM album_artists WHERE artist_id = ?", a.id)
+				_, err = tx.ExecContext(ctx, "UPDATE OR IGNORE album_artists SET artist_id = ? WHERE artist_id = ?", canonical.id, a.id)
+				if err != nil {
+					tx.Rollback()
+					continue
+				}
+				_, err = tx.ExecContext(ctx, "DELETE FROM album_artists WHERE artist_id = ?", a.id)
+				if err != nil {
+					tx.Rollback()
+					continue
 				}
 
 				// Update track_artists
-				_, err = db.ExecContext(ctx, "UPDATE OR IGNORE track_artists SET artist_id = ? WHERE artist_id = ?", canonical.id, a.id)
-				if err == nil {
-					db.ExecContext(ctx, "DELETE FROM track_artists WHERE artist_id = ?", a.id)
+				_, err = tx.ExecContext(ctx, "UPDATE OR IGNORE track_artists SET artist_id = ? WHERE artist_id = ?", canonical.id, a.id)
+				if err != nil {
+					tx.Rollback()
+					continue
+				}
+				_, err = tx.ExecContext(ctx, "DELETE FROM track_artists WHERE artist_id = ?", a.id)
+				if err != nil {
+					tx.Rollback()
+					continue
 				}
 
 				// Delete duplicate artist
-				db.ExecContext(ctx, "DELETE FROM artists WHERE id = ?", a.id)
-				mergeCount++
+				_, err = tx.ExecContext(ctx, "DELETE FROM artists WHERE id = ?", a.id)
+				if err != nil {
+					tx.Rollback()
+					continue
+				}
+
+				if err := tx.Commit(); err == nil {
+					mergeCount++
+				}
 			}
 		}
 	}

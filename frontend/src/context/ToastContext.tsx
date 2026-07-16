@@ -30,19 +30,30 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null);
 
-  const addToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  const timeoutsRef = React.useRef(new Map<number, ReturnType<typeof setTimeout>>());
+
+  const removeToast = React.useCallback((id: number) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+    if (timeoutsRef.current.has(id)) {
+      clearTimeout(timeoutsRef.current.get(id));
+      timeoutsRef.current.delete(id);
+    }
+  }, []);
+
+  const addToast = React.useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
+    const timeout = setTimeout(() => {
+      removeToast(id);
     }, 5000);
-  };
+    timeoutsRef.current.set(id, timeout);
+  }, [removeToast]);
 
-  const confirm = (message: string): Promise<boolean> => {
+  const confirm = React.useCallback((message: string): Promise<boolean> => {
     return new Promise((resolve) => {
       setConfirmDialog({ message, resolve });
     });
-  };
+  }, []);
 
   const handleConfirm = (result: boolean) => {
     if (confirmDialog) {
@@ -51,8 +62,10 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
+  const value = React.useMemo(() => ({ addToast, confirm }), [addToast, confirm]);
+
   return (
-    <ToastContext.Provider value={{ addToast, confirm }}>
+    <ToastContext.Provider value={value}>
       {children}
       
       {/* Toast Container */}
@@ -72,7 +85,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             {toast.type === 'error' && <AlertCircle color="#ef4444" size={20} />}
             {toast.type === 'info' && <Info color="var(--accent-primary)" size={20} />}
             <span style={{ flex: 1, fontSize: '14px', lineHeight: '1.4' }}>{toast.message}</span>
-            <button onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+            <button onClick={() => removeToast(toast.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
               <X size={16} />
             </button>
           </div>

@@ -7,23 +7,26 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret []byte
+var (
+	jwtSecret     []byte
+	jwtSecretOnce sync.Once
+)
 
 func getJWTSecret() []byte {
-	if jwtSecret != nil {
-		return jwtSecret
-	}
-	secret := os.Getenv("JWT_SECRET")
-	if len(secret) < 32 {
-		log.Fatal("FATAL: JWT_SECRET env var must be set and at least 32 characters long. Set it before starting the server.")
-	}
-	jwtSecret = []byte(secret)
+	jwtSecretOnce.Do(func() {
+		secret := os.Getenv("JWT_SECRET")
+		if len(secret) < 32 {
+			log.Fatal("FATAL: JWT_SECRET env var must be set and at least 32 characters long. Set it before starting the server.")
+		}
+		jwtSecret = []byte(secret)
+	})
 	return jwtSecret
 }
 

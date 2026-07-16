@@ -5,11 +5,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/soltros/Supernova/internal/models"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type contextKey string
+const userContextKey contextKey = "subsonic_user"
 
 // auth middleware checks the subsonic credentials (u, p or u, t, s)
 func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
@@ -70,7 +74,7 @@ func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// Store user in context
-		ctx := context.WithValue(r.Context(), "user", user)
+		ctx := context.WithValue(r.Context(), userContextKey, user)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
@@ -82,10 +86,16 @@ func (p *SubsonicPlugin) writeResponse(w http.ResponseWriter, r *http.Request, d
 	}
 
 	response := map[string]interface{}{
-		"status":  "ok",
 		"version": "1.16.1",
 		"type":    "supernova",
 	}
+	
+	status := "ok"
+	if s, ok := data["status"].(string); ok {
+		status = s
+		delete(data, "status")
+	}
+	response["status"] = status
 	
 	for k, v := range data {
 		response[k] = v
@@ -353,11 +363,15 @@ func (p *SubsonicPlugin) handleStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Not found", 404)
 		return
 	}
+	if !strings.HasPrefix(track.FilePath, os.Getenv("MEDIA_PATH")) {
+		http.Error(w, "Access denied", http.StatusForbidden)
+		return
+	}
 	http.ServeFile(w, r, track.FilePath)
 }
 
 func (p *SubsonicPlugin) handleGetPlaylists(w http.ResponseWriter, r *http.Request) {
-	u, ok := r.Context().Value("user").(*models.User)
+	u, ok := r.Context().Value(userContextKey).(*models.User)
 	if !ok || u == nil {
 		p.writeError(w, r, 0, "Not authenticated")
 		return
@@ -395,7 +409,7 @@ func (p *SubsonicPlugin) handleGetPlaylists(w http.ResponseWriter, r *http.Reque
 }
 
 func (p *SubsonicPlugin) handleGetPlaylist(w http.ResponseWriter, r *http.Request) {
-	u, ok := r.Context().Value("user").(*models.User)
+	u, ok := r.Context().Value(userContextKey).(*models.User)
 	if !ok || u == nil {
 		p.writeError(w, r, 0, "Not authenticated")
 		return
@@ -479,7 +493,7 @@ func (p *SubsonicPlugin) handleGetAlbumList(w http.ResponseWriter, r *http.Reque
 	var err error
 
 	if listType == "starred" {
-		u, ok := r.Context().Value("user").(*models.User)
+		u, ok := r.Context().Value(userContextKey).(*models.User)
 		if ok && u != nil {
 			_, albums, _, _, err = p.repo.GetHeartDetails(context.Background(), u.ID)
 		} else {

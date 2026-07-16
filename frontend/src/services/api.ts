@@ -2,6 +2,8 @@ import type { Album, Artist, Track, AuthResponse, Playlist } from '../types';
 
 const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
 
+const lyricsCache: Record<string, any> = {};
+
 const getHeaders = () => {
   const token = localStorage.getItem('sn_token');
   return {
@@ -25,6 +27,7 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
       localStorage.removeItem('sn_user');
       localStorage.removeItem('sn_token');
       window.dispatchEvent(new Event('auth_error'));
+      throw new Error("Unauthorized");
     }
     return response;
   } catch (error) {
@@ -127,7 +130,7 @@ export const apiService = {
   addHeart: async (entityType: string, entityId: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts`, {
       method: 'POST',
-      headers: getHeaders(),
+      
       body: JSON.stringify({ entity_type: entityType, entity_id: entityId })
     });
     if (!response.ok) throw new Error('Failed to add heart');
@@ -135,8 +138,7 @@ export const apiService = {
 
   removeHeart: async (entityType: string, entityId: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts?entity_type=${entityType}&entity_id=${entityId}`, {
-      method: 'DELETE',
-      headers: getHeaders()
+      method: 'DELETE'
     });
     if (!response.ok) throw new Error('Failed to remove heart');
   },
@@ -144,7 +146,7 @@ export const apiService = {
   importHearts: async (file: File): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts/import`, {
       method: 'POST',
-      headers: getHeaders(),
+      
       body: await file.text()
     });
     if (!response.ok) throw new Error('Failed to import hearts');
@@ -153,37 +155,51 @@ export const apiService = {
   // Settings
   resetArtists: async (): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/settings/reset-artists`, {
-      method: 'POST',
-      headers: getHeaders()
+      method: 'POST'
     });
     if (!response.ok) throw new Error('Failed to reset artists');
   },
 
   scanLibrary: async (): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/scan`, {
-      method: 'POST',
-      headers: getHeaders()
+      method: 'POST'
     });
     if (!response.ok) throw new Error('Failed to scan library');
   },
 
   getScanProgress: async (): Promise<{status: string, files_scanned: number}> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/scan/progress`, {
-      headers: getHeaders()
-    });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/scan/progress`);
     if (!response.ok) throw new Error('Failed to fetch scan progress');
     return response.json();
   },
 
   getPlugins: async (): Promise<any[]> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins`, {
-      headers: getHeaders()
-    });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins`);
     if (!response.ok) throw new Error('Failed to fetch plugins');
     return response.json();
   },
 
+  runPluginJob: async (pluginId: string): Promise<void> => {
+    await fetchWithAuth(`${API_BASE_URL}/api/plugins/${pluginId}/run`, { method: 'POST' });
+  },
+
+  getLastFmAuthUrl: async (cb: string): Promise<{url: string}> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/lastfm/auth-url?cb=${encodeURIComponent(cb)}`);
+    return response.json();
+  },
+
+  exchangeLastFmToken: async (token: string): Promise<{session_key: string}> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/lastfm/session`, {
+      method: 'POST',
+      body: JSON.stringify({ token })
+    });
+    return response.json();
+  },
+
   getLyrics: async (artist: string, track: string, album: string, durationSec: number): Promise<any> => {
+    const cacheKey = `${artist}-${track}-${album}-${durationSec}`;
+    if (lyricsCache[cacheKey]) return lyricsCache[cacheKey];
+
     const params = new URLSearchParams({
       artist_name: artist,
       track_name: track,
@@ -191,18 +207,18 @@ export const apiService = {
       duration: (durationSec || 0).toString()
     });
     // This goes through the backend plugin to avoid CORS and allow caching/rate-limiting
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/lrclib/lyrics?${params}`, {
-      headers: getHeaders()
-    });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/lrclib/lyrics?${params}`);
     if (!response.ok) throw new Error('Lyrics not found');
-    return response.json();
+    const data = await response.json();
+    lyricsCache[cacheKey] = data;
+    return data;
   },
 
   // Scrobbling
   scrobbleTrack: async (trackId: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/scrobbles`, {
       method: 'POST',
-      headers: getHeaders(),
+      
       body: JSON.stringify({ track_id: trackId })
     });
     if (!response.ok) throw new Error('Failed to scrobble track');
@@ -211,7 +227,7 @@ export const apiService = {
   scrobbleToLastFm: async (sessionKey: string, artist: string, track: string, timestamp: number): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/lastfm/scrobble`, {
       method: 'POST',
-      headers: getHeaders(),
+      
       body: JSON.stringify({ session_key: sessionKey, artist, track, timestamp })
     });
     if (!response.ok) throw new Error('Failed to scrobble to Last.fm');
@@ -220,21 +236,21 @@ export const apiService = {
   updateNowPlayingToLastFm: async (sessionKey: string, artist: string, track: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/lastfm/nowplaying`, {
       method: 'POST',
-      headers: getHeaders(),
+      
       body: JSON.stringify({ session_key: sessionKey, artist, track })
     });
     if (!response.ok) throw new Error('Failed to update now playing to Last.fm');
   },
   
   getRecentScrobbles: async (): Promise<Track[]> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/scrobbles/recent`, { headers: getHeaders() });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/scrobbles/recent`);
     if (!response.ok) throw new Error('Failed to fetch recent scrobbles');
     return response.json();
   },
 
   // Playlists API
   fetchPlaylists: async (): Promise<Playlist[]> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists`, { headers: getHeaders() });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists`);
     if (!response.ok) throw new Error('Failed to fetch playlists');
     return response.json();
   },
@@ -242,7 +258,7 @@ export const apiService = {
   createPlaylist: async (name: string): Promise<Playlist> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists`, {
       method: 'POST',
-      headers: getHeaders(),
+      
       body: JSON.stringify({ name })
     });
     if (!response.ok) throw new Error('Failed to create playlist');
@@ -251,14 +267,13 @@ export const apiService = {
 
   deletePlaylist: async (id: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/${id}`, {
-      method: 'DELETE',
-      headers: getHeaders()
+      method: 'DELETE'
     });
     if (!response.ok) throw new Error('Failed to delete playlist');
   },
 
   fetchPlaylistTracks: async (id: string): Promise<Track[]> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/${id}/tracks`, { headers: getHeaders() });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/${id}/tracks`);
     if (!response.ok) throw new Error('Failed to fetch playlist tracks');
     return response.json();
   },
@@ -266,7 +281,7 @@ export const apiService = {
   addTrackToPlaylist: async (playlistId: string, trackId: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/${playlistId}/tracks`, {
       method: 'POST',
-      headers: getHeaders(),
+      
       body: JSON.stringify({ track_id: trackId })
     });
     if (!response.ok) throw new Error('Failed to add track to playlist');
@@ -274,14 +289,13 @@ export const apiService = {
 
   removeTrackFromPlaylist: async (playlistId: string, trackId: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/${playlistId}/tracks/${trackId}`, {
-      method: 'DELETE',
-      headers: getHeaders()
+      method: 'DELETE'
     });
     if (!response.ok) throw new Error('Failed to remove track from playlist');
   },
 
   exportPlaylists: async (): Promise<void> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/export`, { headers: getHeaders() });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/export`);
     if (!response.ok) throw new Error('Failed to export playlists');
     
     // Trigger download
@@ -299,7 +313,7 @@ export const apiService = {
   importPlaylists: async (file: File): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/playlists/import`, {
       method: 'POST',
-      headers: getHeaders(),
+      
       body: await file.text()
     });
     if (!response.ok) throw new Error('Failed to import playlists');
@@ -307,7 +321,7 @@ export const apiService = {
 
   // Podcasts API
   getPodcastSubscriptions: async (): Promise<any[]> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/subscriptions`, { headers: getHeaders() });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/subscriptions`);
     if (!response.ok) throw new Error('Failed to fetch subscriptions');
     return response.json();
   },
@@ -315,7 +329,7 @@ export const apiService = {
   subscribeToPodcast: async (feedId: string, feedUrl: string, title: string, imageUrl: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/subscriptions`, {
       method: 'POST',
-      headers: getHeaders(),
+      
       body: JSON.stringify({ feed_id: feedId, feed_url: feedUrl, title: title, image_url: imageUrl })
     });
     if (!response.ok) throw new Error('Failed to subscribe');
@@ -323,14 +337,13 @@ export const apiService = {
 
   unsubscribeFromPodcast: async (feedId: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/subscriptions?feed_id=${feedId}`, {
-      method: 'DELETE',
-      headers: getHeaders()
+      method: 'DELETE'
     });
     if (!response.ok) throw new Error('Failed to unsubscribe');
   },
 
   exportOPML: async (): Promise<void> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/opml/export`, { headers: getHeaders() });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/opml/export`);
     if (!response.ok) throw new Error('Failed to export OPML');
     
     const blob = await response.blob();
@@ -373,7 +386,7 @@ export const apiService = {
   savePodcastProgress: async (episodeId: string, positionMs: number, completed: boolean): Promise<void> => {
     await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/progress`, {
       method: 'POST',
-      headers: getHeaders(),
+      
       body: JSON.stringify({ episode_id: episodeId, position_ms: positionMs, completed })
     });
   },
@@ -382,7 +395,7 @@ export const apiService = {
     if (episodeIds.length === 0) return {};
     const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/progress/batch`, {
       method: 'POST',
-      headers: getHeaders(),
+      
       body: JSON.stringify({ episode_ids: episodeIds })
     });
     if (!response.ok) throw new Error('Failed to fetch progress');
@@ -391,7 +404,7 @@ export const apiService = {
 
   // Radio API
   getRadioSubscriptions: async (): Promise<any[]> => {
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/radio/subscriptions`, { headers: getHeaders() });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/radio/subscriptions`);
     if (!response.ok) throw new Error('Failed to fetch subscriptions');
     return response.json();
   },
@@ -399,7 +412,7 @@ export const apiService = {
   subscribeToRadio: async (stationId: string, url: string, name: string, favicon: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/radio/subscriptions`, {
       method: 'POST',
-      headers: getHeaders(),
+      
       body: JSON.stringify({ station_id: stationId, url, name, favicon })
     });
     if (!response.ok) throw new Error('Failed to subscribe');
@@ -407,8 +420,7 @@ export const apiService = {
 
   unsubscribeFromRadio: async (stationId: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/radio/subscriptions?station_id=${stationId}`, {
-      method: 'DELETE',
-      headers: getHeaders()
+      method: 'DELETE'
     });
     if (!response.ok) throw new Error('Failed to unsubscribe');
   }

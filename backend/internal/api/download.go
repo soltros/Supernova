@@ -26,6 +26,8 @@ func (s *Server) handleDownloadTrack() http.HandlerFunc {
 		}
 
 		safeTitle := strings.ReplaceAll(track.Title, "\"", "'")
+		safeTitle = strings.ReplaceAll(safeTitle, "\n", " ")
+		safeTitle = strings.ReplaceAll(safeTitle, "\r", "")
 		filename := fmt.Sprintf("%s%s", safeTitle, filepath.Ext(track.FilePath))
 
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
@@ -56,6 +58,17 @@ func (s *Server) handleDownloadAlbum() http.HandlerFunc {
 		}
 
 		safeTitle := strings.ReplaceAll(album.Title, "\"", "'")
+		safeTitle = strings.ReplaceAll(safeTitle, "\n", " ")
+		safeTitle = strings.ReplaceAll(safeTitle, "\r", "")
+
+		// Pre-check files exist
+		for _, track := range tracks {
+			if _, err := os.Stat(track.FilePath); err != nil {
+				http.Error(w, "one or more track files are missing from disk", http.StatusInternalServerError)
+				return
+			}
+		}
+
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.zip"`, safeTitle))
 		w.Header().Set("Content-Type", "application/zip")
 

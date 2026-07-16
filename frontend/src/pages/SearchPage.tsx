@@ -21,22 +21,31 @@ const SearchPage: FC = () => {
 
   useEffect(() => {
     if (!query) return;
+    
+    let isMounted = true;
 
     const fetchResults = async () => {
       setLoading(true);
+      setArtists([]);
+      setAlbums([]);
+      setTracks([]);
       try {
         const results = await apiService.search(query);
+        if (!isMounted) return;
         setArtists(results.artists || []);
         setAlbums(results.albums || []);
         setTracks(results.tracks || []);
       } catch (error) {
+        if (!isMounted) return;
         console.error('Search failed:', error);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     fetchResults();
+    
+    return () => { isMounted = false; };
   }, [query]);
 
   if (!query) {

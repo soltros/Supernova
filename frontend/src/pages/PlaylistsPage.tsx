@@ -15,17 +15,17 @@ export const PlaylistsPage: React.FC = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const loading = false;
   const { playContext } = usePlayer();
   const location = useLocation();
 
   useEffect(() => {
     let isMounted = true;
-    const state = location.state as { selectedPlaylistId?: string };
-    if (state?.selectedPlaylistId) {
-      const playlist = playlists.find(p => p.id === state.selectedPlaylistId);
-      if (playlist && (!selectedPlaylist || selectedPlaylist.id !== playlist.id)) {
-        setSelectedPlaylist(playlist);
+    const selectedPlaylistId = (location.state as { selectedPlaylistId?: string })?.selectedPlaylistId;
+    if (selectedPlaylistId) {
+      const playlist = playlists.find(p => p.id === selectedPlaylistId);
+      if (playlist) {
+        // Prevent setting the exact same object to avoid unnecessary re-renders
+        setSelectedPlaylist(prev => (prev?.id === playlist.id ? playlist : playlist));
         apiService.fetchPlaylistTracks(playlist.id)
           .then(t => {
             if (isMounted) setTracks(t || []);
@@ -34,7 +34,7 @@ export const PlaylistsPage: React.FC = () => {
       }
     }
     return () => { isMounted = false; };
-  }, [location.state, playlists, selectedPlaylist]);
+  }, [(location.state as any)?.selectedPlaylistId, playlists]);
 
   const handleCreatePlaylist = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,9 +100,6 @@ export const PlaylistsPage: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return <div className="content-scroll"><h2 className="section-title">Loading...</h2></div>;
-  }
 
   return (
     <div className="content-scroll">

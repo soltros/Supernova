@@ -14,13 +14,7 @@ const SettingsPage: React.FC = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     if (token) {
-      const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
-      fetch(`${API_BASE_URL}/api/plugins/lastfm/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
-      })
-      .then(r => r.json())
+      apiService.exchangeLastFmToken(token)
       .then(data => {
         if (data.session_key) {
           localStorage.setItem('lastfm_session', data.session_key);
@@ -148,8 +142,7 @@ const SettingsPage: React.FC = () => {
               {plugins.some(p => p.id === 'autotagger' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
-                    fetch(`${API_BASE_URL}/api/plugins/autotagger/run`, { method: 'POST' });
+                    apiService.runPluginJob('autotagger').catch(console.error);
                     addToast("Auto-tagging job started in the background. Check backend logs for progress.", "success");
                   }}
                   style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
@@ -161,8 +154,7 @@ const SettingsPage: React.FC = () => {
               {plugins.some(p => p.id === 'artistmerger' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
-                    fetch(`${API_BASE_URL}/api/plugins/artistmerger/run`, { method: 'POST' });
+                    apiService.runPluginJob('artistmerger').catch(console.error);
                     addToast("Artist merger job started in the background. Check backend logs for progress.", "success");
                   }}
                   style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
@@ -174,8 +166,7 @@ const SettingsPage: React.FC = () => {
               {plugins.some(p => p.id === 'deduper' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
-                    fetch(`${API_BASE_URL}/api/plugins/deduper/run`, { method: 'POST' });
+                    apiService.runPluginJob('deduper').catch(console.error);
                     addToast("Hide Duplicates job started in the background. Check backend logs for progress.", "success");
                   }}
                   style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
@@ -187,8 +178,7 @@ const SettingsPage: React.FC = () => {
               {plugins.some(p => p.id === 'albummerger' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
-                    fetch(`${API_BASE_URL}/api/plugins/albummerger/run`, { method: 'POST' });
+                    apiService.runPluginJob('albummerger').catch(console.error);
                     addToast("Album merger job started in the background. Check backend logs for progress.", "success");
                   }}
                   style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', color: '#3b82f6', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
@@ -237,9 +227,7 @@ const SettingsPage: React.FC = () => {
                 <button 
                   onClick={() => {
                     const cb = window.location.origin + "/settings";
-                    const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
-                    fetch(`${API_BASE_URL}/api/plugins/lastfm/auth-url?cb=${encodeURIComponent(cb)}`)
-                      .then(r => r.json())
+                    apiService.getLastFmAuthUrl(cb)
                       .then(data => {
                         if (data.url) {
                           window.location.href = data.url;

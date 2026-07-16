@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/plugins"
@@ -90,7 +91,7 @@ func (p *DeduperPlugin) runDeduperJob() {
 	deleteCount := 0
 
 	for _, t := range allTracks {
-		key := t.title + "|" + t.album
+		key := strings.ToLower(t.title) + "|" + strings.ToLower(t.album)
 		if seen[key] {
 			// It's a duplicate and since we ordered by bitrate DESC, this is the lower quality one.
 			// We delete it from the database so it's "hidden" from the UI.

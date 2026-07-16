@@ -82,16 +82,13 @@ func (r *Repository) AddTrackToPlaylist(ctx context.Context, userID, playlistID,
 	if err != nil {
 		return fmt.Errorf("playlist not found or unauthorized")
 	}
-	var maxPos int
-	_ = r.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(position), 0) FROM playlist_tracks WHERE playlist_id = ?`, playlistID).Scan(&maxPos)
-
 	// Only lock for the actual write
 	r.writeMu.Lock()
 	defer r.writeMu.Unlock()
 	_, err = r.db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position)
-		VALUES (?, ?, ?)
-	`, playlistID, trackID, maxPos+1)
+		VALUES (?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM playlist_tracks WHERE playlist_id = ?))
+	`, playlistID, trackID, playlistID)
 	return err
 }
 
@@ -179,7 +176,6 @@ func (r *Repository) ExportPlaylists(ctx context.Context, userID string) ([]mode
 		if err != nil {
 			continue
 		}
-		defer rows.Close() // LEAK-1: defer instead of manual close
 
 		var filePaths []string
 		for rows.Next() {
@@ -189,6 +185,7 @@ func (r *Repository) ExportPlaylists(ctx context.Context, userID string) ([]mode
 			}
 			filePaths = append(filePaths, path)
 		}
+		rows.Close()
 
 		backups = append(backups, models.PlaylistBackup{
 			Name:      p.Name,

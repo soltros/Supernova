@@ -9,15 +9,19 @@ const AlbumsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     apiService.fetchAlbums(100, 0)
       .then(data => {
+        if (!isMounted) return;
         setAlbums(data || []);
         setLoading(false);
       })
       .catch(err => {
+        if (!isMounted) return;
         console.error("Failed to fetch albums:", err);
         setLoading(false);
       });
+    return () => { isMounted = false; };
   }, []);
 
   return (

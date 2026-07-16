@@ -136,18 +136,41 @@ func (p *AlbumMergerPlugin) runMergeJob() {
 				
 				log.Printf("[AlbumMerger] Merging '%s' into '%s'\n", a.title, canonical.title)
 
+				tx, err := db.BeginTx(ctx, nil)
+				if err != nil {
+					log.Printf("[AlbumMerger] Failed to begin transaction: %v", err)
+					continue
+				}
+
 				// Move tracks to canonical album
-				db.ExecContext(ctx, "UPDATE tracks SET album_id = ? WHERE album_id = ?", canonical.id, a.id)
+				_, err = tx.ExecContext(ctx, "UPDATE tracks SET album_id = ? WHERE album_id = ?", canonical.id, a.id)
+				if err != nil {
+					tx.Rollback()
+					continue
+				}
 
 				// Move album-level hearts to canonical album
-				_, err := db.ExecContext(ctx, "UPDATE OR IGNORE hearts SET entity_id = ? WHERE entity_type = 'album' AND entity_id = ?", canonical.id, a.id)
-				if err == nil {
-					db.ExecContext(ctx, "DELETE FROM hearts WHERE entity_type = 'album' AND entity_id = ?", a.id)
+				_, err = tx.ExecContext(ctx, "UPDATE OR IGNORE hearts SET entity_id = ? WHERE entity_type = 'album' AND entity_id = ?", canonical.id, a.id)
+				if err != nil {
+					tx.Rollback()
+					continue
+				}
+				_, err = tx.ExecContext(ctx, "DELETE FROM hearts WHERE entity_type = 'album' AND entity_id = ?", a.id)
+				if err != nil {
+					tx.Rollback()
+					continue
 				}
 
 				// Delete duplicate album (will cascade to album_artists)
-				db.ExecContext(ctx, "DELETE FROM albums WHERE id = ?", a.id)
-				mergeCount++
+				_, err = tx.ExecContext(ctx, "DELETE FROM albums WHERE id = ?", a.id)
+				if err != nil {
+					tx.Rollback()
+					continue
+				}
+
+				if err := tx.Commit(); err == nil {
+					mergeCount++
+				}
 			}
 		}
 	}

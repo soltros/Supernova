@@ -51,7 +51,7 @@ const HeartsPage: FC = () => {
         setLoading(false);
       });
     return () => { isMounted = false; };
-  }, []);
+  }, [heartedIds]);
 
   useEffect(() => {
     try {

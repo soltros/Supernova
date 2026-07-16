@@ -73,7 +73,9 @@ func Init(dbPath string) (*DB, error) {
 		if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
 			return nil, fmt.Errorf("migration to v1 failed: %w", err)
 		}
-		db.Exec("PRAGMA user_version = 1")
+		if _, err := db.Exec("PRAGMA user_version = 1"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 1: %w", err)
+		}
 		version = 1
 	}
 
@@ -104,7 +106,9 @@ func Init(dbPath string) (*DB, error) {
 		if err != nil {
 			return nil, fmt.Errorf("migration to v2 failed: %w", err)
 		}
-		db.Exec("PRAGMA user_version = 2")
+		if _, err := db.Exec("PRAGMA user_version = 2"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 2: %w", err)
+		}
 	}
 
 	if version < 3 {
@@ -125,7 +129,9 @@ func Init(dbPath string) (*DB, error) {
 		if err != nil {
 			return nil, fmt.Errorf("migration to v3 failed: %w", err)
 		}
-		db.Exec("PRAGMA user_version = 3")
+		if _, err := db.Exec("PRAGMA user_version = 3"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 3: %w", err)
+		}
 	}
 
 	if version < 4 {
@@ -136,13 +142,24 @@ func Init(dbPath string) (*DB, error) {
 				reason TEXT,
 				created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 			);
-			ALTER TABLE tracks ADD COLUMN file_modified_at INTEGER DEFAULT 0;
-			ALTER TABLE albums ADD COLUMN bio TEXT;
 		`)
+		if err != nil {
+			return nil, fmt.Errorf("migration to v4 failed: %w", err)
+		}
+
+		_, err = db.Exec(`ALTER TABLE tracks ADD COLUMN file_modified_at INTEGER DEFAULT 0;`)
 		if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
 			return nil, fmt.Errorf("migration to v4 failed: %w", err)
 		}
-		db.Exec("PRAGMA user_version = 4")
+
+		_, err = db.Exec(`ALTER TABLE albums ADD COLUMN bio TEXT;`)
+		if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+			return nil, fmt.Errorf("migration to v4 failed: %w", err)
+		}
+		
+		if _, err := db.Exec("PRAGMA user_version = 4"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 4: %w", err)
+		}
 	}
 
 	return &DB{db}, nil

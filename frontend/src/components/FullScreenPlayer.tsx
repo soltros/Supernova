@@ -103,7 +103,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) 
   if (!isOpen) return null;
 
   const coverUrl = currentAlbum 
-    ? ((currentAlbum as any).cover_art_url ? (currentAlbum as any).cover_art_url : `${API_BASE_URL}/api/art/album/${currentAlbum.id}`)
+    ? (currentAlbum.cover_art_url ? currentAlbum.cover_art_url : `${API_BASE_URL}/api/art/album/${currentAlbum.id}`)
     : '';
 
   return createPortal(

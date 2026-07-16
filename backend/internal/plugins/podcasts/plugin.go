@@ -21,6 +21,7 @@ import (
 type PodcastsPlugin struct {
 	config plugins.PluginConfig
 	repo   *database.Repository
+	client *http.Client
 }
 
 func init() {
@@ -42,6 +43,7 @@ func (p *PodcastsPlugin) Description() string {
 func (p *PodcastsPlugin) Init(config plugins.PluginConfig) error {
 	p.config = config
 	p.repo = config.Repo
+	p.client = &http.Client{Timeout: 10 * time.Second}
 	return nil
 }
 
@@ -110,8 +112,7 @@ func (p *PodcastsPlugin) doPodcastIndexRequest(endpoint string, queryValues stri
 	req.Header.Set("X-Auth-Key", apiKey)
 	req.Header.Set("Authorization", authHeader)
 
-	client := &http.Client{}
-	return client.Do(req)
+	return p.client.Do(req)
 }
 
 func (p *PodcastsPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
@@ -122,7 +123,7 @@ func (p *PodcastsPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := p.doPodcastIndexRequest("/search/byterm", "q="+query)
+	resp, err := p.doPodcastIndexRequest("/search/byterm", "q="+url.QueryEscape(query))
 	if err != nil {
 		if err.Error() == "Podcast Index API keys are not configured in the .env file" {
 			http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -155,7 +156,7 @@ func (p *PodcastsPlugin) handleEpisodes(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resp, err := p.doPodcastIndexRequest("/episodes/byfeedid", "id="+id)
+	resp, err := p.doPodcastIndexRequest("/episodes/byfeedid", "id="+url.QueryEscape(id))
 	if err != nil {
 		if err.Error() == "Podcast Index API keys are not configured in the .env file" {
 			http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -360,7 +361,11 @@ func (p *PodcastsPlugin) handleImportOPML(w http.ResponseWriter, r *http.Request
 	go func(urls []string, userID string) {
 		for _, u := range urls {
 			resp, err := p.doPodcastIndexRequest("/podcasts/byfeedurl", "url="+url.QueryEscape(u))
-			if err != nil || resp.StatusCode != 200 {
+			if err != nil {
+				continue
+			}
+			if resp.StatusCode != 200 {
+				resp.Body.Close()
 				continue
 			}
 

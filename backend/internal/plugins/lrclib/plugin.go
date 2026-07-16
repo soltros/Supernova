@@ -99,7 +99,7 @@ func (p *LRCLibPlugin) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 5*1024*1024))
 	if err != nil {
 		http.Error(w, "failed to read response", http.StatusInternalServerError)
 		return

@@ -92,6 +92,13 @@ func (s *Server) handleRemoveHeart() http.HandlerFunc {
 			http.Error(w, "missing parameters", http.StatusBadRequest)
 			return
 		}
+		switch entityType {
+		case "track", "album", "artist", "playlist", "radio", "podcast":
+			// valid
+		default:
+			http.Error(w, "invalid entity_type", http.StatusBadRequest)
+			return
+		}
 		if err := s.repo.UnheartEntity(r.Context(), userID, entityType, entityID); err != nil {
 			http.Error(w, "failed to remove heart", http.StatusInternalServerError)
 			return
@@ -121,6 +128,7 @@ func (s *Server) handleImportHearts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := r.Context().Value(userIDKey).(string)
 
+		r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
 		var backups []models.HeartBackup
 		if err := json.NewDecoder(r.Body).Decode(&backups); err != nil {
 			http.Error(w, "invalid backup format", http.StatusBadRequest)

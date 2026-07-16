@@ -152,7 +152,7 @@ func (s *Server) handleGetArtists() http.HandlerFunc {
 		}
 
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed to fetch artists", http.StatusInternalServerError)
 			return
 		}
 		json.NewEncoder(w).Encode(artists)
@@ -200,7 +200,7 @@ func (s *Server) handleGetAlbums() http.HandlerFunc {
 		
 		albums, err := s.repo.GetAlbums(r.Context(), artistID, limit, offset)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed to fetch albums", http.StatusInternalServerError)
 			return
 		}
 		json.NewEncoder(w).Encode(albums)
@@ -227,7 +227,7 @@ func (s *Server) handleGetTracks() http.HandlerFunc {
 		
 		tracks, err := s.repo.GetTracks(r.Context(), albumID, artistID, limit, offset)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed to fetch tracks", http.StatusInternalServerError)
 			return
 		}
 		json.NewEncoder(w).Encode(tracks)
@@ -287,7 +287,7 @@ func (s *Server) handleGetDashboard() http.HandlerFunc {
 
 		dashboard, err := s.repo.GetDashboard(r.Context(), userID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "failed to fetch dashboard", http.StatusInternalServerError)
 			return
 		}
 		json.NewEncoder(w).Encode(dashboard)
