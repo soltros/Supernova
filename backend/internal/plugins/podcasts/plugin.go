@@ -3,10 +3,13 @@ package podcasts
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -210,7 +213,9 @@ func (p *PodcastsPlugin) handleSubscribe(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Invalid body", http.StatusBadRequest)
 		return
 	}
-	sub.ID = fmt.Sprintf("psub_%d", time.Now().UnixNano())
+	b := make([]byte, 16)
+	rand.Read(b)
+	sub.ID = "psub_" + hex.EncodeToString(b)
 	sub.UserID = userID
 	if err := p.repo.AddPodcastSubscription(r.Context(), sub); err != nil {
 		http.Error(w, "Failed to subscribe", http.StatusInternalServerError)
@@ -362,9 +367,11 @@ func (p *PodcastsPlugin) handleImportOPML(w http.ResponseWriter, r *http.Request
 		for _, u := range urls {
 			resp, err := p.doPodcastIndexRequest("/podcasts/byfeedurl", "url="+url.QueryEscape(u))
 			if err != nil {
+				log.Printf("[Podcasts] Failed to fetch feed %s: %v\n", u, err)
 				continue
 			}
 			if resp.StatusCode != 200 {
+				log.Printf("[Podcasts] API returned %d for feed %s\n", resp.StatusCode, u)
 				resp.Body.Close()
 				continue
 			}
@@ -376,8 +383,10 @@ func (p *PodcastsPlugin) handleImportOPML(w http.ResponseWriter, r *http.Request
 					title, _ := feed["title"].(string)
 					img, _ := feed["image"].(string)
 
+					b := make([]byte, 16)
+					rand.Read(b)
 					sub := models.PodcastSubscription{
-						ID:       fmt.Sprintf("psub_%d", time.Now().UnixNano()),
+						ID:       "psub_" + hex.EncodeToString(b),
 						UserID:   userID,
 						FeedID:   fmt.Sprintf("%.0f", idFloat),
 						FeedURL:  u,
@@ -386,6 +395,8 @@ func (p *PodcastsPlugin) handleImportOPML(w http.ResponseWriter, r *http.Request
 					}
 					p.repo.AddPodcastSubscription(context.Background(), sub)
 				}
+			} else {
+				log.Printf("[Podcasts] Failed to decode response for %s: %v\n", u, err)
 			}
 			resp.Body.Close()
 			time.Sleep(100 * time.Millisecond) // Don't hammer the API

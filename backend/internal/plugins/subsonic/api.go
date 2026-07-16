@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/xml"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -107,9 +109,64 @@ func (p *SubsonicPlugin) writeResponse(w http.ResponseWriter, r *http.Request, d
 		return
 	}
 
-	// Just fallback to JSON if they didn't specify. Real XML support requires struct tags.
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"subsonic-response": response})
+	// Generate XML
+	w.Header().Set("Content-Type", "application/xml")
+	var sb strings.Builder
+	sb.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
+	response["xmlns"] = "http://subsonic.org/restapi"
+	p.writeXML(&sb, "subsonic-response", response)
+	w.Write([]byte(sb.String()))
+}
+
+func isPrimitive(val interface{}) bool {
+	switch val.(type) {
+	case string, int, int64, float64, float32, bool:
+		return true
+	default:
+		return false
+	}
+}
+
+func (p *SubsonicPlugin) writeXML(sb *strings.Builder, nodeName string, data interface{}) {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		sb.WriteString("<" + nodeName)
+		for k, val := range v {
+			if isPrimitive(val) {
+				sb.WriteString(fmt.Sprintf(` %s="`, k))
+				xml.EscapeText(sb, []byte(fmt.Sprint(val)))
+				sb.WriteString(`"`)
+			}
+		}
+		
+		hasChildren := false
+		for _, val := range v {
+			if !isPrimitive(val) {
+				hasChildren = true
+				break
+			}
+		}
+		
+		if !hasChildren {
+			sb.WriteString(" />\n")
+		} else {
+			sb.WriteString(">\n")
+			for k, val := range v {
+				if !isPrimitive(val) {
+					p.writeXML(sb, k, val)
+				}
+			}
+			sb.WriteString("</" + nodeName + ">\n")
+		}
+	case []map[string]interface{}:
+		for _, item := range v {
+			p.writeXML(sb, nodeName, item)
+		}
+	case []interface{}:
+		for _, item := range v {
+			p.writeXML(sb, nodeName, item)
+		}
+	}
 }
 
 func (p *SubsonicPlugin) writeError(w http.ResponseWriter, r *http.Request, code int, message string) {

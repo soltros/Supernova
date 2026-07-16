@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"github.com/soltros/Supernova/internal/database"
@@ -39,21 +40,33 @@ func NewServer(repo *database.Repository, lastfm *external.LastFmClient, enriche
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	allowedOrigin := os.Getenv("CORS_ALLOWED_ORIGIN")
-	if allowedOrigin == "" {
-		allowedOrigin = "http://localhost:5174" // Default for local docker
-	}
-	w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	isSubsonic := strings.HasPrefix(r.URL.Path, "/rest/")
 	
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
+	if !isSubsonic {
+		allowedOrigin := os.Getenv("CORS_ALLOWED_ORIGIN")
+		if allowedOrigin == "" {
+			allowedOrigin = "http://localhost:5174" // Default for local docker
+		}
+		w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	if strings.HasPrefix(r.URL.Path, "/api/") {
+		if !strings.HasPrefix(r.URL.Path, "/api/stream/") &&
+		   !strings.HasPrefix(r.URL.Path, "/api/download/") &&
+		   !strings.HasPrefix(r.URL.Path, "/api/art/") &&
+		   !strings.HasPrefix(r.URL.Path, "/api/plugins/podcasts/opml/export") {
+			w.Header().Set("Content-Type", "application/json")
+		}
+	}
+
 	s.mux.ServeHTTP(w, r)
 }
 

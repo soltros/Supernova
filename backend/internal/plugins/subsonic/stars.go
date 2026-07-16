@@ -137,7 +137,12 @@ func (p *SubsonicPlugin) handleGetStarred(w http.ResponseWriter, r *http.Request
 		starredInfo["artist"] = artistNodes
 	}
 
+	key := "starred"
+	if strings.HasSuffix(r.URL.Path, "getStarred2") || strings.HasSuffix(r.URL.Path, "getStarred2.view") {
+		key = "starred2"
+	}
+
 	p.writeResponse(w, r, map[string]interface{}{
-		"starred2": starredInfo,
+		key: starredInfo,
 	})
 }

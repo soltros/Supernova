@@ -105,7 +105,11 @@ func processAndSaveImage(rawData []byte) string {
 	defer out.Close()
 	
 	// 85 quality drastically reduces bytes while remaining visually flawless for 500x500 UI elements
-	_ = jpeg.Encode(out, img, &jpeg.Options{Quality: 85})
+	if err := jpeg.Encode(out, img, &jpeg.Options{Quality: 85}); err != nil {
+		out.Close()
+		os.Remove(finalPath)
+		return ""
+	}
 	return finalPath
 }
 
