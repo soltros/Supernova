@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { usePlayer } from '../context/PlayerContext';
 import { Minimize2 } from 'lucide-react';
 import { apiService } from '../services/api';
@@ -105,7 +106,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) 
     ? ((currentAlbum as any).cover_art_url ? (currentAlbum as any).cover_art_url : `${API_BASE_URL}/api/art/album/${currentAlbum.id}`)
     : '';
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
       backgroundColor: '#0a0a0f', zIndex: 9999,
@@ -207,7 +208,8 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) 
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
