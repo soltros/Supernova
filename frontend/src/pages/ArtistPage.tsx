@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { useParams } from 'react-router-dom';
-import { Play } from 'lucide-react';
+import { Play, Download } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import { apiService } from '../services/api';
 import { usePlayer } from '../context/PlayerContext';
@@ -25,6 +25,37 @@ const ArtistPage: FC = () => {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDownloadingDiscography, setIsDownloadingDiscography] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+
+  const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
+
+  const handleDownloadDiscography = async () => {
+    if (albums.length === 0) return;
+    setIsDownloadingDiscography(true);
+    setDownloadProgress(0);
+    const token = localStorage.getItem('sn_token');
+    
+    for (let i = 0; i < albums.length; i++) {
+        setDownloadProgress(i + 1);
+        const album = albums[i];
+        const a = document.createElement('a');
+        a.href = `${API_BASE_URL}/api/download/album/${album.id}?token=${token}`;
+        a.download = `${album.title}.zip`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        // Wait 1.5 seconds between triggering downloads
+        await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+    
+    setTimeout(() => {
+        setIsDownloadingDiscography(false);
+        setDownloadProgress(0);
+    }, 1000);
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -120,6 +151,32 @@ const ArtistPage: FC = () => {
             <Play size={28} fill="currentColor" />
           </button>
           <HeartButton entityType="artist" entityId={artist.id} />
+          
+          <button 
+            style={{ 
+              width: '56px', height: '56px', 
+              borderRadius: '50%', 
+              background: 'rgba(255,255,255,0.1)', 
+              color: 'white', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', 
+              border: 'none',
+              cursor: isDownloadingDiscography ? 'default' : 'pointer',
+              transition: 'var(--transition-fast)'
+            }}
+            onClick={handleDownloadDiscography}
+            disabled={isDownloadingDiscography}
+            title="Download Discography"
+            onMouseEnter={(e) => { if(!isDownloadingDiscography) e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
+            onMouseLeave={(e) => { if(!isDownloadingDiscography) e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+          >
+            <Download size={24} />
+          </button>
+          
+          {isDownloadingDiscography && (
+            <div style={{ color: 'var(--accent-primary)', fontSize: '14px', fontWeight: 600 }}>
+              Starting download {downloadProgress} of {albums.length}...
+            </div>
+          )}
         </div>
 
         {artist.bio && artist.bio !== 'NOT_FOUND' && (
