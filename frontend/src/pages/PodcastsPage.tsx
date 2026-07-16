@@ -4,8 +4,10 @@ import { Play, Search, Mic, ChevronLeft, Download, Upload, Plus, Check } from 'l
 import { usePlayer } from '../context/PlayerContext';
 import HeartButton from '../components/HeartButton';
 import { apiService } from '../services/api';
+import { useToast } from '../context/ToastContext';
 
 const PodcastsPage: React.FC = () => {
+  const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<'subscriptions' | 'search'>('subscriptions');
   const [query, setQuery] = useState('');
   const [podcasts, setPodcasts] = useState<any[]>([]);
@@ -166,10 +168,10 @@ const PodcastsPage: React.FC = () => {
     if (!e.target.files || e.target.files.length === 0) return;
     try {
       await apiService.importOPML(e.target.files[0]);
-      alert("OPML import started in the background. Your subscriptions will appear here shortly.");
+      addToast("OPML import started in the background. Your subscriptions will appear here shortly.", "success");
     } catch (err) {
       console.error(err);
-      alert("Failed to import OPML.");
+      addToast("Failed to import OPML.", "error");
     }
     e.target.value = '';
   };

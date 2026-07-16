@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useHearts } from '../context/HeartsContext';
 import { usePlayer } from '../context/PlayerContext';
 import { apiService } from '../services/api';
+import { useToast } from '../context/ToastContext';
 import AlbumCard from '../components/AlbumCard';
 import ArtistCard from '../components/ArtistCard';
 import PlaylistCard from '../components/PlaylistCard';
@@ -23,6 +24,7 @@ const formatTime = (ms: number) => {
 const HeartsPage: FC = () => {
   const { heartedIds, refreshHearts } = useHearts();
   const { playContext, currentTrack, isPlaying } = usePlayer();
+  const { addToast } = useToast();
   
   const [loading, setLoading] = useState(true);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -78,8 +80,7 @@ const HeartsPage: FC = () => {
       await apiService.importHearts(file);
       refreshHearts();
     } catch (err) {
-      console.error(err);
-      alert("Failed to import backup. Ensure it is a valid Supernova JSON backup.");
+      addToast("Failed to import backup. Ensure it is a valid Supernova JSON backup.", 'error');
     }
     e.target.value = '';
   };

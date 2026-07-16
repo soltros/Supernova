@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { apiService } from '../services/api';
+import { useToast } from '../context/ToastContext';
 
 const SettingsPage: React.FC = () => {
+  const { addToast, confirm } = useToast();
   const [plugins, setPlugins] = useState<any[]>([]);
   const [scanStatus, setScanStatus] = useState<{status: string, files_scanned: number}>({ status: 'idle', files_scanned: 0 });
   const [lastfmSession, setLastfmSession] = useState<string | null>(localStorage.getItem('lastfm_session'));
@@ -62,20 +64,21 @@ const SettingsPage: React.FC = () => {
     }
     keysToRemove.forEach(k => localStorage.removeItem(k));
     
-    alert('Cache cleared successfully! Reloading...');
+    addToast('Cache cleared successfully! Reloading...', 'success');
     window.location.reload();
   };
 
   const [isResetting, setIsResetting] = useState(false);
   const handleResetArtists = async () => {
-    if (!window.confirm("Are you sure? This will clear all artist bios and images and require re-fetching from Last.fm.")) return;
+    const isConfirmed = await confirm("Are you sure? This will clear all artist bios and images and require re-fetching from Last.fm.");
+    if (!isConfirmed) return;
     
     setIsResetting(true);
     try {
       await apiService.resetArtists();
-      alert("Artist data cleared successfully. The background scanner will re-fetch data shortly.");
+      addToast("Artist data cleared successfully. The background scanner will re-fetch data shortly.", 'success');
     } catch (e) {
-      alert("Failed to reset artist data.");
+      addToast("Failed to reset artist data.", 'error');
     } finally {
       setIsResetting(false);
     }
@@ -147,7 +150,7 @@ const SettingsPage: React.FC = () => {
                   onClick={() => {
                     const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
                     fetch(`${API_BASE_URL}/api/plugins/autotagger/run`, { method: 'POST' });
-                    alert("Auto-tagging job started in the background. Check backend logs for progress.");
+                    addToast("Auto-tagging job started in the background. Check backend logs for progress.", "success");
                   }}
                   style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
                 >
@@ -160,7 +163,7 @@ const SettingsPage: React.FC = () => {
                   onClick={() => {
                     const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
                     fetch(`${API_BASE_URL}/api/plugins/artistmerger/run`, { method: 'POST' });
-                    alert("Artist merger job started in the background. Check backend logs for progress.");
+                    addToast("Artist merger job started in the background. Check backend logs for progress.", "success");
                   }}
                   style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
                 >
@@ -173,7 +176,7 @@ const SettingsPage: React.FC = () => {
                   onClick={() => {
                     const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
                     fetch(`${API_BASE_URL}/api/plugins/deduper/run`, { method: 'POST' });
-                    alert("Hide Duplicates job started in the background. Check backend logs for progress.");
+                    addToast("Hide Duplicates job started in the background. Check backend logs for progress.", "success");
                   }}
                   style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
                 >
@@ -186,7 +189,7 @@ const SettingsPage: React.FC = () => {
                   onClick={() => {
                     const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
                     fetch(`${API_BASE_URL}/api/plugins/albummerger/run`, { method: 'POST' });
-                    alert("Album merger job started in the background. Check backend logs for progress.");
+                    addToast("Album merger job started in the background. Check backend logs for progress.", "success");
                   }}
                   style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', color: '#3b82f6', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
                 >

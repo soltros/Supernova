@@ -19,6 +19,7 @@ import { HeartsProvider } from './context/HeartsContext';
 import { PlaylistsProvider } from './context/PlaylistsContext';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
 
 import './index.css';
 import './App.css';
@@ -67,9 +68,11 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 

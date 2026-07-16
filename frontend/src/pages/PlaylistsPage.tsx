@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ListMusic, Trash2, Play } from 'lucide-react';
 import { apiService } from '../services/api';
+import { useToast } from '../context/ToastContext';
 import type { Playlist, Track, Album } from '../types';
 import { usePlayer } from '../context/PlayerContext';
 import { usePlaylists } from '../context/PlaylistsContext';
@@ -9,6 +10,7 @@ import HeartButton from '../components/HeartButton';
 
 export const PlaylistsPage: React.FC = () => {
   const { playlists, createPlaylist, deletePlaylist, refreshPlaylists } = usePlaylists();
+  const { addToast } = useToast();
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -91,10 +93,10 @@ export const PlaylistsPage: React.FC = () => {
     try {
       await apiService.importPlaylists(file);
       await refreshPlaylists();
-      alert('Playlists imported successfully!');
+      addToast('Playlists imported successfully!', 'success');
     } catch (err) {
       console.error(err);
-      alert('Failed to import playlists.');
+      addToast('Failed to import playlists.', 'error');
     }
   };
 
