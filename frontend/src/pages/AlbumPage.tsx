@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { FC } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Play } from 'lucide-react';
+import { Play, Download } from 'lucide-react';
 import { apiService } from '../services/api';
 import { usePlayer } from '../context/PlayerContext';
 import HeartButton from '../components/HeartButton';
@@ -22,6 +22,13 @@ const formatTime = (ms: number) => {
 const AlbumPage: FC = () => {
   const { id } = useParams<{ id: string }>();
   const { playContext, currentTrack, isPlaying } = usePlayer();
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: any | null } | null>(null);
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
   
   const [album, setAlbum] = useState<Album | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -103,8 +110,21 @@ const AlbumPage: FC = () => {
             <button 
               style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'var(--accent-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--accent-glow)', cursor: 'pointer', border: 'none' }}
               onClick={() => playContext(tracks, 0, album)}
+              title="Play Album"
             >
               <Play size={24} fill="currentColor" />
+            </button>
+            <button 
+              style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: 'none', transition: 'background 0.2s' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              title="Download Album"
+              onClick={() => {
+                const token = localStorage.getItem('sn_token');
+                window.location.href = `${API_BASE_URL}/api/download/album/${album.id}?token=${token}`;
+              }}
+            >
+              <Download size={24} />
             </button>
           </div>
         </div>
@@ -126,6 +146,10 @@ const AlbumPage: FC = () => {
               key={track.id} 
               className={`track-row ${isThisTrackPlaying ? 'playing' : ''}`}
               onClick={() => playContext(tracks, tracks.findIndex(t => t.id === track.id), album)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setContextMenu({ x: e.pageX, y: e.pageY, track });
+              }}
             >
               <div className="track-number">
                 {isThisTrackPlaying && isPlaying ? (
@@ -163,6 +187,27 @@ const AlbumPage: FC = () => {
         })}
       </div>
     </div>
+    
+      {/* Context Menu */}
+      {contextMenu && contextMenu.track && (
+        <div style={{
+          position: 'absolute', top: contextMenu.y, left: contextMenu.x, zIndex: 1000,
+          background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '8px 0',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.5)', minWidth: '160px'
+        }}>
+          <div 
+            style={{ padding: '10px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-primary)', fontSize: '14px', transition: 'background 0.2s' }}
+            onClick={() => {
+              const token = localStorage.getItem('sn_token');
+              window.location.href = `${API_BASE_URL}/api/download/track/${contextMenu.track.id}?token=${token}`;
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          >
+            <Download size={16} /> Download Track
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -80,6 +80,10 @@ func (s *Server) routes() {
 	
 	// Streaming route — requireAuth prevents anonymous bandwidth abuse (SEC-3)
 	s.mux.HandleFunc("GET /api/stream/{id}", s.requireAuth(s.handleStreamTrack()))
+	
+	// Downloads
+	s.mux.HandleFunc("GET /api/download/track/{id}", s.requireAuth(s.handleDownloadTrack()))
+	s.mux.HandleFunc("GET /api/download/album/{id}", s.requireAuth(s.handleDownloadAlbum()))
 
 	// Dashboard route
 	s.mux.HandleFunc("GET /api/dashboard", s.requireAuth(s.handleGetDashboard()))
