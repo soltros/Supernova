@@ -109,8 +109,8 @@ const HomePage: FC = () => {
               {releaseRadar.map((release, i) => (
                 <a key={i} href={release.collectionViewUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
                   <div className="album-card" style={{ cursor: 'pointer' }}>
-                    <div className="album-cover-container">
-                      <img src={release.artworkUrl100.replace('100x100bb', '300x300bb')} alt={release.collectionName} className="album-cover" />
+                    <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden' }}>
+                      <img src={release.artworkUrl100.replace('100x100bb', '300x300bb')} alt={release.collectionName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
                   <div className="album-info" style={{ display: 'flex', flexDirection: 'column' }}>
                     <h3 style={{ margin: '0 0 4px 0', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{release.collectionName}</h3>
@@ -134,11 +134,11 @@ const HomePage: FC = () => {
               {similarArtists.map((artist, i) => {
                 const CardContent = (
                   <div className="album-card" style={{ cursor: 'pointer' }}>
-                    <div className="album-cover-container" style={{ borderRadius: '50%' }}>
+                    <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '50%', overflow: 'hidden' }}>
                       {artist.image ? (
-                        <img src={artist.image} alt={artist.name} className="album-cover" style={{ borderRadius: '50%' }} />
+                        <img src={artist.image} alt={artist.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                       ) : (
-                        <div className="album-cover" style={{ borderRadius: '50%', background: 'var(--surface-light)' }} />
+                        <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: 'var(--surface-light)' }} />
                       )}
                     </div>
                     <div className="album-info" style={{ display: 'flex', flexDirection: 'column', marginTop: '12px', textAlign: 'center' }}>
