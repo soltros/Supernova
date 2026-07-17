@@ -427,6 +427,30 @@ func (p *SubsonicPlugin) handleStream(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, track.FilePath)
 }
 
+func (p *SubsonicPlugin) handleDownload(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	track, err := p.repo.GetTrackByID(context.Background(), id)
+	if err != nil {
+		http.Error(w, "Not found", 404)
+		return
+	}
+	if !strings.HasPrefix(track.FilePath, os.Getenv("MEDIA_PATH")) {
+		http.Error(w, "Access denied", http.StatusForbidden)
+		return
+	}
+	
+	// Set headers for download
+	filename := track.Title + ".flac" // Or get extension from file path
+	if idx := strings.LastIndex(track.FilePath, "."); idx != -1 {
+		filename = track.Title + track.FilePath[idx:]
+	}
+	
+	// Escape filename quotes
+	filename = strings.ReplaceAll(filename, "\"", "")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	
+	http.ServeFile(w, r, track.FilePath)
+}
 func (p *SubsonicPlugin) handleGetPlaylists(w http.ResponseWriter, r *http.Request) {
 	u, ok := r.Context().Value(userContextKey).(*models.User)
 	if !ok || u == nil {

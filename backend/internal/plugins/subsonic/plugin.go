@@ -79,6 +79,7 @@ func (p *SubsonicPlugin) SetupRoutes(mux *http.ServeMux) {
 		"/rest/deletePlaylist":    p.auth(p.handleDeletePlaylist),
 		"/rest/getCoverArt":       p.auth(p.handleGetCoverArt),
 		"/rest/stream":            p.auth(p.handleStream),
+		"/rest/download":          p.auth(p.handleDownload),
 		"/rest/star":              p.auth(p.handleStar),
 		"/rest/unstar":            p.auth(p.handleUnstar),
 		"/rest/getStarred":        p.auth(p.handleGetStarred),
