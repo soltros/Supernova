@@ -265,7 +265,7 @@ const SettingsPage: React.FC = () => {
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
               Supernova is a next-generation music player built with a futuristic glassmorphism UI.
               <br /><br />
-              Version: 1.0.0 (Phase 9 UI Overhaul)
+              Version: 2026.07.17
             </p>
           </div>
 

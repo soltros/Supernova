@@ -125,7 +125,7 @@ func (p *RadioPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
 	req.URL.RawQuery = q.Encode()
 
 	// RadioBrowser requires a descriptive user agent
-	req.Header.Set("User-Agent", "Supernova/1.0.0 (https://github.com/soltros/Supernova)")
+	req.Header.Set("User-Agent", "Supernova/2026.07.17 (https://github.com/soltros/Supernova)")
 
 	resp, err := p.client.Do(req)
 	if err != nil {

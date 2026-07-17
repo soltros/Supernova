@@ -66,7 +66,7 @@ func main() {
 	lastfmSecret := os.Getenv("LASTFM_API_SECRET")
 	lastfmClient := external.NewLastFmClient(lastfmKey, lastfmSecret)
 
-	mbClient := external.NewMusicBrainzClient("SupernovaMediaServer", "1.0.0", "admin@supernova.local")
+	mbClient := external.NewMusicBrainzClient("SupernovaMediaServer", "2026.07.17", "admin@supernova.local")
 
 	// 5. Initialize the Background Enricher
 	enricher := scanner.NewEnricher(repo, mbClient, lastfmClient)

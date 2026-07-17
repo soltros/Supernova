@@ -79,7 +79,7 @@ func (p *LRCLibPlugin) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("User-Agent", "Supernova Media Server v1.0.0")
+	req.Header.Set("User-Agent", "Supernova Media Server v2026.07.17")
 
 	resp, err := p.client.Do(req)
 	if err != nil {
