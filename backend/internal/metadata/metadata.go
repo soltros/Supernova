@@ -9,7 +9,6 @@ import (
 	_ "image/png"
 	_ "image/gif"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
