@@ -100,8 +100,7 @@ func (s *Server) routes() {
 
 	// Dashboard route
 	s.mux.HandleFunc("GET /api/dashboard", s.requireAuth(s.handleGetDashboard()))
-	
-	// Art Delivery
+	s.mux.HandleFunc("GET /api/discovery", s.requireAuth(s.handleGetDiscovery()))
 	s.mux.HandleFunc("GET /api/art/album/{id}", s.handleGetAlbumArt())
 	
 	// Scrobbling / Listen History (Protected)

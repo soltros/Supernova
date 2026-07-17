@@ -20,6 +20,8 @@ const HomePage: FC = () => {
   const [recentlyAdded, setRecentlyAdded] = useState<Album[]>([]);
   const [recentlyPlayed, setRecentlyPlayed] = useState<Track[]>([]);
   const [favorites, setFavorites] = useState<Track[]>([]);
+  const [releaseRadar, setReleaseRadar] = useState<any[]>([]);
+  const [similarArtists, setSimilarArtists] = useState<any[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -36,6 +38,21 @@ const HomePage: FC = () => {
         console.error("Failed to load dashboard:", err);
         setLoading(false);
       });
+      
+    apiService.fetchDiscovery()
+      .then(data => {
+        if (!isMounted) return;
+        if (data.release_radar) {
+           // filter out duplicates by collectionName
+           const unique = data.release_radar.filter((v: any, i: number, a: any[]) => a.findIndex(t => (t.collectionName === v.collectionName)) === i);
+           setReleaseRadar(unique);
+        }
+        if (data.similar_artists) {
+           const uniqueSim = data.similar_artists.filter((v: any, i: number, a: any[]) => a.findIndex(t => (t.name === v.name)) === i);
+           setSimilarArtists(uniqueSim);
+        }
+      })
+      .catch(console.error);
     return () => { isMounted = false; };
   }, []);
 
@@ -83,6 +100,51 @@ const HomePage: FC = () => {
     <div className="content-scroll">
       <div className="page-container">
         <h1 style={{ fontSize: '48px', fontWeight: 900, marginBottom: '40px', letterSpacing: '-1.5px' }}>Home</h1>
+
+        {releaseRadar.length > 0 && (
+          <div style={{ marginBottom: '48px' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '16px' }}>Release Radar</h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '24px', marginTop: '-8px' }}>Brand new releases from artists in your library</p>
+            <div className="album-grid">
+              {releaseRadar.map((release, i) => (
+                <a key={i} href={release.collectionViewUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                  <div className="album-card" style={{ cursor: 'pointer' }}>
+                    <div className="album-cover-container">
+                      <img src={release.artworkUrl100.replace('100x100bb', '300x300bb')} alt={release.collectionName} className="album-cover" />
+                    </div>
+                    <div className="album-title">{release.collectionName}</div>
+                    <div className="album-artist">{release.artistName}</div>
+                    <div className="album-year" style={{ color: 'var(--accent-primary)', fontSize: '11px', marginTop: '4px' }}>
+                       {new Date(release.releaseDate).getFullYear()} • Out Now
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {similarArtists.length > 0 && (
+          <div style={{ marginBottom: '48px' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '16px' }}>Discover</h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '24px', marginTop: '-8px' }}>Similar artists based on your library (via Last.fm)</p>
+            <div className="album-grid">
+              {similarArtists.map((artist, i) => (
+                <div key={i} className="album-card" style={{ cursor: 'pointer' }}>
+                  <div className="album-cover-container" style={{ borderRadius: '50%' }}>
+                    {artist.image ? (
+                      <img src={artist.image} alt={artist.name} className="album-cover" style={{ borderRadius: '50%' }} />
+                    ) : (
+                      <div className="album-cover" style={{ borderRadius: '50%', background: 'var(--surface-light)' }} />
+                    )}
+                  </div>
+                  <div className="album-title" style={{ textAlign: 'center', marginTop: '12px' }}>{artist.name}</div>
+                  <div className="album-artist" style={{ textAlign: 'center' }}>Because you listen to {artist.basedOn}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {recentlyPlayed.length > 0 && (
           <div style={{ marginBottom: '48px' }}>

@@ -70,6 +70,11 @@ export const apiService = {
     if (!response.ok) throw new Error('Failed to fetch albums');
     return response.json();
   },
+  fetchDiscovery: async (): Promise<any> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/discovery`);
+    if (!response.ok) throw new Error('Failed to fetch discovery');
+    return response.json();
+  },
 
   fetchAlbumById: async (id: string): Promise<Album> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/albums/${id}`);
