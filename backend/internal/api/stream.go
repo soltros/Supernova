@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"os/exec"
 	"strconv"
+	"io"
+	"sync"
 )
 
 // handleStreamTrack handles GET /api/stream/{id}
@@ -108,18 +110,38 @@ func (s *Server) handleStreamTrack() http.HandlerFunc {
 
 		cmd := exec.CommandContext(r.Context(), "ffmpeg", args...)
 
-		// Pipe the stdout of ffmpeg directly to the HTTP response writer
-		cmd.Stdout = w
-		
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			log.Printf("Failed to get stdout pipe: %v", err)
+			return
+		}
+
+		if err := cmd.Start(); err != nil {
+			log.Printf("Failed to start ffmpeg: %v", err)
+			return
+		}
+
 		// Flush headers so the browser begins playback immediately without buffering
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
 
-		if err := cmd.Run(); err != nil {
-			// Expected behavior: if the user skips a track, the HTTP context is cancelled
-			// which automatically sends SIGKILL to ffmpeg.
-			log.Printf("Transcode stream ended for track %s: %v", trackID, err)
+		// Leverage io.CopyBuffer with a pooled buffer for efficient streaming
+		buf := streamPool.Get().([]byte)
+		defer streamPool.Put(buf)
+		
+		_, err = io.CopyBuffer(w, stdout, buf)
+		if err != nil {
+			log.Printf("Stream interrupted: %v", err)
 		}
+
+		cmd.Wait()
 	}
+}
+
+var streamPool = sync.Pool{
+	New: func() interface{} {
+		// 32KB buffer is optimal for audio streaming chunks
+		return make([]byte, 32*1024)
+	},
 }

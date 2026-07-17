@@ -126,6 +126,9 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_playlists_user_id ON playlists(user_id);
+CREATE INDEX IF NOT EXISTS idx_playlist_tracks_playlist_id_pos ON playlist_tracks(playlist_id, position);
+CREATE INDEX IF NOT EXISTS idx_artists_mbid ON artists(musicbrainz_id);
+CREATE INDEX IF NOT EXISTS idx_albums_mbid ON albums(musicbrainz_id);
 
 CREATE TABLE IF NOT EXISTS podcast_subscriptions (
     id TEXT PRIMARY KEY,

@@ -18,7 +18,7 @@ func (r *Repository) GetArtists(ctx context.Context, limit, offset int) ([]model
 	}
 	defer rows.Close()
 
-	var artists []models.Artist
+	artists := make([]models.Artist, 0, limit)
 	for rows.Next() {
 		var a models.Artist
 		if err := rows.Scan(&a.ID, &a.Name, &a.MusicBrainzID, &a.ImageURL, &a.Bio); err != nil {
@@ -55,7 +55,7 @@ func (r *Repository) GetArtistsByLetter(ctx context.Context, letter string, limi
 	}
 	defer rows.Close()
 
-	var artists []models.Artist
+	artists := make([]models.Artist, 0, limit)
 	for rows.Next() {
 		var a models.Artist
 		if err := rows.Scan(&a.ID, &a.Name, &a.MusicBrainzID, &a.ImageURL, &a.Bio); err != nil {
@@ -85,7 +85,7 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 		return nil, err
 	}
 	defer artistRows.Close()
-	var artists []map[string]interface{}
+	artists := make([]map[string]interface{}, 0, limit)
 	for artistRows.Next() {
 		var id, name, img string
 		if err := artistRows.Scan(&id, &name, &img); err == nil {
@@ -108,7 +108,7 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 		return nil, err
 	}
 	defer albumRows.Close()
-	var albums []map[string]interface{}
+	albums := make([]map[string]interface{}, 0, limit)
 	for albumRows.Next() {
 		var id, title, coverArt string
 		var artistName *string
@@ -139,7 +139,7 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 		return nil, err
 	}
 	defer trackRows.Close()
-	var tracks []map[string]interface{}
+	tracks := make([]map[string]interface{}, 0, limit)
 	for trackRows.Next() {
 		var id, title, albumTitle, albumID, coverArt string
 		var durationMs int

@@ -202,7 +202,7 @@ func getAudioDuration(filePath string) (durationMs int, bitrate int) {
 					break
 				}
 				// Corrupted frame — skip and continue
-				break
+				continue
 			}
 			totalDuration += frame.Duration().Seconds()
 			totalBitrate += int(frame.Header().BitRate() / 1000)

@@ -190,11 +190,7 @@ func (s *Scanner) Watch() {
 							if err == nil && !d.IsDir() && isAudioFile(p) {
 								go func(path string) {
 									time.Sleep(2 * time.Second)
-									select {
-									case s.realtimeJobs <- path:
-									default:
-										log.Printf("realtimeJobs buffer full, dropping %s", path)
-									}
+									s.realtimeJobs <- path
 								}(p)
 							} else if err == nil && d.IsDir() {
 								s.watcher.Add(p)
@@ -204,11 +200,7 @@ func (s *Scanner) Watch() {
 					} else if isAudioFile(event.Name) {
 						go func(path string) {
 							time.Sleep(2 * time.Second)
-							select {
-							case s.realtimeJobs <- path:
-							default:
-								log.Printf("realtimeJobs buffer full, dropping %s", path)
-							}
+							s.realtimeJobs <- path
 						}(event.Name)
 					}
 				}

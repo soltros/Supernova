@@ -115,6 +115,7 @@ func (r *Repository) UpsertTrack(ctx context.Context, meta *models.TrackMetadata
 	}
 
 	// 6. Link Track to Primary Artist
+	_, _ = tx.ExecContext(ctx, "DELETE FROM track_artists WHERE track_id = ?", trackID)
 	err = r.linkTrackArtist(tx, trackID, artistID, "primary")
 	if err != nil {
 		return err

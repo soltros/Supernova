@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import { Play, Search, Mic, ChevronLeft, Download, Upload, Plus, Check } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
@@ -29,9 +30,7 @@ const PodcastsPage: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    loadSubscriptions();
-  }, [loadSubscriptions]);
+
 
   const searchPodcasts = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -85,17 +84,27 @@ const PodcastsPage: React.FC = () => {
         throw new Error('Failed to fetch episodes');
       }
       const data = await response.json();
-      const epData = data || [];
-      setEpisodes(epData);
+      setEpisodes(data);
+      setSelectedPodcast(podcast);
       
-      // Also fetch progress for these episodes
-      const epIds = epData.map((e: any) => e.id.toString());
-      if (epIds.length > 0) {
-        const prog = await apiService.getPodcastProgressBatch(epIds);
-        setProgressData(prog || {});
+      // Load progress
+      try {
+        const token = localStorage.getItem('sn_token');
+        if (token) {
+          const progRes = await fetch(`${API_BASE_URL}/api/plugins/podcasts/progress`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (progRes.ok) {
+            const progData = await progRes.json();
+            const progMap: Record<string, any> = {};
+            progData.forEach((p: any) => progMap[p.episode_id] = p);
+            setProgressData(progMap);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load podcast progress", e);
       }
       
-      setSelectedPodcast(podcast);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to load episodes.");
@@ -103,6 +112,18 @@ const PodcastsPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    loadSubscriptions();
+    const state = location.state as any;
+    if (state?.podcast) {
+      loadEpisodes(state.podcast);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [loadSubscriptions, location, navigate]);
 
   const playEpisode = (episode: any) => {
     const mockTrack = {

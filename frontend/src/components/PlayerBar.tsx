@@ -196,7 +196,14 @@ const PlayerBar: FC = () => {
 
         <button 
           className="control-btn" 
-          onClick={() => setIsFullScreen(true)}
+          onClick={() => {
+            setIsFullScreen(true);
+            if (!document.fullscreenElement) {
+              document.documentElement.requestFullscreen().catch(err => {
+                console.error("Error attempting to enable fullscreen:", err);
+              });
+            }
+          }}
           title="Full Screen"
           style={{ padding: '8px' }}
         >

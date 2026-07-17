@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/external"
@@ -74,40 +75,51 @@ func (e *Enricher) processQueue(ctx context.Context) {
 			return
 		}
 
+		var wg sync.WaitGroup
+		semaphore := make(chan struct{}, 3)
+
 		for _, a := range albums {
-			// Check if app is shutting down
 			select {
 			case <-ctx.Done():
 				return
 			default:
 			}
-			
-			meta := &models.TrackMetadata{
-				Title:  a.TrackTitle,
-				Album:  a.AlbumTitle,
-				Artist: a.ArtistName,
-			}
-			
-			// mbClient automatically sleeps for 1.1s to respect MusicBrainz rate limits
-			err := e.mbClient.EnhanceMetadata(meta)
-			
-			if err == nil {
-				// If we found an MBID, update the database
-				if meta.AlbumMBID != "" {
-					_ = e.repo.UpdateMBIDs(ctx, a.AlbumID, meta.AlbumMBID, a.ArtistID, meta.ArtistMBID)
-					log.Printf("Successfully background-enriched album: %s", a.AlbumTitle)
-				} else {
-					// To prevent infinite loops on albums that don't exist in MusicBrainz, 
-					// we write a special flag 'NOT_FOUND' so GetUnenrichedAlbums ignores it next time.
-					_ = e.repo.UpdateMBIDs(ctx, a.AlbumID, "NOT_FOUND", a.ArtistID, "")
-					log.Printf("No MusicBrainz data found for album: %s", a.AlbumTitle)
+
+			wg.Add(1)
+			semaphore <- struct{}{}
+
+			go func(album database.UnenrichedAlbum) {
+				defer wg.Done()
+				defer func() { <-semaphore }()
+				
+				meta := &models.TrackMetadata{
+					Title:  album.TrackTitle,
+					Album:  album.AlbumTitle,
+					Artist: album.ArtistName,
 				}
-			} else {
-				// Prevent infinite loop on API/network errors by marking it with a failure flag
-				_ = e.repo.UpdateMBIDs(ctx, a.AlbumID, "ERROR", a.ArtistID, "")
-				log.Printf("MusicBrainz API error for album %s: %v", a.AlbumTitle, err)
-			}
+				
+				// mbClient automatically sleeps for 1.1s to respect MusicBrainz rate limits
+				err := e.mbClient.EnhanceMetadata(meta)
+				
+				if err == nil {
+					// If we found an MBID, update the database
+					if meta.AlbumMBID != "" {
+						_ = e.repo.UpdateMBIDs(ctx, album.AlbumID, meta.AlbumMBID, album.ArtistID, meta.ArtistMBID)
+						log.Printf("Successfully background-enriched album: %s", album.AlbumTitle)
+					} else {
+						// To prevent infinite loops on albums that don't exist in MusicBrainz, 
+						// we write a special flag 'NOT_FOUND' so GetUnenrichedAlbums ignores it next time.
+						_ = e.repo.UpdateMBIDs(ctx, album.AlbumID, "NOT_FOUND", album.ArtistID, "")
+						log.Printf("No MusicBrainz data found for album: %s", album.AlbumTitle)
+					}
+				} else {
+					// Prevent infinite loop on API/network errors by marking it with a failure flag
+					_ = e.repo.UpdateMBIDs(ctx, album.AlbumID, "ERROR", album.ArtistID, "")
+					log.Printf("MusicBrainz API error for album %s: %v", album.AlbumTitle, err)
+				}
+			}(a)
 		}
+		wg.Wait()
 	}
 }
 
@@ -125,6 +137,9 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 			return
 		}
 
+		var wg sync.WaitGroup
+		semaphore := make(chan struct{}, 5) // Limit concurrent Last.fm API calls to 5
+
 		for _, a := range artists {
 			select {
 			case <-ctx.Done():
@@ -132,66 +147,76 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 			default:
 			}
 
-			// If LastFM isn't configured, mark as NOT_FOUND to avoid infinite loops
-			if e.lastfm == nil {
-				_ = e.repo.UpdateArtistInfo(ctx, a.ID, "NOT_FOUND", "")
-				continue
-			}
+			wg.Add(1)
+			semaphore <- struct{}{} // Acquire semaphore
 
-			info, err := e.lastfm.GetArtistInfo(a.Name)
-			if err != nil || info == nil || len(info.Artist.Image) == 0 {
-				log.Printf("No LastFM data found for artist: %s", a.Name)
-				_ = e.repo.UpdateArtistInfo(ctx, a.ID, "NOT_FOUND", "")
-				continue
-			}
+			go func(artist models.Artist) {
+				defer wg.Done()
+				defer func() { <-semaphore }() // Release semaphore
 
-			// Find the largest image (usually last in array)
-			imgURL := ""
-			for _, img := range info.Artist.Image {
-				if img.URL != "" && !strings.Contains(img.URL, "2a96cbd8b46e442fc41c2b86b821562f") {
-					imgURL = img.URL
+				// If LastFM isn't configured, mark as NOT_FOUND to avoid infinite loops
+				if e.lastfm == nil {
+					_ = e.repo.UpdateArtistInfo(ctx, artist.ID, "NOT_FOUND", "")
+					return
 				}
-			}
 
-			// If we didn't find a valid image, try scraping the Last.fm website directly
-			if imgURL == "" {
-				scrapedImage := e.lastfm.ScrapeArtistImage(a.Name)
-				if scrapedImage != "" {
-					imgURL = scrapedImage
+				info, err := e.lastfm.GetArtistInfo(artist.Name)
+				if err != nil || info == nil || len(info.Artist.Image) == 0 {
+					log.Printf("No LastFM data found for artist: %s", artist.Name)
+					_ = e.repo.UpdateArtistInfo(ctx, artist.ID, "NOT_FOUND", "")
+					return
 				}
-			}
 
-			if imgURL == "" {
-				imgURL = "NOT_FOUND"
-			}
-
-			bio := info.Artist.Bio.Summary
-			err = e.repo.UpdateArtistInfo(ctx, a.ID, imgURL, bio)
-			if err != nil {
-				log.Printf("Failed to update artist info in DB for %s: %v", a.Name, err)
-			} else {
-				log.Printf("Successfully enriched artist via LastFM: %s", a.Name)
-			}
-			
-			// Additionally fetch top tracks to update local track popularity
-			topTracks, err := e.lastfm.GetArtistTopTracks(a.Name)
-			if err == nil && topTracks != nil {
-				for _, track := range topTracks.Toptracks.Track {
-					// We'll use listeners as a proxy for popularity
-					var popularity int
-					if track.Listeners != "" {
-						fmt.Sscanf(track.Listeners, "%d", &popularity)
-					} else {
-						fmt.Sscanf(track.Playcount, "%d", &popularity)
-					}
-					
-					if popularity > 0 {
-						_ = e.repo.UpdateArtistTracksPopularity(ctx, a.ID, track.Name, popularity)
+				// Find the largest image (usually last in array)
+				imgURL := ""
+				for _, img := range info.Artist.Image {
+					if img.URL != "" && !strings.Contains(img.URL, "2a96cbd8b46e442fc41c2b86b821562f") {
+						imgURL = img.URL
 					}
 				}
-				log.Printf("Updated top tracks popularity for artist: %s", a.Name)
-			}
+
+				// If we didn't find a valid image, try scraping the Last.fm website directly
+				if imgURL == "" {
+					scrapedImage := e.lastfm.ScrapeArtistImage(artist.Name)
+					if scrapedImage != "" {
+						imgURL = scrapedImage
+					}
+				}
+
+				if imgURL == "" {
+					imgURL = "NOT_FOUND"
+				}
+
+				bio := info.Artist.Bio.Summary
+				err = e.repo.UpdateArtistInfo(ctx, artist.ID, imgURL, bio)
+				if err != nil {
+					log.Printf("Failed to update artist info in DB for %s: %v", artist.Name, err)
+				} else {
+					log.Printf("Successfully enriched artist via LastFM: %s", artist.Name)
+				}
+				
+				// Additionally fetch top tracks to update local track popularity
+				topTracks, err := e.lastfm.GetArtistTopTracks(artist.Name)
+				if err == nil && topTracks != nil {
+					for _, track := range topTracks.Toptracks.Track {
+						// We'll use listeners as a proxy for popularity
+						var popularity int
+						if track.Listeners != "" {
+							fmt.Sscanf(track.Listeners, "%d", &popularity)
+						} else {
+							fmt.Sscanf(track.Playcount, "%d", &popularity)
+						}
+						
+						if popularity > 0 {
+							_ = e.repo.UpdateArtistTracksPopularity(ctx, artist.ID, track.Name, popularity)
+						}
+					}
+					log.Printf("Updated top tracks popularity for artist: %s", artist.Name)
+				}
+			}(a)
 		}
+		
+		wg.Wait() // Wait for batch to finish before fetching next batch
 	}
 }
 
@@ -209,6 +234,9 @@ func (e *Enricher) processAlbumQueue(ctx context.Context) {
 			return
 		}
 
+		var wg sync.WaitGroup
+		semaphore := make(chan struct{}, 5)
+
 		for _, a := range albums {
 			select {
 			case <-ctx.Done():
@@ -216,40 +244,49 @@ func (e *Enricher) processAlbumQueue(ctx context.Context) {
 			default:
 			}
 
-			if e.lastfm == nil {
-				_ = e.repo.UpdateAlbumBio(ctx, a.AlbumID, "NOT_FOUND")
-				continue
-			}
+			wg.Add(1)
+			semaphore <- struct{}{}
 
-			info, err := e.lastfm.GetAlbumInfo(a.ArtistName, a.AlbumTitle, "", 0)
-			if err != nil || info == nil || info.Error > 0 {
-				log.Printf("No LastFM data found for album: %s by %s", a.AlbumTitle, a.ArtistName)
-				_ = e.repo.UpdateAlbumBio(ctx, a.AlbumID, "NOT_FOUND")
-				continue
-			}
+			go func(album database.UnenrichedAlbum) {
+				defer wg.Done()
+				defer func() { <-semaphore }()
 
-			bio := info.Album.Wiki.Summary
-			if bio == "" {
-				bio = "NOT_FOUND" // mark to avoid retrying
-			}
+				if e.lastfm == nil {
+					_ = e.repo.UpdateAlbumBio(ctx, album.AlbumID, "NOT_FOUND")
+					return
+				}
 
-			err = e.repo.UpdateAlbumBio(ctx, a.AlbumID, bio)
-			if err != nil {
-				log.Printf("Failed to update album bio in DB for %s: %v", a.AlbumTitle, err)
-			} else if bio != "NOT_FOUND" {
-				log.Printf("Successfully enriched album bio via LastFM: %s", a.AlbumTitle)
-			}
+				info, err := e.lastfm.GetAlbumInfo(album.ArtistName, album.AlbumTitle, "", 0)
+				if err != nil || info == nil || info.Error > 0 {
+					log.Printf("No LastFM data found for album: %s by %s", album.AlbumTitle, album.ArtistName)
+					_ = e.repo.UpdateAlbumBio(ctx, album.AlbumID, "NOT_FOUND")
+					return
+				}
 
-			// Update track durations from Last.fm response
-			for _, track := range info.Album.Tracks.Track {
-				if track.Duration != "" {
-					var durSecs int
-					fmt.Sscanf(track.Duration, "%d", &durSecs)
-					if durSecs > 0 {
-						_ = e.repo.UpdateTrackDuration(ctx, a.AlbumID, track.Name, durSecs*1000)
+				bio := info.Album.Wiki.Summary
+				if bio == "" {
+					bio = "NOT_FOUND" // mark to avoid retrying
+				}
+
+				err = e.repo.UpdateAlbumBio(ctx, album.AlbumID, bio)
+				if err != nil {
+					log.Printf("Failed to update album bio in DB for %s: %v", album.AlbumTitle, err)
+				} else if bio != "NOT_FOUND" {
+					log.Printf("Successfully enriched album bio via LastFM: %s", album.AlbumTitle)
+				}
+
+				// Update track durations from Last.fm response
+				for _, track := range info.Album.Tracks.Track {
+					if track.Duration != "" {
+						var durSecs int
+						fmt.Sscanf(track.Duration, "%d", &durSecs)
+						if durSecs > 0 {
+							_ = e.repo.UpdateTrackDuration(ctx, album.AlbumID, track.Name, durSecs*1000)
+						}
 					}
 				}
-			}
+			}(a)
 		}
+		wg.Wait()
 	}
 }

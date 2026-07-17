@@ -27,21 +27,6 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) 
     return () => audioElement.removeEventListener('timeupdate', updateTime);
   }, [audioElement]);
 
-  useEffect(() => {
-    if (isOpen) {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(err => {
-          console.error("Error attempting to enable fullscreen:", err);
-        });
-      }
-    } else {
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(err => {
-          console.error("Error attempting to exit fullscreen:", err);
-        });
-      }
-    }
-  }, [isOpen]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -123,7 +108,12 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) 
 
       {/* Top Bar with Minimize */}
       <button 
-        onClick={onClose}
+        onClick={() => {
+          if (document.fullscreenElement) {
+            document.exitFullscreen().catch(err => console.error(err));
+          }
+          onClose();
+        }}
         style={{
           position: 'absolute', top: '40px', right: '40px',
           background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff',
