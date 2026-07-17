@@ -150,6 +150,9 @@ volumes:
 JWT_SECRET=change_me_to_a_random_string
 SUPERNOVA_PLUGIN_LASTFM=true
 SUPERNOVA_PLUGIN_LRCLIB=true
+
+# Set to true to calculate exact audio durations (slower initial library scan)
+SUPERNOVA_ENABLE_ESTIMATES=false
 LASTFM_API_KEY=your_key_here`}
             </div>
 

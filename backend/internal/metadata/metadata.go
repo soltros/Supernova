@@ -175,6 +175,11 @@ func Extract(filePath string) (*models.TrackMetadata, error) {
 // For MP3 files, it parses actual MPEG frames for exact accuracy.
 // For other formats, it uses the file size and a standard bitrate estimate.
 func getAudioDuration(filePath string) (durationMs int, bitrate int) {
+	// Only calculate/estimate duration if explicitly enabled
+	if os.Getenv("SUPERNOVA_ENABLE_ESTIMATES") != "true" {
+		return 0, 0
+	}
+
 	ext := strings.ToLower(filepath.Ext(filePath))
 
 	if ext == ".mp3" {
@@ -238,9 +243,6 @@ func getAudioDuration(filePath string) (durationMs int, bitrate int) {
 		durationMs = int(fileBytes * 8 / int64(bitrate))
 	}
 
-	if durationMs > 0 {
-		log.Printf("Estimated duration for %s: %dms (bitrate: %d kbps)", filepath.Base(filePath), durationMs, bitrate)
-	}
-
+	// Log removed to prevent log flooding during library scans
 	return durationMs, bitrate
 }
