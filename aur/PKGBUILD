@@ -10,7 +10,8 @@ license=('MIT')
 depends=('nss' 'alsa-lib' 'libxss' 'gtk3')
 provides=('supernova-desktop')
 conflicts=('supernova-desktop')
-source=("https://github.com/soltros/Supernova/releases/download/v${pkgver}/supernova-desktop_${pkgver}_amd64.deb")
+_debver=2026.7.17
+source=("https://github.com/soltros/Supernova/releases/download/v${pkgver}/supernova-desktop_${_debver}_amd64.deb")
 sha256sums=('SKIP')
 
 package() {
