@@ -14,14 +14,17 @@
     "appId": "com.supernova.desktop",
     "productName": "Supernova",
     "mac": {
-      "category": "public.app-category.music"
+      "category": "public.app-category.music",
+      "icon": "build/icon.png"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
-      "category": "Audio"
+      "target": ["AppImage", "deb", "pacman"],
+      "category": "Audio",
+      "icon": "build/icon.png"
     },
     "win": {
-      "target": ["nsis"]
+      "target": ["nsis"],
+      "icon": "build/icon.png"
     }
   },
   "devDependencies": {
