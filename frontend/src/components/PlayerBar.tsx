@@ -150,9 +150,9 @@ const PlayerBar: FC = () => {
             onClick={togglePlay}
           >
             {isPlaying ? (
-              <span className="play-icon-text">||</span>
+              <Pause size={24} fill="currentColor" />
             ) : (
-              <span className="play-icon-text">&gt;</span>
+              <Play size={24} fill="currentColor" style={{ marginLeft: '4px' }} />
             )}
           </button>
           <button className="control-btn" onClick={playNext}><SkipForward size={20} fill="currentColor" /></button>
