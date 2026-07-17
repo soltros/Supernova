@@ -184,7 +184,7 @@ func (p *SubsonicPlugin) handleGetLicense(w http.ResponseWriter, r *http.Request
 	p.writeResponse(w, r, map[string]interface{}{
 		"license": map[string]interface{}{
 			"valid":          true,
-			"email":          "admin@supernova.local",
+			"email":          "soltros@proton.me",
 			"licenseExpires": "2099-01-01T00:00:00.000Z",
 		},
 	})
