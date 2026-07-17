@@ -1,0 +1,23 @@
+# Maintainer: Supernova <hello@supernova.com>
+
+pkgname=supernova-desktop-bin
+pkgver=2026.07.17
+pkgrel=1
+pkgdesc="Supernova Official Desktop Client - The Infinite Local Music Player"
+arch=('x86_64')
+url="https://github.com/soltros/Supernova"
+license=('MIT')
+depends=('nss' 'alsa-lib' 'libxss' 'gtk3')
+provides=('supernova-desktop')
+conflicts=('supernova-desktop')
+source=("https://github.com/soltros/Supernova/releases/download/v${pkgver}/supernova-desktop_${pkgver}_amd64.deb")
+sha256sums=('SKIP')
+
+package() {
+  # makepkg automatically extracts the outer .deb layer into $srcdir
+  # Extract the inner data tarball (could be .xz, .gz, or .zst)
+  tar -xf data.tar.* -C "${pkgdir}"
+  
+  # Ensure correct permissions
+  chmod -R go-w "${pkgdir}/opt"
+}
