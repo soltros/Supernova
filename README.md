@@ -10,7 +10,7 @@ Built with a highly-concurrent Go backend and a Progressive Web App (PWA) React 
 
 ## Core Features
 
-- **Concurrent Library Scanning:** Leverages a tunable Go worker pool purely for CPU-bound ID3 metadata extraction from tens of thousands of files in seconds, batching results to a single dedicated database writer to completely eliminate SQLite write-lock contention.
+- **Concurrent Library Scanning:** Uses a tunable Go worker pool purely for CPU-bound ID3 metadata extraction from tens of thousands of files in seconds, batching results to a single dedicated database writer to completely eliminate SQLite write-lock contention.
 - **Pure-Go Architecture:** Powered by `ncruces/go-sqlite3` (WASM-based SQLite) for zero CGO dependencies and true cross-platform compilation.
 - **Audiophile Streaming:** Raw HTTP range-request streaming for lossless audio directly from your filesystem. 
 - **Last.fm Enrichment:** A background daemon automatically fetches missing artist bios, high-resolution imagery, and global popularity rankings without blocking the user interface.
@@ -193,7 +193,7 @@ Enhance your listening experience with real-time, karaoke-style synchronized lyr
 Transform Supernova into an internet radio powerhouse. This plugin integrates directly with the community-driven Radio-Browser database.
 **Featureset:**
 - **Massive Directory:** Search and browse tens of thousands of global internet radio stations by genre, language, or country.
-- **High-Availability DNS:** Leverages Radio-Browser's dynamic round-robin DNS to ensure the API never goes down.
+- **High-Availability DNS:** Utilizes Radio-Browser's dynamic round-robin DNS to ensure the API never goes down.
 - **Direct Integration:** Streams remote radio stations directly through the Supernova audio engine without cluttering your pristine local library.
 
 ### 5. Auto-Tagger (`/api/plugins/autotagger/*`)
