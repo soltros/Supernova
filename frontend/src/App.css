@@ -99,7 +99,7 @@
   overflow: hidden;
   position: relative;
   /* Allow space at the bottom for the floating player */
-  padding-bottom: 132px;
+  padding-bottom: 144px;
 }
 
 .top-bar {
@@ -215,7 +215,7 @@
   transform: translateX(-50%);
   width: calc(100% - 320px);
   max-width: 1200px;
-  height: 84px;
+  height: 96px;
   border-radius: var(--border-radius-pill);
   background: rgba(20, 20, 28, 0.85);
   backdrop-filter: blur(40px);
@@ -626,13 +626,13 @@
   .main-content {
     margin: 0;
     border-radius: 0;
-    padding-bottom: 160px;
+    padding-bottom: 180px;
   }
   /* Compact Mobile Player */
   .player-bar:not(.expanded) {
     width: calc(100% - 32px);
     bottom: 16px;
-    height: 64px;
+    height: 80px;
     flex-direction: row;
     padding: 8px 16px;
     gap: 12px;
