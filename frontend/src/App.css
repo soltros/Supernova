@@ -308,25 +308,38 @@
 }
 
 .play-btn {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--text-primary);
-  color: var(--bg-primary);
+  width: 64px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-glass-bright);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 16px rgba(255,255,255,0.1);
+  box-shadow: var(--shadow-glass);
+  transition: all var(--transition-fast);
+}
+
+.play-icon-text {
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 2px;
+  font-family: 'Outfit', monospace;
+  line-height: 1;
 }
 
 .play-btn.playing {
 }
 
 .play-btn:hover {
-  transform: scale(1.1);
-  background: var(--accent-primary);
-  color: white;
-  box-shadow: var(--accent-glow);
+  transform: scale(1.05);
+  background: var(--bg-glass-hover);
+  border-color: var(--text-primary);
+  box-shadow: 0 0 15px rgba(255,255,255,0.1);
+  color: var(--text-primary);
 }
 
 .volume-controls {

@@ -148,9 +148,12 @@ const PlayerBar: FC = () => {
           <button 
             className={`control-btn play-btn ${isPlaying ? 'playing' : ''}`} 
             onClick={togglePlay}
-            style={{ width: '48px', height: '48px', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: 'var(--text-primary)', color: 'var(--bg-primary)' }}
           >
-            {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" style={{ marginLeft: '4px' }} />}
+            {isPlaying ? (
+              <span className="play-icon-text">||</span>
+            ) : (
+              <span className="play-icon-text">&gt;</span>
+            )}
           </button>
           <button className="control-btn" onClick={playNext}><SkipForward size={20} fill="currentColor" /></button>
         </div>
