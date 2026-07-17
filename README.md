@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="https://raw.githubusercontent.com/soltros/Supernova/main/frontend/public/logo.jpg" alt="Supernova Logo" width="180" />
+</div>
+
 # Supernova Music
 
 Supernova is a self-hosted, lightning-fast audiophile music server designed for massive local music libraries. It acts as an open-source, high-fidelity alternative to streaming platforms, focusing on raw performance, direct streaming, and uncompromising offline playback.
