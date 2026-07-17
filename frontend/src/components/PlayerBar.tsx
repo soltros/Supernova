@@ -83,9 +83,9 @@ const PlayerBar: FC = () => {
         onClick={() => !isMobileExpanded && setIsMobileExpanded(true)}
       >
         <div className="album-art-container" style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
-          {currentAlbum ? (
+          {currentTrack?.album_id || currentAlbum ? (
             <img 
-              src={currentAlbum.cover_art_url ? currentAlbum.cover_art_url : `${API_BASE_URL}/api/art/album/${currentAlbum.id}`} 
+              src={currentAlbum?.cover_art_url ? currentAlbum.cover_art_url : `${API_BASE_URL}/api/art/album/${currentTrack?.album_id || currentAlbum?.id}`} 
               alt="art"
               className={`track-art-small ${isPlaying ? 'playing' : ''}`}
               onError={(e) => {
@@ -96,7 +96,7 @@ const PlayerBar: FC = () => {
               }}
             />
           ) : null}
-          <div className={`track-art-small ${isPlaying ? 'playing' : ''}`} style={{ display: currentAlbum ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className={`track-art-small ${isPlaying ? 'playing' : ''}`} style={{ display: (currentTrack?.album_id || currentAlbum) ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ color: 'var(--text-muted)' }}>♪</span>
           </div>
         </div>

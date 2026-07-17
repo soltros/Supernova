@@ -214,7 +214,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     if ('mediaSession' in navigator) {
       const artUrl = album.cover_art_url 
         ? album.cover_art_url 
-        : `${API_BASE_URL || window.location.origin}/api/art/album/${album.id}`;
+        : `${API_BASE_URL || window.location.origin}/api/art/album/${track.album_id || album.id}`;
         
       // Ensure absolute URL (if cover_art_url is a relative path somehow)
       const absoluteArtUrl = artUrl.startsWith('http') ? artUrl : `${window.location.origin}${artUrl.startsWith('/') ? '' : '/'}${artUrl}`;
