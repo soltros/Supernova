@@ -31,7 +31,7 @@ function App() {
               </div>
             </div>
             <div className="hero-image-wrapper">
-              <img src="./hero-screenshot.png" alt="Supernova UI" className="hero-image" />
+              <img src={heroScreenshot} alt="Supernova UI" className="hero-image" />
             </div>
           </div>
         </section>
@@ -146,14 +146,30 @@ volumes:
             
             <p style={{ marginTop: '24px', fontSize: '14px' }}>And save this configuration as <code>.env</code> in the same folder:</p>
             <div style={{ background: 'rgba(0,0,0,0.5)', padding: '24px', borderRadius: '12px', textAlign: 'left', fontFamily: 'monospace', color: '#a5b4fc', border: '1px solid rgba(255,255,255,0.1)', overflowX: 'auto', whiteSpace: 'pre' }}>
-{`MEDIA_PATH=/root/Music
+{`# ---- Core Configuration ----
+MEDIA_PATH=/root/Music
+DB_PATH=/root/supernova.db
+ART_CACHE_PATH=/root/art_cache
+PORT=8080
+CORS_ALLOWED_ORIGIN=*
 JWT_SECRET=change_me_to_a_random_string
+
+# ---- Plugins ----
 SUPERNOVA_PLUGIN_LASTFM=true
 SUPERNOVA_PLUGIN_LRCLIB=true
+SUPERNOVA_PLUGIN_SUBSONIC=true
+SUPERNOVA_PLUGIN_RADIOBROWSER=true
+SUPERNOVA_PLUGIN_PODCASTS=true
 
+# ---- API Keys ----
+LASTFM_API_KEY=your_key_here
+LASTFM_API_SECRET=your_secret_here
+PODCAST_INDEX_API_KEY=your_key_here
+PODCAST_INDEX_API_SECRET=your_secret_here
+
+# ---- Advanced Settings ----
 # Set to true to calculate exact audio durations (slower initial library scan)
-SUPERNOVA_ENABLE_ESTIMATES=false
-LASTFM_API_KEY=your_key_here`}
+SUPERNOVA_ENABLE_ESTIMATES=false`}
             </div>
 
             <p style={{ marginTop: '24px', fontSize: '14px' }}>Then, just run <code>docker-compose up -d</code> to deploy the stack!</p>
