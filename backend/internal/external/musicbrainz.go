@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+	"sync"
 
 	"github.com/soltros/Supernova/internal/models"
 )
@@ -16,6 +17,7 @@ const mbBaseURL = "https://musicbrainz.org/ws/2"
 type MusicBrainzClient struct {
 	client    *http.Client
 	userAgent string
+	mu        sync.Mutex
 }
 
 // NewMusicBrainzClient creates a new client. MusicBrainz strictly requires a descriptive User-Agent.
@@ -64,6 +66,12 @@ func (c *MusicBrainzClient) EnhanceMetadata(raw *models.TrackMetadata) error {
 
 	reqURL := fmt.Sprintf("%s/recording/?query=%s&fmt=json&limit=1", mbBaseURL, url.QueryEscape(query))
 	
+	// Globally lock to enforce 1 req/sec rate limit across all worker routines
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// WARNING: MusicBrainz rate limits heavily (1 request per second per IP).
+	// We MUST sleep while holding the lock to avoid getting banned.
+	defer time.Sleep(1100 * time.Millisecond)
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
 		return err
@@ -106,10 +114,6 @@ func (c *MusicBrainzClient) EnhanceMetadata(raw *models.TrackMetadata) error {
 			raw.AlbumMBID = rec.Releases[0].ID
 		}
 	}
-
-	// WARNING: MusicBrainz rate limits heavily (1 request per second per IP).
-	// We MUST sleep here to avoid getting banned during a library scan.
-	time.Sleep(1100 * time.Millisecond)
 
 	return nil
 }
