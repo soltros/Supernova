@@ -8,7 +8,7 @@ function App() {
 
       <nav className="navbar">
         <a href="#" className="logo-container">
-          <img src="/logo.svg" alt="Supernova Logo" />
+          <img src="./logo.svg" alt="Supernova Logo" />
           <span className="logo-text">Supernova</span>
         </a>
         <div className="nav-links">
@@ -31,7 +31,7 @@ function App() {
               </div>
             </div>
             <div className="hero-image-wrapper">
-              <img src="/hero-screenshot.png" alt="Supernova UI" className="hero-image" />
+              <img src="./hero-screenshot.png" alt="Supernova UI" className="hero-image" />
             </div>
           </div>
         </section>
@@ -126,12 +126,8 @@ function App() {
       - supernova-db:/root/.supernova/db
       - supernova-cache:/root/.supernova/art_cache
       - ./music:/root/Music:ro
-    environment:
-      - MEDIA_PATH=/root/Music
-      - JWT_SECRET=change_me_to_a_random_string
-      - SUPERNOVA_PLUGIN_LASTFM=true
-      - SUPERNOVA_PLUGIN_LRCLIB=true
-      - LASTFM_API_KEY=your_key_here
+    env_file:
+      - .env
     restart: unless-stopped
 
   frontend:
@@ -147,7 +143,17 @@ volumes:
   supernova-db:
   supernova-cache:`}
             </div>
-            <p style={{ marginTop: '24px', fontSize: '14px' }}>Save this as <code>docker-compose.yml</code> and run <code>docker-compose up -d</code></p>
+            
+            <p style={{ marginTop: '24px', fontSize: '14px' }}>And save this configuration as <code>.env</code> in the same folder:</p>
+            <div style={{ background: 'rgba(0,0,0,0.5)', padding: '24px', borderRadius: '12px', textAlign: 'left', fontFamily: 'monospace', color: '#a5b4fc', border: '1px solid rgba(255,255,255,0.1)', overflowX: 'auto', whiteSpace: 'pre' }}>
+{`MEDIA_PATH=/root/Music
+JWT_SECRET=change_me_to_a_random_string
+SUPERNOVA_PLUGIN_LASTFM=true
+SUPERNOVA_PLUGIN_LRCLIB=true
+LASTFM_API_KEY=your_key_here`}
+            </div>
+
+            <p style={{ marginTop: '24px', fontSize: '14px' }}>Then, just run <code>docker-compose up -d</code> to deploy the stack!</p>
           </div>
         </section>
 
