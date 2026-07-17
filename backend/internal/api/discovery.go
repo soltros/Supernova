@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -49,12 +51,32 @@ func (s *Server) handleGetDiscovery() http.HandlerFunc {
 
 		for _, artist := range artists {
 			// iTunes
-			u := "https://itunes.apple.com/search?term=" + url.QueryEscape(artist) + "&entity=album&limit=2&sort=recent"
+			u := "https://itunes.apple.com/search?term=" + url.QueryEscape(artist) + "&entity=album&limit=50"
 			resp, err := client.Get(u)
 			if err == nil {
 				var res iTunesResponse
-				if err := json.NewDecoder(resp.Body).Decode(&res); err == nil {
-					allReleases = append(allReleases, res.Results...)
+				if err := json.NewDecoder(resp.Body).Decode(&res); err == nil && len(res.Results) > 0 {
+					// Filter to ensure it actually matches our artist to prevent bad matches
+					var matched []externalRelease
+					for _, r := range res.Results {
+						if strings.EqualFold(r.ArtistName, artist) {
+							matched = append(matched, r)
+						}
+					}
+					
+					if len(matched) > 0 {
+						// Sort descending by release date
+						sort.Slice(matched, func(i, j int) bool {
+							return matched[i].ReleaseDate.After(matched[j].ReleaseDate)
+						})
+						
+						latest := matched[0]
+						
+						// Only count if it is canonically the latest AND released recently (within the last year)
+						if time.Since(latest.ReleaseDate) < 365*24*time.Hour {
+							allReleases = append(allReleases, latest)
+						}
+					}
 				}
 				resp.Body.Close()
 			}
