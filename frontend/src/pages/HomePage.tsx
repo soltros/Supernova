@@ -112,11 +112,13 @@ const HomePage: FC = () => {
                     <div className="album-cover-container">
                       <img src={release.artworkUrl100.replace('100x100bb', '300x300bb')} alt={release.collectionName} className="album-cover" />
                     </div>
-                    <div className="album-title">{release.collectionName}</div>
-                    <div className="album-artist">{release.artistName}</div>
-                    <div className="album-year" style={{ color: 'var(--accent-primary)', fontSize: '11px', marginTop: '4px' }}>
+                  <div className="album-info" style={{ display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ margin: '0 0 4px 0', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{release.collectionName}</h3>
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{release.artistName}</div>
+                    <div style={{ color: 'var(--accent-primary)', fontSize: '11px', marginTop: '4px' }}>
                        {new Date(release.releaseDate).getFullYear()} • Out Now
                     </div>
+                  </div>
                   </div>
                 </a>
               ))}
@@ -138,8 +140,10 @@ const HomePage: FC = () => {
                       <div className="album-cover" style={{ borderRadius: '50%', background: 'var(--surface-light)' }} />
                     )}
                   </div>
-                  <div className="album-title" style={{ textAlign: 'center', marginTop: '12px' }}>{artist.name}</div>
-                  <div className="album-artist" style={{ textAlign: 'center' }}>Because you listen to {artist.basedOn}</div>
+                  <div className="album-info" style={{ display: 'flex', flexDirection: 'column', marginTop: '12px', textAlign: 'center' }}>
+                    <h3 style={{ margin: '0 0 4px 0', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{artist.name}</h3>
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>Because you listen to {artist.basedOn}</div>
+                  </div>
                 </div>
               ))}
             </div>
