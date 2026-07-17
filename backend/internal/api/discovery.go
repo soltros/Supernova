@@ -100,10 +100,29 @@ func (s *Server) handleGetDiscovery() http.HandlerFunc {
 					if err := json.NewDecoder(lResp.Body).Decode(&lRes); err == nil {
 						for _, sim := range lRes.SimilarArtists.Artist {
 							img := ""
-							for _, imgObj := range sim.Image {
-								if imgObj.Size == "extralarge" || imgObj.Size == "large" {
-									img = imgObj.Text
+							
+							// Fetch Top Album for this artist to get an actual image (since Last.fm removed artist images)
+							albumUrl := "http://ws.audioscrobbler.com/2.0/?method=artist.gettopalbums&artist=" + url.QueryEscape(sim.Name) + "&api_key=" + lastFmKey + "&format=json&limit=1"
+							aResp, err := client.Get(albumUrl)
+							if err == nil {
+								var aRes struct {
+									TopAlbums struct {
+										Album []struct {
+											Image []struct {
+												Text string `json:"#text"`
+												Size string `json:"size"`
+											} `json:"image"`
+										} `json:"album"`
+									} `json:"topalbums"`
 								}
+								if err := json.NewDecoder(aResp.Body).Decode(&aRes); err == nil && len(aRes.TopAlbums.Album) > 0 {
+									for _, imgObj := range aRes.TopAlbums.Album[0].Image {
+										if imgObj.Size == "extralarge" || imgObj.Size == "large" {
+											img = imgObj.Text
+										}
+									}
+								}
+								aResp.Body.Close()
 							}
 							
 							var artistID string
