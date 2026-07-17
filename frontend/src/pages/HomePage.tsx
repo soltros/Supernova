@@ -131,21 +131,33 @@ const HomePage: FC = () => {
             <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '16px' }}>Discover</h2>
             <p style={{ color: 'var(--text-muted)', marginBottom: '24px', marginTop: '-8px' }}>Similar artists based on your library (via Last.fm)</p>
             <div className="album-grid">
-              {similarArtists.map((artist, i) => (
-                <div key={i} className="album-card" style={{ cursor: 'pointer' }}>
-                  <div className="album-cover-container" style={{ borderRadius: '50%' }}>
-                    {artist.image ? (
-                      <img src={artist.image} alt={artist.name} className="album-cover" style={{ borderRadius: '50%' }} />
-                    ) : (
-                      <div className="album-cover" style={{ borderRadius: '50%', background: 'var(--surface-light)' }} />
-                    )}
+              {similarArtists.map((artist, i) => {
+                const CardContent = (
+                  <div className="album-card" style={{ cursor: 'pointer' }}>
+                    <div className="album-cover-container" style={{ borderRadius: '50%' }}>
+                      {artist.image ? (
+                        <img src={artist.image} alt={artist.name} className="album-cover" style={{ borderRadius: '50%' }} />
+                      ) : (
+                        <div className="album-cover" style={{ borderRadius: '50%', background: 'var(--surface-light)' }} />
+                      )}
+                    </div>
+                    <div className="album-info" style={{ display: 'flex', flexDirection: 'column', marginTop: '12px', textAlign: 'center' }}>
+                      <h3 style={{ margin: '0 0 4px 0', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{artist.name}</h3>
+                      <div style={{ fontSize: '13px', color: 'var(--text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>Because you listen to {artist.basedOn}</div>
+                    </div>
                   </div>
-                  <div className="album-info" style={{ display: 'flex', flexDirection: 'column', marginTop: '12px', textAlign: 'center' }}>
-                    <h3 style={{ margin: '0 0 4px 0', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{artist.name}</h3>
-                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>Because you listen to {artist.basedOn}</div>
-                  </div>
-                </div>
-              ))}
+                );
+
+                return artist.id ? (
+                  <Link key={i} to={`/artist/${artist.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                    {CardContent}
+                  </Link>
+                ) : (
+                  <a key={i} href={`https://www.youtube.com/results?search_query=${encodeURIComponent(artist.name + " music")}`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    {CardContent}
+                  </a>
+                );
+              })}
             </div>
           </div>
         )}

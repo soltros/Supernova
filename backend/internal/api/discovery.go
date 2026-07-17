@@ -105,11 +105,20 @@ func (s *Server) handleGetDiscovery() http.HandlerFunc {
 									img = imgObj.Text
 								}
 							}
-							similarArtists = append(similarArtists, map[string]interface{}{
+							
+							var artistID string
+							s.repo.DB().QueryRowContext(r.Context(), "SELECT id FROM artists WHERE name = ? LIMIT 1", sim.Name).Scan(&artistID)
+							
+							simData := map[string]interface{}{
 								"name": sim.Name,
 								"basedOn": artist,
 								"image": img,
-							})
+							}
+							if artistID != "" {
+								simData["id"] = artistID
+							}
+							
+							similarArtists = append(similarArtists, simData)
 						}
 					}
 					lResp.Body.Close()
