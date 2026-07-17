@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="supernovaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <path d="M50 10 C50 40, 60 50, 90 50 C60 50, 50 60, 50 90 C50 60, 40 50, 10 50 C40 50, 50 40, 50 10 Z" fill="url(#supernovaGrad)" filter="url(#glow)"/>
+  <circle cx="50" cy="50" r="10" fill="#ffffff" opacity="0.9"/>
+</svg>

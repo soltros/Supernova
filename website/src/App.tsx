@@ -1,3 +1,5 @@
+import heroScreenshot from './assets/hero-screenshot.png';
+
 function App() {
   return (
     <>
