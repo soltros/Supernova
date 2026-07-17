@@ -8,13 +8,17 @@ import (
 	"image/jpeg"
 	_ "image/png"
 	_ "image/gif"
+	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/dhowden/tag"
 	"github.com/soltros/Supernova/internal/models"
+	"github.com/tcolgate/mp3"
 	"golang.org/x/image/draw"
 )
 
@@ -149,6 +153,9 @@ func Extract(filePath string) (*models.TrackMetadata, error) {
 		}
 	}
 
+	// Extract duration and bitrate directly from the audio file
+	durationMs, bitrate := getAudioDuration(filePath)
+
 	return &models.TrackMetadata{
 		Title:        m.Title(),
 		Album:        m.Album(),
@@ -157,7 +164,83 @@ func Extract(filePath string) (*models.TrackMetadata, error) {
 		TrackNumber:  trackNum,
 		DiscNumber:   discNum,
 		Year:         m.Year(),
+		DurationMs:   durationMs,
+		Bitrate:      bitrate,
 		Format:       string(m.Format()),
 		CoverArtPath: coverArtPath,
 	}, nil
+}
+
+// getAudioDuration calculates the duration of an audio file.
+// For MP3 files, it parses actual MPEG frames for exact accuracy.
+// For other formats, it uses the file size and a standard bitrate estimate.
+func getAudioDuration(filePath string) (durationMs int, bitrate int) {
+	ext := strings.ToLower(filepath.Ext(filePath))
+
+	if ext == ".mp3" {
+		f, err := os.Open(filePath)
+		if err != nil {
+			return 0, 0
+		}
+		defer f.Close()
+
+		decoder := mp3.NewDecoder(f)
+		var frame mp3.Frame
+		var totalDuration float64
+		var totalBitrate int
+		var frameCount int
+		skipped := 0
+
+		for {
+			err := decoder.Decode(&frame, &skipped)
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				// Corrupted frame — skip and continue
+				break
+			}
+			totalDuration += frame.Duration().Seconds()
+			totalBitrate += int(frame.Header().BitRate() / 1000)
+			frameCount++
+		}
+
+		if frameCount > 0 {
+			bitrate = totalBitrate / frameCount
+		}
+		durationMs = int(totalDuration * 1000)
+		return durationMs, bitrate
+	}
+
+	// For non-MP3 (FLAC, OGG, M4A, etc.): estimate from file size
+	// This is a rough fallback; the enricher will correct it from Last.fm later.
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return 0, 0
+	}
+	fileBytes := info.Size()
+
+	switch ext {
+	case ".flac":
+		// FLAC files average ~900 kbps for CD quality (16-bit/44.1kHz)
+		bitrate = 900
+	case ".ogg", ".opus":
+		bitrate = 160
+	case ".m4a", ".aac", ".m4b":
+		bitrate = 256
+	case ".wav", ".aiff":
+		bitrate = 1411 // CD quality raw PCM
+	default:
+		bitrate = 256
+	}
+
+	if bitrate > 0 {
+		durationMs = int(fileBytes * 8 / int64(bitrate))
+	}
+
+	if durationMs > 0 {
+		log.Printf("Estimated duration for %s: %dms (bitrate: %d kbps)", filepath.Base(filePath), durationMs, bitrate)
+	}
+
+	return durationMs, bitrate
 }

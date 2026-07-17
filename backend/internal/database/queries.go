@@ -537,7 +537,8 @@ func (r *Repository) GetAlbumsMissingBio(ctx context.Context, limit int) ([]Unen
 		JOIN album_artists aa ON a.id = aa.album_id AND aa.role = 'primary'
 		JOIN artists art ON aa.artist_id = art.id
 		LEFT JOIN tracks t ON a.id = t.album_id
-		WHERE (a.bio = '' OR a.bio IS NULL) AND a.bio != 'NOT_FOUND'
+		WHERE (a.bio = '' OR a.bio IS NULL)
+		AND COALESCE(a.bio, '') != 'NOT_FOUND'
 		GROUP BY a.id
 		LIMIT ?
 	`
