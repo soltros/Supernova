@@ -40,11 +40,8 @@
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: var(--accent-gradient);
+  object-fit: cover;
   box-shadow: var(--accent-glow);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .logo-container h1 {
@@ -299,28 +296,38 @@
 
 .control-btn {
   font-size: 22px;
-  color: var(--text-secondary);
-}
-
-.control-btn:hover {
-  color: var(--text-primary);
-  transform: scale(1.1);
-}
-
-.play-btn {
-  width: 64px;
-  height: 40px;
-  border-radius: 8px;
-  background: var(--bg-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border-glass-bright);
-  color: var(--text-primary);
+  color: var(--accent-primary);
+  opacity: 0.8;
+  transition: all var(--transition-fast);
+  background: transparent;
+  border: none;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: var(--shadow-glass);
+}
+
+.control-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+  filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.6));
+}
+
+.play-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(139, 92, 246, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  color: var(--accent-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
   transition: all var(--transition-fast);
+  margin: 0 8px;
 }
 
 .play-icon-text {
@@ -332,14 +339,15 @@
 }
 
 .play-btn.playing {
+  background: rgba(139, 92, 246, 0.25);
 }
 
 .play-btn:hover {
   transform: scale(1.05);
-  background: var(--bg-glass-hover);
-  border-color: var(--text-primary);
-  box-shadow: 0 0 15px rgba(255,255,255,0.1);
-  color: var(--text-primary);
+  background: rgba(139, 92, 246, 0.3);
+  border-color: var(--accent-primary);
+  box-shadow: var(--accent-glow);
+  color: #fff;
 }
 
 .volume-controls {

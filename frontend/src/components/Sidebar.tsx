@@ -12,7 +12,7 @@ const Sidebar: FC<{ isOpen?: boolean; onClose?: () => void }> = ({ isOpen, onClo
       {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
       <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
       <div className="logo-container">
-        <div className="logo-icon"></div>
+        <img src="/logo.jpg" alt="Supernova" className="logo-icon" />
         <h1 className="text-gradient">Supernova</h1>
       </div>
       <nav className="nav-menu">

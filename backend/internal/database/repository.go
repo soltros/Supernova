@@ -40,12 +40,13 @@ func (r *Repository) UpsertTrack(ctx context.Context, meta *models.TrackMetadata
 	}
 
 	// 2. Check if the file has been modified since it was last scanned.
+	// We use a 2-second tolerance because Docker SMB/NFS mounts often fluctuate timestamps slightly.
 	// This ensures that plugin overrides (e.g. from AutoTagger or AlbumMerger) are not reverted
 	// unless the actual ID3 tags in the physical file are updated.
 	var existingModTime int64
 	err = r.db.QueryRowContext(ctx, "SELECT file_modified_at FROM tracks WHERE file_path = ?", meta.FilePath).Scan(&existingModTime)
-	if err == nil && existingModTime >= meta.FileModifiedAt && meta.FileModifiedAt > 0 {
-		// File hasn't changed, skip upsert to preserve database state
+	if err == nil && existingModTime > 0 && (meta.FileModifiedAt - existingModTime) <= 2 {
+		// File hasn't meaningfully changed, skip upsert to preserve database state
 		return nil
 	}
 
