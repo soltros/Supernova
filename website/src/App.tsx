@@ -1,4 +1,5 @@
 import heroScreenshot from './assets/hero-screenshot.png';
+import { Sparkles, Music, Mic2, Radio, Wand2, Rocket, Heart } from 'lucide-react';
 
 function App() {
   return (
@@ -42,32 +43,32 @@ function App() {
           <h2 className="section-title">Beyond a typical player</h2>
           <div className="feature-grid">
             <div className="feature-card">
-              <div className="feature-icon">✨</div>
+              <div className="feature-icon"><Sparkles size={24} /></div>
               <h3>Stunning Glassmorphism</h3>
               <p>Built with a breathtaking modern glassmorphism design that reacts and glows with your music. Every interaction feels alive.</p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon">🎵</div>
+              <div className="feature-icon"><Music size={24} /></div>
               <h3>Automagic Metadata</h3>
               <p>Supernova seamlessly links your local files to Last.fm and iTunes to fetch high-res artwork, artist bios, and similar artists instantly.</p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon">📝</div>
+              <div className="feature-icon"><Mic2 size={24} /></div>
               <h3>Synchronized Lyrics</h3>
               <p>Sing along in style. Supernova automatically fetches and synchronizes lyrics for your entire library using LRCLIB.</p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon">📻</div>
+              <div className="feature-icon"><Radio size={24} /></div>
               <h3>Internet Radio & Podcasts</h3>
               <p>Tune into thousands of global radio stations via RadioBrowser or subscribe to your favorite shows via the Podcast Index.</p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon">🧹</div>
+              <div className="feature-icon"><Wand2 size={24} /></div>
               <h3>Smart Library Management</h3>
               <p>Clean up your library automatically. Built-in deduplication, auto-tagging, and artist merging keep your collection perfectly organized.</p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon">🚀</div>
+              <div className="feature-icon"><Rocket size={24} /></div>
               <h3>Subsonic API Support</h3>
               <p>Stream your library anywhere. Supernova includes full Subsonic API compatibility so you can use third-party mobile apps.</p>
             </div>
@@ -179,7 +180,7 @@ SUPERNOVA_ENABLE_ESTIMATES=false`}
         </section>
 
         <footer>
-          <p>© {new Date().getFullYear()} Supernova Open Source Project. Designed and built with ❤️</p>
+          <p>© {new Date().getFullYear()} Supernova Open Source Project. Designed and built with <Heart size={14} style={{ display: 'inline', verticalAlign: 'middle', margin: '0 4px', color: '#ec4899' }} /></p>
         </footer>
       </div>
     </>
