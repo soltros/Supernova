@@ -652,6 +652,10 @@ func (p *SubsonicPlugin) handleGetPlaylist(w http.ResponseWriter, r *http.Reques
 		entryList = append(entryList, map[string]interface{}{
 			"id":          t.ID,
 			"title":       t.Title,
+			"album":       "", // Not easily available in GetPlaylistTracks
+			"albumId":     t.AlbumID,
+			"parent":      t.AlbumID,
+			"isDir":       false,
 			"artist":      t.ArtistName,
 			"track":       t.TrackNumber,
 			"discNumber":  t.DiscNumber,
