@@ -60,6 +60,9 @@ func Init(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("failed to execute schema migrations: %w", err)
 	}
 
+	// Ensure new columns exist for older databases
+	_, _ = db.Exec("ALTER TABLE users ADD COLUMN subsonic_password TEXT DEFAULT '';")
+
 	// Track migration states using user_version
 	var version int
 	err = db.QueryRow("PRAGMA user_version").Scan(&version)

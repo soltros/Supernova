@@ -71,6 +71,10 @@ func (s *Server) handleRegister() http.HandlerFunc {
 			return
 		}
 
+		if encPass, err := EncryptPassword(req.Password, getJWTSecret()); err == nil {
+			_ = s.repo.SetSubsonicPassword(r.Context(), user.Username, encPass)
+		}
+
 		token, err := generateJWT(user.ID)
 		if err != nil {
 			http.Error(w, "failed to generate token", http.StatusInternalServerError)
@@ -111,6 +115,11 @@ func (s *Server) handleLogin() http.HandlerFunc {
 		if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)); err != nil {
 			http.Error(w, "invalid username or password", http.StatusUnauthorized)
 			return
+		}
+
+		// Ensure the subsonic password is encrypted and saved
+		if encPass, err := EncryptPassword(req.Password, getJWTSecret()); err == nil {
+			_ = s.repo.SetSubsonicPassword(r.Context(), user.Username, encPass)
 		}
 
 		token, err := generateJWT(user.ID)

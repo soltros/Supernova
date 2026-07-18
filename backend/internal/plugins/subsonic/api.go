@@ -2,6 +2,7 @@ package subsonic
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/soltros/Supernova/internal/api"
 	"github.com/soltros/Supernova/internal/models"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -32,20 +34,41 @@ func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 
 		if t != "" && s != "" {
 			// Token-based auth: client sends t = md5(password + salt), s = salt
-			_, hash, err := p.repo.GetUserByUsername(context.Background(), u)
+			user, _, err := p.repo.GetUserByUsername(context.Background(), u)
+			if err != nil || user == nil {
+				p.writeError(w, r, 40, "Wrong username or password.")
+				return
+			}
+			
+			encPass, err := p.repo.GetSubsonicPassword(context.Background(), u)
+			if err != nil || encPass == "" {
+				p.writeError(w, r, 40, "Please login via the web UI once to enable Subsonic token authentication.")
+				return
+			}
+
+			// We retrieve the symmetric JWT_SECRET to decrypt the password
+			secret := os.Getenv("JWT_SECRET")
+			if len(secret) < 32 {
+				p.writeError(w, r, 40, "Server configuration error.")
+				return
+			}
+
+			// Decrypt using the crypto utility
+			plain, err := api.DecryptPassword(encPass, []byte(secret))
 			if err != nil {
 				p.writeError(w, r, 40, "Wrong username or password.")
 				return
 			}
-			// We store passwords as bcrypt hashes so we can't reconstruct the plain text
-			// for MD5 token comparison. Reject gracefully with a clear message.
-			if hash == "" {
+
+			expectedToken := fmt.Sprintf("%x", md5.Sum([]byte(plain + s)))
+			if expectedToken != t {
 				p.writeError(w, r, 40, "Wrong username or password.")
 				return
 			}
-			// Token auth requires plaintext password stored server-side which is incompatible
-			// with bcrypt. Inform client to use cleartext password auth instead.
-			p.writeError(w, r, 41, "Token authentication is not supported when passwords are bcrypt-hashed. Please use cleartext password (p=) auth in your client settings.")
+
+			// Valid!
+			ctx := context.WithValue(r.Context(), userContextKey, user)
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 

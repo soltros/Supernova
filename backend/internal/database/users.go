@@ -53,3 +53,24 @@ func (r *Repository) GetUserByID(ctx context.Context, id string) (*models.User, 
 	}
 	return &user, nil
 }
+
+// GetSubsonicPassword retrieves the encrypted subsonic password for a user
+func (r *Repository) GetSubsonicPassword(ctx context.Context, username string) (string, error) {
+	query := `SELECT subsonic_password FROM users WHERE username = ?`
+	var encPass sql.NullString
+	err := r.db.QueryRowContext(ctx, query, username).Scan(&encPass)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return encPass.String, nil
+}
+
+// SetSubsonicPassword saves the symmetrically encrypted password for subsonic auth
+func (r *Repository) SetSubsonicPassword(ctx context.Context, username, encryptedPassword string) error {
+	query := `UPDATE users SET subsonic_password = ? WHERE username = ?`
+	_, err := r.db.ExecContext(ctx, query, encryptedPassword, username)
+	return err
+}
