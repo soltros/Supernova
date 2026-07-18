@@ -284,7 +284,6 @@ func (p *SubsonicPlugin) handleGetIndexes(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Group by first letter
 	indexMap := make(map[string][]map[string]interface{})
 	for _, a := range artists {
 		if a.Name == "" {
@@ -295,8 +294,9 @@ func (p *SubsonicPlugin) handleGetIndexes(w http.ResponseWriter, r *http.Request
 			letter = "#"
 		}
 		indexMap[letter] = append(indexMap[letter], map[string]interface{}{
-			"id":   a.ID,
-			"name": a.Name,
+			"id":         a.ID,
+			"name":       a.Name,
+			"albumCount": 1, // Satisfy strict clients that require albumCount > 0
 		})
 	}
 
@@ -335,8 +335,9 @@ func (p *SubsonicPlugin) handleGetArtists(w http.ResponseWriter, r *http.Request
 			letter = "#"
 		}
 		indexMap[letter] = append(indexMap[letter], map[string]interface{}{
-			"id":   a.ID,
-			"name": a.Name,
+			"id":         a.ID,
+			"name":       a.Name,
+			"albumCount": 1, // Satisfy strict clients that require albumCount > 0
 		})
 	}
 
@@ -368,11 +369,12 @@ func (p *SubsonicPlugin) handleGetArtist(w http.ResponseWriter, r *http.Request)
 	var albumList []map[string]interface{}
 	for _, al := range albums {
 		albumList = append(albumList, map[string]interface{}{
-			"id":       al.ID,
-			"name":     al.Title,
-			"artist":   artist.Name,
-			"artistId": artist.ID,
-			"coverArt": al.ID,
+			"id":        al.ID,
+			"name":      al.Title,
+			"artist":    artist.Name,
+			"artistId":  artist.ID,
+			"coverArt":  al.ID,
+			"songCount": 1, // Satisfy strict clients
 		})
 	}
 
@@ -389,6 +391,29 @@ func (p *SubsonicPlugin) handleGetArtist(w http.ResponseWriter, r *http.Request)
 
 func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
+	
+	if id == "1" {
+		// They are requesting the root music folder, return artists as directories
+		artists, _ := p.repo.GetArtists(context.Background(), 1000, 0)
+		var children []map[string]interface{}
+		for _, a := range artists {
+			children = append(children, map[string]interface{}{
+				"id":    a.ID,
+				"parent": "1",
+				"isDir": true,
+				"title": a.Name,
+				"artist": a.Name,
+			})
+		}
+		p.writeResponse(w, r, map[string]interface{}{
+			"directory": map[string]interface{}{
+				"id":    "1",
+				"name":  "Supernova Library",
+				"child": children,
+			},
+		})
+		return
+	}
 	
 	// First check if it's an artist
 	artist, err := p.repo.GetArtistByID(context.Background(), id)
@@ -429,6 +454,7 @@ func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.
 				"isDir":       false,
 				"title":       track.Title,
 				"album":       album.Title,
+				"albumId":     album.ID,
 				"artist":      track.ArtistName,
 				"track":       track.TrackNumber,
 				"duration":    track.DurationMs / 1000,
@@ -469,8 +495,11 @@ func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) 
 		}
 		songList = append(songList, map[string]interface{}{
 			"id":          t.ID,
+			"parent":      album.ID,
+			"isDir":       false,
 			"title":       t.Title,
 			"album":       album.Title,
+			"albumId":     album.ID,
 			"artist":      t.ArtistName,
 			"track":       t.TrackNumber,
 			"discNumber":  t.DiscNumber,
@@ -490,11 +519,12 @@ func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) 
 
 	p.writeResponse(w, r, map[string]interface{}{
 		"album": map[string]interface{}{
-			"id":       album.ID,
-			"name":     album.Title,
-			"artist":   artistName,
-			"coverArt": album.ID,
-			"song":     songList,
+			"id":        album.ID,
+			"name":      album.Title,
+			"artist":    artistName,
+			"coverArt":  album.ID,
+			"songCount": len(songList),
+			"song":      songList,
 		},
 	})
 }
@@ -680,13 +710,13 @@ func (p *SubsonicPlugin) handleGetAlbumList(w http.ResponseWriter, r *http.Reque
 	var albumList []map[string]interface{}
 	for _, a := range albums {
 		albumList = append(albumList, map[string]interface{}{
-			"id":       a.ID,
-			"name":     a.Title,
-			"title":    a.Title, // some clients use title instead of name
-			"artist":   a.ArtistName, // Not strictly fetched in GetAlbums, but GetAlbums query joins artists! Wait, does models.Album have ArtistName?
-			"artistId": "",
-			"coverArt": a.ID,
-			"songCount": 10,
+			"id":        a.ID,
+			"name":      a.Title,
+			"title":     a.Title, // some clients use title instead of name
+			"artist":    a.ArtistName,
+			"artistId":  a.ArtistID,
+			"coverArt":  a.ID,
+			"songCount": 1, // Minimum 1 to show as a valid album
 		})
 	}
 
