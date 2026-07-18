@@ -96,6 +96,8 @@ func (p *SubsonicPlugin) handleGetStarred(w http.ResponseWriter, r *http.Request
 			"id":          t.ID,
 			"title":       t.Title,
 			"albumId":     t.AlbumID,
+			"parent":      t.AlbumID,
+			"isDir":       false,
 			"artist":      t.ArtistName,
 			"track":       t.TrackNumber,
 			"discNumber":  t.DiscNumber,
@@ -111,18 +113,20 @@ func (p *SubsonicPlugin) handleGetStarred(w http.ResponseWriter, r *http.Request
 	var albumNodes []map[string]interface{}
 	for _, a := range albums {
 		albumNodes = append(albumNodes, map[string]interface{}{
-			"id":       a.ID,
-			"name":     a.Title,
-			"artist":   a.ArtistName,
-			"coverArt": a.ID,
+			"id":        a.ID,
+			"name":      a.Title,
+			"artist":    a.ArtistName,
+			"coverArt":  a.ID,
+			"songCount": 1,
 		})
 	}
 
 	var artistNodes []map[string]interface{}
 	for _, a := range artists {
 		artistNodes = append(artistNodes, map[string]interface{}{
-			"id":   a.ID,
-			"name": a.Name,
+			"id":         a.ID,
+			"name":       a.Name,
+			"albumCount": 1,
 		})
 	}
 

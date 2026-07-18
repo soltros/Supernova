@@ -33,8 +33,9 @@ func (p *SubsonicPlugin) handleSearch3(w http.ResponseWriter, r *http.Request) {
 	if dbArtists, ok := results["artists"].([]map[string]interface{}); ok {
 		for _, a := range dbArtists {
 			artists = append(artists, map[string]interface{}{
-				"id":   a["id"],
-				"name": a["name"],
+				"id":         a["id"],
+				"name":       a["name"],
+				"albumCount": 1,
 			})
 		}
 	}
@@ -43,11 +44,12 @@ func (p *SubsonicPlugin) handleSearch3(w http.ResponseWriter, r *http.Request) {
 	if dbAlbums, ok := results["albums"].([]map[string]interface{}); ok {
 		for _, a := range dbAlbums {
 			albums = append(albums, map[string]interface{}{
-				"id":       a["id"],
-				"title":    a["title"],
-				"name":     a["title"],
-				"artist":   a["artist_name"],
-				"coverArt": a["id"],
+				"id":        a["id"],
+				"title":     a["title"],
+				"name":      a["title"],
+				"artist":    a["artist_name"],
+				"coverArt":  a["id"],
+				"songCount": 1,
 			})
 		}
 	}
@@ -62,6 +64,9 @@ func (p *SubsonicPlugin) handleSearch3(w http.ResponseWriter, r *http.Request) {
 				"artist":   t["artist_name"],
 				"coverArt": t["album_id"],
 				"duration": t["duration_ms"].(int) / 1000,
+				"parent":   t["album_id"],
+				"albumId":  t["album_id"],
+				"isDir":    false,
 			})
 		}
 	}
