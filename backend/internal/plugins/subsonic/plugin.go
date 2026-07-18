@@ -62,10 +62,18 @@ func (p *SubsonicPlugin) SetupRoutes(mux *http.ServeMux) {
 		}
 		hGetLicense(w, r)
 	})
+	mux.HandleFunc("/rest/getLicense.view", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		hGetLicense(w, r)
+	})
 
 	// Register routes with and without .view suffix
 	routes := map[string]http.HandlerFunc{
 		"/rest/getMusicFolders":           p.auth(p.handleGetMusicFolders),
+		"/rest/getUser":                   p.auth(p.handleGetUser),
 		"/rest/getOpenSubsonicExtensions": p.auth(p.handleGetOpenSubsonicExtensions),
 		"/rest/getIndexes":                p.auth(p.handleGetIndexes),
 		"/rest/getArtists":                p.auth(p.handleGetArtists),

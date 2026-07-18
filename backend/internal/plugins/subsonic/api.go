@@ -215,6 +215,33 @@ func (p *SubsonicPlugin) handleGetLicense(w http.ResponseWriter, r *http.Request
 	})
 }
 
+func (p *SubsonicPlugin) handleGetUser(w http.ResponseWriter, r *http.Request) {
+	userParam := r.URL.Query().Get("username")
+	if userParam == "" {
+		// Default to authenticated user if not provided
+		userParam = r.URL.Query().Get("u")
+	}
+
+	p.writeResponse(w, r, map[string]interface{}{
+		"user": map[string]interface{}{
+			"username":          userParam,
+			"email":             userParam + "@example.com", // Stub email
+			"scrobblingEnabled": true,
+			"adminRole":         true,
+			"settingsRole":      true,
+			"downloadRole":      true,
+			"uploadRole":        false,
+			"playlistRole":      true,
+			"coverArtRole":      true,
+			"commentRole":       false,
+			"podcastRole":       true,
+			"streamRole":        true,
+			"jukeboxRole":       false,
+			"shareRole":         false,
+		},
+	})
+}
+
 func (p *SubsonicPlugin) handleGetOpenSubsonicExtensions(w http.ResponseWriter, r *http.Request) {
 	p.writeResponse(w, r, map[string]interface{}{
 		"openSubsonicExtensions": map[string]interface{}{
