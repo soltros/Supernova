@@ -151,6 +151,42 @@ function Plugins() {
 
           </div>
         </section>
+        <section className="how-to-install" style={{ padding: '40px 20px', maxWidth: '800px', margin: '0 auto 80px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <h2 style={{ fontSize: '2rem', marginBottom: '24px', textAlign: 'center', color: '#fff' }}>How to Install Plugins</h2>
+          <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '32px', textAlign: 'center' }}>
+            Supernova plugins are compiled directly into the core and toggled via your environment configuration. It's as simple as turning them on!
+          </p>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div style={{ display: 'flex', gap: '20px' }}>
+              <div style={{ background: '#ec4899', color: '#fff', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>1</div>
+              <div>
+                <h4 style={{ fontSize: '1.25rem', marginBottom: '8px', color: '#fff' }}>Open your .env file</h4>
+                <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6' }}>Locate the <code>.env</code> file you created when deploying Supernova via Docker Compose.</p>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '20px' }}>
+              <div style={{ background: '#ec4899', color: '#fff', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>2</div>
+              <div>
+                <h4 style={{ fontSize: '1.25rem', marginBottom: '8px', color: '#fff' }}>Toggle the Plugin Flag</h4>
+                <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '16px' }}>Add or set the plugin's flag to <code>true</code>. For example, to enable the Last.fm plugin:</p>
+                <div style={{ background: 'rgba(0,0,0,0.5)', padding: '16px', borderRadius: '8px', fontFamily: 'monospace', color: '#a5b4fc', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  SUPERNOVA_PLUGIN_LASTFM=true<br/>
+                  LASTFM_API_KEY=your_api_key_here
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '20px' }}>
+              <div style={{ background: '#ec4899', color: '#fff', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>3</div>
+              <div>
+                <h4 style={{ fontSize: '1.25rem', marginBottom: '8px', color: '#fff' }}>Restart Supernova</h4>
+                <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6' }}>Restart your Docker containers (<code>docker-compose down && docker-compose up -d</code>). Supernova will automatically initialize the plugin!</p>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <footer>
           <p>© {new Date().getFullYear()} Supernova Open Source Project. Designed and built with <Heart size={14} style={{ display: 'inline', verticalAlign: 'middle', margin: '0 4px', color: '#ec4899' }} /></p>
