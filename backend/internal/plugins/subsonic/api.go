@@ -111,8 +111,10 @@ func (p *SubsonicPlugin) writeResponse(w http.ResponseWriter, r *http.Request, d
 	}
 
 	response := map[string]interface{}{
-		"version": "1.16.1",
-		"type":    "supernova",
+		"version":       "1.16.1",
+		"type":          "supernova",
+		"serverVersion": "1.0.0",
+		"openSubsonic":  true,
 	}
 	
 	status := "ok"
@@ -209,6 +211,32 @@ func (p *SubsonicPlugin) handleGetLicense(w http.ResponseWriter, r *http.Request
 			"valid":          true,
 			"email":          "soltros@proton.me",
 			"licenseExpires": "2099-01-01T00:00:00.000Z",
+		},
+	})
+}
+
+func (p *SubsonicPlugin) handleGetOpenSubsonicExtensions(w http.ResponseWriter, r *http.Request) {
+	p.writeResponse(w, r, map[string]interface{}{
+		"openSubsonicExtensions": map[string]interface{}{
+			"extension": []map[string]interface{}{
+				{
+					"name": "supernova",
+					"versions": []int{1},
+				},
+			},
+		},
+	})
+}
+
+func (p *SubsonicPlugin) handleGetMusicFolders(w http.ResponseWriter, r *http.Request) {
+	p.writeResponse(w, r, map[string]interface{}{
+		"musicFolders": map[string]interface{}{
+			"musicFolder": []map[string]interface{}{
+				{
+					"id":   "1",
+					"name": "Supernova Library",
+				},
+			},
 		},
 	})
 }

@@ -65,8 +65,10 @@ func (p *SubsonicPlugin) SetupRoutes(mux *http.ServeMux) {
 
 	// Register routes with and without .view suffix
 	routes := map[string]http.HandlerFunc{
-		"/rest/getIndexes":        p.auth(p.handleGetIndexes),
-		"/rest/getArtists":        p.auth(p.handleGetArtists),
+		"/rest/getMusicFolders":           p.auth(p.handleGetMusicFolders),
+		"/rest/getOpenSubsonicExtensions": p.auth(p.handleGetOpenSubsonicExtensions),
+		"/rest/getIndexes":                p.auth(p.handleGetIndexes),
+		"/rest/getArtists":                p.auth(p.handleGetArtists),
 		"/rest/getArtist":         p.auth(p.handleGetArtist),
 		"/rest/getMusicDirectory": p.auth(p.handleGetMusicDirectory),
 		"/rest/getAlbum":          p.auth(p.handleGetAlbum),
