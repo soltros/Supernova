@@ -247,7 +247,15 @@ func (p *SubsonicPlugin) handleGetOpenSubsonicExtensions(w http.ResponseWriter, 
 		"openSubsonicExtensions": map[string]interface{}{
 			"extension": []map[string]interface{}{
 				{
-					"name": "supernova",
+					"name":     "supernova",
+					"versions": []int{1},
+				},
+				{
+					"name":     "songLyrics",
+					"versions": []int{1},
+				},
+				{
+					"name":     "transcodeOffset",
 					"versions": []int{1},
 				},
 			},
@@ -724,4 +732,11 @@ func (p *SubsonicPlugin) handleGetCoverArt(w http.ResponseWriter, r *http.Reques
 
 	// Fallback: artist cover art could be supported if added to schema, currently ignoring
 	http.Error(w, "Cover art not found", http.StatusNotFound)
+}
+
+func (p *SubsonicPlugin) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
+	// Stub to prevent 404s when clients check for OpenSubsonic lyrics
+	p.writeResponse(w, r, map[string]interface{}{
+		"lyricsList": map[string]interface{}{},
+	})
 }
