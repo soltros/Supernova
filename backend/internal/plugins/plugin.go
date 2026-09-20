@@ -1,8 +1,8 @@
 package plugins
 
 import (
-	"net/http"
 	"github.com/soltros/Supernova/internal/database"
+	"net/http"
 )
 
 type PluginConfig struct {

@@ -7,9 +7,9 @@ import (
 )
 
 type DashboardData struct {
-	RecentlyAddedAlbums []models.Album `json:"recently_added_albums"`
+	RecentlyAddedAlbums  []models.Album `json:"recently_added_albums"`
 	RecentlyPlayedTracks []models.Track `json:"recently_played_tracks"`
-	FavoriteTracks      []models.Track `json:"favorite_tracks"`
+	FavoriteTracks       []models.Track `json:"favorite_tracks"`
 }
 
 func (r *Repository) GetDashboard(ctx context.Context, userID string) (*DashboardData, error) {
@@ -35,8 +35,12 @@ func (r *Repository) GetDashboard(ctx context.Context, userID string) (*Dashboar
 			var a models.Album
 			var artID, artName *string
 			if err := rowsAlbums.Scan(&a.ID, &a.Title, &a.ReleaseYear, &a.MusicBrainzID, &a.CoverArtPath, &artID, &artName); err == nil {
-				if artID != nil { a.ArtistID = *artID }
-				if artName != nil { a.ArtistName = *artName }
+				if artID != nil {
+					a.ArtistID = *artID
+				}
+				if artName != nil {
+					a.ArtistName = *artName
+				}
 				dashboard.RecentlyAddedAlbums = append(dashboard.RecentlyAddedAlbums, a)
 			}
 		}
@@ -61,8 +65,12 @@ func (r *Repository) GetDashboard(ctx context.Context, userID string) (*Dashboar
 			var t models.Track
 			var artID, artName *string
 			if err := rowsRecent.Scan(&t.ID, &t.AlbumID, &t.Title, &t.TrackNumber, &t.DiscNumber, &t.DurationMs, &t.Format, &t.Bitrate, &artID, &artName); err == nil {
-				if artID != nil { t.ArtistID = *artID }
-				if artName != nil { t.ArtistName = *artName }
+				if artID != nil {
+					t.ArtistID = *artID
+				}
+				if artName != nil {
+					t.ArtistName = *artName
+				}
 				dashboard.RecentlyPlayedTracks = append(dashboard.RecentlyPlayedTracks, t)
 			}
 		}
@@ -87,8 +95,12 @@ func (r *Repository) GetDashboard(ctx context.Context, userID string) (*Dashboar
 			var t models.Track
 			var artID, artName *string
 			if err := rowsFavs.Scan(&t.ID, &t.AlbumID, &t.Title, &t.TrackNumber, &t.DiscNumber, &t.DurationMs, &t.Format, &t.Bitrate, &artID, &artName); err == nil {
-				if artID != nil { t.ArtistID = *artID }
-				if artName != nil { t.ArtistName = *artName }
+				if artID != nil {
+					t.ArtistID = *artID
+				}
+				if artName != nil {
+					t.ArtistName = *artName
+				}
 				dashboard.FavoriteTracks = append(dashboard.FavoriteTracks, t)
 			}
 		}

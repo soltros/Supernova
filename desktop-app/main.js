@@ -1,6 +1,10 @@
 const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
+const { normalizeInstanceUrl, sameOrigin } = require('./security');
+const SETUP_PATH = path.join(__dirname, 'setup.html');
+const SETUP_URL = pathToFileURL(SETUP_PATH).href;
 
 const CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
 
@@ -8,7 +12,8 @@ function getConfig() {
   try {
     if (fs.existsSync(CONFIG_PATH)) {
       const data = fs.readFileSync(CONFIG_PATH, 'utf8');
-      return JSON.parse(data);
+      const config = JSON.parse(data);
+      return { instanceUrl: config.instanceUrl ? normalizeInstanceUrl(config.instanceUrl) : null };
     }
   } catch (e) {
     console.error('Failed to read config', e);
@@ -18,9 +23,11 @@ function getConfig() {
 
 function saveConfig(config) {
   try {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config));
+    fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config), { mode: 0o600 });
   } catch (e) {
     console.error('Failed to save config', e);
+    throw e;
   }
 }
 
@@ -36,20 +43,27 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      sandbox: true
     },
     autoHideMenuBar: true,
   });
 
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const instance = getConfig().instanceUrl;
+    if (url !== SETUP_URL && !sameOrigin(url, instance)) event.preventDefault();
+  });
+  mainWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   const config = getConfig();
 
   if (config.instanceUrl) {
     mainWindow.loadURL(config.instanceUrl).catch(() => {
       // If it fails to load the URL, fallback to setup
-      mainWindow.loadFile('setup.html');
+      mainWindow.loadFile(SETUP_PATH);
     });
   } else {
-    mainWindow.loadFile('setup.html');
+    mainWindow.loadFile(SETUP_PATH);
   }
   
   // Clean up Menu
@@ -70,29 +84,25 @@ app.on('window-all-closed', function () {
 
 // IPC handlers
 ipcMain.handle('save-instance', (event, url) => {
-  // Ensure it has http/https
-  if (!/^https?:\/\//i.test(url)) {
-    url = 'http://' + url;
-  }
-  
-  // Trim trailing slash
-  url = url.replace(/\/$/, "");
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame || event.senderFrame.url !== SETUP_URL) throw new Error('Only setup can change the server.');
+  url = normalizeInstanceUrl(url);
 
   saveConfig({ instanceUrl: url });
   
   // Reload with new URL
   if (mainWindow) {
     mainWindow.loadURL(url).catch(() => {
-      mainWindow.loadFile('setup.html');
+      mainWindow.loadFile(SETUP_PATH);
     });
   }
   return true;
 });
 
 ipcMain.handle('clear-instance', (event) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame || (event.senderFrame.url !== SETUP_URL && !sameOrigin(event.senderFrame.url, getConfig().instanceUrl))) throw new Error('Untrusted request.');
   saveConfig({ instanceUrl: null });
   if (mainWindow) {
-    mainWindow.loadFile('setup.html');
+    mainWindow.loadFile(SETUP_PATH);
   }
   return true;
 });

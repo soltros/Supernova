@@ -12,11 +12,11 @@ import (
 
 // externalRelease matches what we parse from iTunes
 type externalRelease struct {
-	CollectionName string    `json:"collectionName"`
-	ArtistName     string    `json:"artistName"`
-	ArtworkUrl100  string    `json:"artworkUrl100"`
-	ReleaseDate    time.Time `json:"releaseDate"`
-	CollectionViewUrl string `json:"collectionViewUrl"`
+	CollectionName    string    `json:"collectionName"`
+	ArtistName        string    `json:"artistName"`
+	ArtworkUrl100     string    `json:"artworkUrl100"`
+	ReleaseDate       time.Time `json:"releaseDate"`
+	CollectionViewUrl string    `json:"collectionViewUrl"`
 }
 
 type iTunesResponse struct {
@@ -45,7 +45,7 @@ func (s *Server) handleGetDiscovery() http.HandlerFunc {
 
 		var allReleases []externalRelease
 		var similarArtists []map[string]interface{}
-		
+
 		client := &http.Client{Timeout: 5 * time.Second}
 		lastFmKey := os.Getenv("LASTFM_API_KEY")
 
@@ -63,15 +63,15 @@ func (s *Server) handleGetDiscovery() http.HandlerFunc {
 							matched = append(matched, r)
 						}
 					}
-					
+
 					if len(matched) > 0 {
 						// Sort descending by release date
 						sort.Slice(matched, func(i, j int) bool {
 							return matched[i].ReleaseDate.After(matched[j].ReleaseDate)
 						})
-						
+
 						latest := matched[0]
-						
+
 						// Only count if it is canonically the latest AND released recently (within the last year)
 						if time.Since(latest.ReleaseDate) < 365*24*time.Hour {
 							allReleases = append(allReleases, latest)
@@ -83,13 +83,13 @@ func (s *Server) handleGetDiscovery() http.HandlerFunc {
 
 			// Last.fm Similar
 			if lastFmKey != "" {
-				lUrl := "http://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=" + url.QueryEscape(artist) + "&api_key=" + lastFmKey + "&format=json&limit=3"
+				lUrl := "https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=" + url.QueryEscape(artist) + "&api_key=" + lastFmKey + "&format=json&limit=3"
 				lResp, err := client.Get(lUrl)
 				if err == nil {
 					var lRes struct {
 						SimilarArtists struct {
 							Artist []struct {
-								Name string `json:"name"`
+								Name  string `json:"name"`
 								Image []struct {
 									Text string `json:"#text"`
 									Size string `json:"size"`
@@ -100,9 +100,9 @@ func (s *Server) handleGetDiscovery() http.HandlerFunc {
 					if err := json.NewDecoder(lResp.Body).Decode(&lRes); err == nil {
 						for _, sim := range lRes.SimilarArtists.Artist {
 							img := ""
-							
+
 							// Fetch Top Album for this artist to get an actual image (since Last.fm removed artist images)
-							albumUrl := "http://ws.audioscrobbler.com/2.0/?method=artist.gettopalbums&artist=" + url.QueryEscape(sim.Name) + "&api_key=" + lastFmKey + "&format=json&limit=1"
+							albumUrl := "https://ws.audioscrobbler.com/2.0/?method=artist.gettopalbums&artist=" + url.QueryEscape(sim.Name) + "&api_key=" + lastFmKey + "&format=json&limit=1"
 							aResp, err := client.Get(albumUrl)
 							if err == nil {
 								var aRes struct {
@@ -124,19 +124,19 @@ func (s *Server) handleGetDiscovery() http.HandlerFunc {
 								}
 								aResp.Body.Close()
 							}
-							
+
 							var artistID string
 							s.repo.DB().QueryRowContext(r.Context(), "SELECT id FROM artists WHERE name = ? LIMIT 1", sim.Name).Scan(&artistID)
-							
+
 							simData := map[string]interface{}{
-								"name": sim.Name,
+								"name":    sim.Name,
 								"basedOn": artist,
-								"image": img,
+								"image":   img,
 							}
 							if artistID != "" {
 								simData["id"] = artistID
 							}
-							
+
 							similarArtists = append(similarArtists, simData)
 						}
 					}
@@ -146,7 +146,7 @@ func (s *Server) handleGetDiscovery() http.HandlerFunc {
 		}
 
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"release_radar": allReleases,
+			"release_radar":   allReleases,
 			"similar_artists": similarArtists,
 		})
 	}

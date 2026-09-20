@@ -41,7 +41,7 @@ func NewServer(repo *database.Repository, lastfm *external.LastFmClient, enriche
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	isSubsonic := strings.HasPrefix(r.URL.Path, "/rest/")
-	
+
 	if !isSubsonic {
 		allowedOrigin := os.Getenv("CORS_ALLOWED_ORIGIN")
 		if allowedOrigin == "" {
@@ -51,7 +51,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		
+
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -60,13 +60,25 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/api/") {
 		if !strings.HasPrefix(r.URL.Path, "/api/stream/") &&
-		   !strings.HasPrefix(r.URL.Path, "/api/download/") &&
-		   !strings.HasPrefix(r.URL.Path, "/api/art/") &&
-		   !strings.HasPrefix(r.URL.Path, "/api/plugins/podcasts/opml/export") {
+			!strings.HasPrefix(r.URL.Path, "/api/download/") &&
+			!strings.HasPrefix(r.URL.Path, "/api/art/") &&
+			!strings.HasPrefix(r.URL.Path, "/api/plugins/podcasts/opml/export") {
 			w.Header().Set("Content-Type", "application/json")
 		}
 	}
 
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Referrer-Policy", "same-origin")
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+	if strings.HasPrefix(r.URL.Path, "/api/plugins/") {
+		handler := s.requireAuth(s.mux.ServeHTTP)
+		switch r.URL.Path {
+		case "/api/plugins/autotagger/run", "/api/plugins/artistmerger/run", "/api/plugins/albummerger/run", "/api/plugins/deduper/run":
+			handler = s.requireAdmin(s.mux.ServeHTTP)
+		}
+		handler(w, r)
+		return
+	}
 	s.mux.ServeHTTP(w, r)
 }
 
@@ -75,6 +87,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/auth/register", s.handleRegister())
 	s.mux.HandleFunc("POST /api/auth/login", s.handleLogin())
 
+	s.mux.HandleFunc("GET /api/auth/me", s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(r.Context().Value(contextKey("user")))
+	}))
 	// Public read-only library routes
 	s.mux.HandleFunc("GET /api/artists", s.handleGetArtists())
 	s.mux.HandleFunc("GET /api/artists/{id}", s.handleGetArtistByID())
@@ -82,7 +97,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/albums/{id}", s.handleGetAlbumByID())
 	s.mux.HandleFunc("GET /api/tracks", s.handleGetTracks())
 	s.mux.HandleFunc("GET /api/search", s.handleSearch())
-	
+
 	// Protected User Data routes
 	s.mux.HandleFunc("GET /api/hearts", s.requireAuth(s.handleGetHearts()))
 	s.mux.HandleFunc("GET /api/hearts/details", s.requireAuth(s.handleGetHeartDetails()))
@@ -90,10 +105,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("DELETE /api/hearts", s.requireAuth(s.handleRemoveHeart()))
 	s.mux.HandleFunc("GET /api/hearts/export", s.requireAuth(s.handleExportHearts()))
 	s.mux.HandleFunc("POST /api/hearts/import", s.requireAuth(s.handleImportHearts()))
-	
+
 	// Streaming route — requireAuth prevents anonymous bandwidth abuse (SEC-3)
 	s.mux.HandleFunc("GET /api/stream/{id}", s.requireAuth(s.handleStreamTrack()))
-	
+
 	// Downloads
 	s.mux.HandleFunc("GET /api/download/track/{id}", s.requireAuth(s.handleDownloadTrack()))
 	s.mux.HandleFunc("GET /api/download/album/{id}", s.requireAuth(s.handleDownloadAlbum()))
@@ -102,17 +117,17 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/dashboard", s.requireAuth(s.handleGetDashboard()))
 	s.mux.HandleFunc("GET /api/discovery", s.requireAuth(s.handleGetDiscovery()))
 	s.mux.HandleFunc("GET /api/art/album/{id}", s.handleGetAlbumArt())
-	
+
 	// Scrobbling / Listen History (Protected)
 	s.mux.HandleFunc("POST /api/scrobbles", s.requireAuth(s.handleScrobble()))
 	s.mux.HandleFunc("GET /api/scrobbles/recent", s.requireAuth(s.handleGetRecentScrobbles()))
-	
+
 	// Scanning
-	s.mux.HandleFunc("POST /api/scan", s.requireAuth(s.handleScanLibrary()))
+	s.mux.HandleFunc("POST /api/scan", s.requireAdmin(s.handleScanLibrary()))
 	s.mux.HandleFunc("GET /api/scan/progress", s.requireAuth(s.handleScanStatus()))
-	
+
 	// Settings
-	s.mux.HandleFunc("POST /api/settings/reset-artists", s.requireAuth(s.handleResetArtists()))
+	s.mux.HandleFunc("POST /api/settings/reset-artists", s.requireAdmin(s.handleResetArtists()))
 	// Playlists (Protected)
 	s.mux.HandleFunc("GET /api/playlists", s.requireAuth(s.handleGetPlaylists()))
 	s.mux.HandleFunc("POST /api/playlists", s.requireAuth(s.handleCreatePlaylist()))
@@ -122,10 +137,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("DELETE /api/playlists/{id}/tracks/{trackId}", s.requireAuth(s.handleRemoveTrackFromPlaylist()))
 	s.mux.HandleFunc("GET /api/playlists/export", s.requireAuth(s.handleExportPlaylists()))
 	s.mux.HandleFunc("POST /api/playlists/import", s.requireAuth(s.handleImportPlaylists()))
-	
+
 	// Plugins
 	s.mux.HandleFunc("GET /api/plugins", s.requireAuth(s.handleGetPlugins()))
-	
+
 	if s.pluginManager != nil {
 		s.pluginManager.SetupPluginRoutes(s.mux)
 	}
@@ -153,7 +168,7 @@ func (s *Server) handleGetArtists() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		limit, offset := parsePagination(r)
 		letter := r.URL.Query().Get("letter")
-		
+
 		var artists []models.Artist
 		var err error
 
@@ -194,7 +209,7 @@ func (s *Server) handleSearch() http.HandlerFunc {
 			})
 			return
 		}
-		
+
 		limit := 20 // Default limit
 		results, err := s.repo.Search(r.Context(), query, limit)
 		if err != nil {
@@ -209,7 +224,7 @@ func (s *Server) handleGetAlbums() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		artistID := r.URL.Query().Get("artist_id")
 		limit, offset := parsePagination(r)
-		
+
 		albums, err := s.repo.GetAlbums(r.Context(), artistID, limit, offset)
 		if err != nil {
 			http.Error(w, "failed to fetch albums", http.StatusInternalServerError)
@@ -236,7 +251,7 @@ func (s *Server) handleGetTracks() http.HandlerFunc {
 		albumID := r.URL.Query().Get("album_id")
 		artistID := r.URL.Query().Get("artist_id")
 		limit, offset := parsePagination(r)
-		
+
 		tracks, err := s.repo.GetTracks(r.Context(), albumID, artistID, limit, offset)
 		if err != nil {
 			http.Error(w, "failed to fetch tracks", http.StatusInternalServerError)
@@ -313,12 +328,12 @@ func (s *Server) handleResetArtists() http.HandlerFunc {
 			http.Error(w, `{"error":"failed to reset artists"}`, http.StatusInternalServerError)
 			return
 		}
-		
+
 		// Force the background enricher to wake up immediately
 		if s.enricher != nil {
 			s.enricher.Trigger()
 		}
-		
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"success"}`))
 	}
@@ -354,7 +369,7 @@ func (s *Server) handleScanStatus() http.HandlerFunc {
 			status, scanned = s.scanner.GetStatus()
 		}
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"status": status,
+			"status":        status,
 			"files_scanned": scanned,
 		})
 	}

@@ -2,6 +2,7 @@ package subsonic
 
 import (
 	"context"
+	"github.com/soltros/Supernova/internal/media"
 	"net/http"
 	"strings"
 
@@ -27,7 +28,7 @@ func (p *SubsonicPlugin) handleStar(w http.ResponseWriter, r *http.Request) {
 		p.writeError(w, r, 0, "Not authenticated")
 		return
 	}
-	
+
 	r.ParseForm()
 	ids := r.Form["id"]
 	albumIds := r.Form["albumId"]
@@ -80,7 +81,7 @@ func (p *SubsonicPlugin) handleGetStarred(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	tracks, albums, artists, _, err := p.repo.GetHeartDetails(context.Background(), user.ID)
+	tracks, albums, artists, _, err := p.repo.GetHeartDetails(r.Context(), user.ID)
 	if err != nil {
 		p.writeError(w, r, 0, err.Error())
 		return
@@ -88,7 +89,7 @@ func (p *SubsonicPlugin) handleGetStarred(w http.ResponseWriter, r *http.Request
 
 	var songNodes []map[string]interface{}
 	for _, t := range tracks {
-		contentType := "audio/" + strings.ToLower(t.Format)
+		contentType := media.ContentType(t.Format)
 		if t.Format == "" {
 			contentType = "audio/mpeg"
 		}

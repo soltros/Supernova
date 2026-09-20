@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -25,7 +26,7 @@ func (r *Repository) DB() *DB {
 }
 
 // UpsertTrack safely inserts or updates a track and its relational metadata.
-// It uses a mutex to serialize writes to SQLite, enabling extreme concurrency for scanning 
+// It uses a mutex to serialize writes to SQLite, enabling extreme concurrency for scanning
 // without triggering "database is locked" timeouts.
 func (r *Repository) UpsertTrack(ctx context.Context, meta *models.TrackMetadata) error {
 	r.writeMu.Lock()
@@ -40,14 +41,18 @@ func (r *Repository) UpsertTrack(ctx context.Context, meta *models.TrackMetadata
 	}
 
 	// 2. Check if the file has been modified since it was last scanned.
-	// We use a 2-second tolerance because Docker SMB/NFS mounts often fluctuate timestamps slightly.
+	// Only identical positive timestamps preserve manual tag overrides.
 	// This ensures that plugin overrides (e.g. from AutoTagger or AlbumMerger) are not reverted
 	// unless the actual ID3 tags in the physical file are updated.
 	var existingModTime int64
 	err = r.db.QueryRowContext(ctx, "SELECT file_modified_at FROM tracks WHERE file_path = ?", meta.FilePath).Scan(&existingModTime)
-	if err == nil && existingModTime > 0 && (meta.FileModifiedAt - existingModTime) <= 2 {
-		// File hasn't meaningfully changed, skip upsert to preserve database state
-		return nil
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if err == nil && meta.FileModifiedAt > 0 && existingModTime == meta.FileModifiedAt {
+		// Refresh technical properties without undoing deliberate tag/merge overrides.
+		_, err := r.db.ExecContext(ctx, `UPDATE tracks SET duration_ms = CASE WHEN ? > 0 THEN ? ELSE duration_ms END, bitrate = CASE WHEN ? > 0 THEN ? ELSE bitrate END, format = CASE WHEN ? != '' THEN ? ELSE format END WHERE file_path = ?`, meta.DurationMs, meta.DurationMs, meta.Bitrate, meta.Bitrate, meta.Format, meta.Format, meta.FilePath)
+		return err
 	}
 
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -106,16 +111,19 @@ func (r *Repository) UpsertTrack(ctx context.Context, meta *models.TrackMetadata
 			disc_number=excluded.disc_number,
 			duration_ms=excluded.duration_ms,
 			bitrate=excluded.bitrate,
+			format=excluded.format,
 			file_modified_at=CASE WHEN excluded.file_modified_at > 0 THEN excluded.file_modified_at ELSE tracks.file_modified_at END
 		RETURNING id
 	`, generateUUID(), albumID, meta.Title, meta.TrackNumber, meta.DiscNumber, meta.DurationMs, meta.FilePath, meta.Format, meta.Bitrate, meta.FileModifiedAt).Scan(&trackID)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to insert track: %w", err)
 	}
 
 	// 6. Link Track to Primary Artist
-	_, _ = tx.ExecContext(ctx, "DELETE FROM track_artists WHERE track_id = ?", trackID)
+	if _, err := tx.ExecContext(ctx, "DELETE FROM track_artists WHERE track_id = ?", trackID); err != nil {
+		return err
+	}
 	err = r.linkTrackArtist(tx, trackID, artistID, "primary")
 	if err != nil {
 		return err
@@ -130,7 +138,7 @@ func (r *Repository) upsertArtist(tx *sql.Tx, name, mbid, imageURL, bio string) 
 	var id string
 	// Using name matching here. If we have MBID we could prefer it, but name is a safe generic fallback.
 	err := tx.QueryRow(`SELECT id FROM artists WHERE name = ? LIMIT 1`, name).Scan(&id)
-	
+
 	if err == sql.ErrNoRows {
 		id = generateUUID()
 		_, err = tx.Exec(`

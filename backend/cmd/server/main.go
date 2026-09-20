@@ -4,14 +4,16 @@ import (
 	"context"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
-	_ "net/http/pprof"
 
 	"github.com/joho/godotenv"
 	"github.com/soltros/Supernova/internal/api"
+	"github.com/soltros/Supernova/internal/authn"
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/external"
 	"github.com/soltros/Supernova/internal/plugins"
@@ -33,6 +35,12 @@ func main() {
 		log.Println("No .env file found, relying on system environment variables.")
 	}
 
+	if _, err := authn.Secret(); err != nil {
+		log.Fatal(err)
+	}
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		log.Fatal("ffprobe is required for audio duration detection; install FFmpeg before starting Supernova")
+	}
 	log.Println("Booting Supernova Media Server...")
 
 	// 1. Read Environment Variables (these are provided by our docker-compose.yml)
@@ -97,7 +105,7 @@ func main() {
 	pluginManager.Start(plugins.PluginConfig{
 		Repo: repo,
 	})
-	
+
 	apiServer := api.NewServer(repo, lastfmClient, enricher, mediaScanner, pluginManager)
 
 	// Configure the HTTP Server with sensible production timeouts

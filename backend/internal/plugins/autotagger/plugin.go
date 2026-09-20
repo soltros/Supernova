@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/models"
@@ -13,7 +14,8 @@ import (
 )
 
 type AutoTaggerPlugin struct {
-	repo *database.Repository
+	repo    *database.Repository
+	running atomic.Bool
 }
 
 func init() {
@@ -42,7 +44,11 @@ func (p *AutoTaggerPlugin) SetupRoutes(mux *http.ServeMux) {
 }
 
 func (p *AutoTaggerPlugin) handleRunTagger(w http.ResponseWriter, r *http.Request) {
-	go p.runTaggingJob()
+	if !p.running.CompareAndSwap(false, true) {
+		http.Error(w, "job already running", http.StatusConflict)
+		return
+	}
+	go func() { defer p.running.Store(false); p.runTaggingJob() }()
 	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte(`{"status": "auto-tagger job started in background"}`))
 }
@@ -86,7 +92,7 @@ func (p *AutoTaggerPlugin) runTaggingJob() {
 			// Strip extension
 			ext := filepath.Ext(filename)
 			baseName := strings.TrimSuffix(filename, ext)
-			
+
 			// Remove leading track numbers (e.g., "01 - Song" -> "Song", "1. Song" -> "Song")
 			title := baseName
 			for i, char := range title {

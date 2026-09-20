@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -203,16 +204,15 @@ func (r *Repository) ImportPlaylistBackup(ctx context.Context, userID string, ba
 	r.writeMu.Lock()
 	defer r.writeMu.Unlock()
 
-	p, err := r.createPlaylistUnlocked(ctx, userID, backup.Name)
-	if err != nil {
-		return err
-	}
-
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	id := generateUUID()
+	if _, err := tx.ExecContext(ctx, `INSERT INTO playlists (id,user_id,name) VALUES (?,?,?)`, id, userID, backup.Name); err != nil {
+		return err
+	}
 
 	stmtSelect, err := tx.PrepareContext(ctx, `SELECT id FROM tracks WHERE file_path = ?`)
 	if err != nil {
@@ -232,11 +232,17 @@ func (r *Repository) ImportPlaylistBackup(ctx context.Context, userID string, ba
 	position := 1
 	for _, path := range backup.Tracks {
 		var trackID string
-		if err := stmtSelect.QueryRowContext(ctx, path).Scan(&trackID); err == nil {
-			if _, err := stmtInsert.ExecContext(ctx, p.ID, trackID, position); err == nil {
-				position++
-			}
+		err := stmtSelect.QueryRowContext(ctx, path).Scan(&trackID)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
 		}
+		if err != nil {
+			return err
+		}
+		if _, err := stmtInsert.ExecContext(ctx, id, trackID, position); err != nil {
+			return err
+		}
+		position++
 	}
 
 	return tx.Commit()

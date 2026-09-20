@@ -1,4 +1,4 @@
-const CACHE_NAME = 'supernova-pwa-cache-v2';
+const CACHE_NAME = 'supernova-pwa-cache-v3';
 
 // We want to cache the application shell so it boots instantly even offline.
 const urlsToCache = [
@@ -19,7 +19,7 @@ self.addEventListener('activate', event => {
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
+          if (cacheName.startsWith('supernova-pwa-cache-') && cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
         })
@@ -32,7 +32,7 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
   // Pass-through API requests and media streams completely
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/stream/')) {
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/rest/') || url.pathname.startsWith('/api/') || url.pathname.startsWith('/stream/')) {
     return;
   }
 
@@ -40,6 +40,7 @@ self.addEventListener('fetch', event => {
   if (event.request.mode === 'navigate' || event.request.destination === 'document') {
     event.respondWith(
       fetch(event.request).then(networkResponse => {
+        if (!networkResponse.ok) return networkResponse;
         const responseToCache = networkResponse.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));
         return networkResponse;

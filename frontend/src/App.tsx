@@ -19,6 +19,7 @@ import { HeartsProvider } from './context/HeartsContext';
 import { PlaylistsProvider } from './context/PlaylistsContext';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { PlayerProvider } from './context/PlayerContext';
 import { ToastProvider } from './context/ToastContext';
 
 import './index.css';
@@ -33,6 +34,7 @@ function AppContent() {
   }
 
   return (
+    <PlayerProvider key={user.id}>
     <HeartsProvider>
       <PlaylistsProvider>
 
@@ -63,6 +65,7 @@ function AppContent() {
 
       </PlaylistsProvider>
     </HeartsProvider>
+    </PlayerProvider>
   );
 }
 

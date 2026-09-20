@@ -11,7 +11,6 @@ import PlaylistCard from '../components/PlaylistCard';
 import HeartButton from '../components/HeartButton';
 import type { Album, Track, Artist, Playlist } from '../types';
 
-const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
 
 const formatTime = (ms: number) => {
   if (!ms) return '--:--';
@@ -70,7 +69,7 @@ const HeartsPage: FC = () => {
   }, [heartedIds]);
 
   const handleExport = () => {
-    window.open(`${API_BASE_URL}/api/hearts/export`, '_blank');
+    apiService.exportHearts().catch(() => addToast('Failed to export favorites.', 'error'));
   };
 
   const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {

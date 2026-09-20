@@ -33,6 +33,7 @@ export interface Track {
 }
 
 export interface User {
+  is_admin?: boolean;
   id: string;
   username: string;
 }

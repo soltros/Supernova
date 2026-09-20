@@ -76,9 +76,9 @@ func (c *LastFmClient) GetArtistInfo(artistName string) (*ArtistInfoResponse, er
 type ArtistTopTracksResponse struct {
 	Toptracks struct {
 		Track []struct {
-			Name       string `json:"name"`
-			Playcount  string `json:"playcount"`
-			Listeners  string `json:"listeners"`
+			Name      string `json:"name"`
+			Playcount string `json:"playcount"`
+			Listeners string `json:"listeners"`
 		} `json:"track"`
 	} `json:"toptracks"`
 }
@@ -174,7 +174,7 @@ func (c *LastFmClient) GetSession(token string) (string, error) {
 	apiSig := c.generateSignature(params)
 
 	reqURL := fmt.Sprintf("%s?method=auth.getSession&token=%s&api_key=%s&api_sig=%s&format=json",
-		lastFmBaseURL, token, c.apiKey, apiSig)
+		lastFmBaseURL, url.QueryEscape(token), url.QueryEscape(c.apiKey), apiSig)
 
 	resp, err := c.client.Get(reqURL)
 	if err != nil {
@@ -234,6 +234,17 @@ func (c *LastFmClient) postAuthenticated(params map[string]string) error {
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("last.fm api error: %s", string(body))
+	}
+
+	var result struct {
+		Error   int    `json:"error"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&result); err != nil {
+		return err
+	}
+	if result.Error != 0 {
+		return fmt.Errorf("last.fm api error %d: %s", result.Error, result.Message)
 	}
 
 	return nil
@@ -456,12 +467,15 @@ func (c *LastFmClient) ScrapeArtistImage(artistName string) string {
 	}
 	// Mimic a browser to avoid simple bot blocks
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-	
+
 	resp, err := c.client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return ""
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return ""
+	}
 
 	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024)) // 1MB limit
 	if err != nil {
@@ -486,7 +500,7 @@ func (c *LastFmClient) ScrapeArtistImage(artistName string) string {
 		return ""
 	}
 	imgURL := body[:endIdx]
-	
+
 	// If it returns the default star even in og:image, reject it
 	if strings.Contains(imgURL, "2a96cbd8b46e442fc41c2b86b821562f") {
 		return ""

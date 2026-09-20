@@ -5,13 +5,15 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync/atomic"
 
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/plugins"
 )
 
 type DeduperPlugin struct {
-	repo *database.Repository
+	repo    *database.Repository
+	running atomic.Bool
 }
 
 func init() {
@@ -48,7 +50,11 @@ func (p *DeduperPlugin) SetupRoutes(mux *http.ServeMux) {
 }
 
 func (p *DeduperPlugin) handleRunDeduper(w http.ResponseWriter, r *http.Request) {
-	go p.runDeduperJob()
+	if !p.running.CompareAndSwap(false, true) {
+		http.Error(w, "job already running", http.StatusConflict)
+		return
+	}
+	go func() { defer p.running.Store(false); p.runDeduperJob() }()
 	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte(`{"status": "deduper job started in background"}`))
 }

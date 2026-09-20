@@ -6,7 +6,7 @@ type TrackMetadata struct {
 	Title          string
 	Album          string
 	AlbumMBID      string // MusicBrainz Release ID
-	Artist         string 
+	Artist         string
 	ArtistMBID     string // MusicBrainz Artist ID
 	TrackMBID      string // MusicBrainz Recording ID
 	AlbumArtist    string
@@ -102,6 +102,7 @@ type HeartBackup struct {
 
 // User represents an authenticated account
 type User struct {
+	IsAdmin   bool   `json:"is_admin"`
 	ID        string `json:"id"`
 	Username  string `json:"username"`
 	CreatedAt string `json:"created_at"`

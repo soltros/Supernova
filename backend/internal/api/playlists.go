@@ -17,7 +17,7 @@ func (s *Server) handleGetPlaylists() http.HandlerFunc {
 			http.Error(w, "failed to fetch playlists", http.StatusInternalServerError)
 			return
 		}
-		
+
 		if playlists == nil {
 			playlists = []models.Playlist{}
 		}

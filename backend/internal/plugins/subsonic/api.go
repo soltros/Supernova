@@ -3,12 +3,15 @@ package subsonic
 import (
 	"context"
 	"crypto/md5"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"github.com/soltros/Supernova/internal/media"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/soltros/Supernova/internal/api"
@@ -17,15 +20,25 @@ import (
 )
 
 type contextKey string
+
 const userContextKey contextKey = "subsonic_user"
 
 // auth middleware checks the subsonic credentials (u, p or u, t, s)
 func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u := r.URL.Query().Get("u")
-		pwd := r.URL.Query().Get("p")
-		t := r.URL.Query().Get("t")
-		s := r.URL.Query().Get("s")
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		if err := r.ParseForm(); err != nil {
+			p.writeError(w, r, 10, "Invalid request parameters")
+			return
+		}
+		u := r.FormValue("u")
+		pwd := r.FormValue("p")
+		t := r.FormValue("t")
+		s := r.FormValue("s")
 
 		if u == "" {
 			p.writeError(w, r, 10, "Required parameter is missing: u")
@@ -34,13 +47,13 @@ func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 
 		if t != "" && s != "" {
 			// Token-based auth: client sends t = md5(password + salt), s = salt
-			user, _, err := p.repo.GetUserByUsername(context.Background(), u)
+			user, _, err := p.repo.GetUserByUsername(r.Context(), u)
 			if err != nil || user == nil {
 				p.writeError(w, r, 40, "Wrong username or password.")
 				return
 			}
-			
-			encPass, err := p.repo.GetSubsonicPassword(context.Background(), u)
+
+			encPass, err := p.repo.GetSubsonicPassword(r.Context(), u)
 			if err != nil || encPass == "" {
 				p.writeError(w, r, 40, "Please login via the web UI once to enable Subsonic token authentication.")
 				return
@@ -60,8 +73,8 @@ func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 
-			expectedToken := fmt.Sprintf("%x", md5.Sum([]byte(plain + s)))
-			if expectedToken != t {
+			expectedToken := fmt.Sprintf("%x", md5.Sum([]byte(plain+s)))
+			if subtle.ConstantTimeCompare([]byte(expectedToken), []byte(strings.ToLower(t))) != 1 {
 				p.writeError(w, r, 40, "Wrong username or password.")
 				return
 			}
@@ -87,7 +100,7 @@ func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 			pwd = string(decoded)
 		}
 
-		user, hash, err := p.repo.GetUserByUsername(context.Background(), u)
+		user, hash, err := p.repo.GetUserByUsername(r.Context(), u)
 		if err != nil || user == nil {
 			p.writeError(w, r, 40, "Wrong username or password.")
 			return
@@ -105,7 +118,7 @@ func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (p *SubsonicPlugin) writeResponse(w http.ResponseWriter, r *http.Request, data map[string]interface{}) {
-	format := r.URL.Query().Get("f")
+	format := r.FormValue("f")
 	if format == "" {
 		format = "xml" // Subsonic defaults to XML
 	}
@@ -116,14 +129,14 @@ func (p *SubsonicPlugin) writeResponse(w http.ResponseWriter, r *http.Request, d
 		"serverVersion": "1.0.0",
 		"openSubsonic":  true,
 	}
-	
+
 	status := "ok"
 	if s, ok := data["status"].(string); ok {
 		status = s
 		delete(data, "status")
 	}
 	response["status"] = status
-	
+
 	for k, v := range data {
 		response[k] = v
 	}
@@ -163,7 +176,7 @@ func (p *SubsonicPlugin) writeXML(sb *strings.Builder, nodeName string, data int
 				sb.WriteString(`"`)
 			}
 		}
-		
+
 		hasChildren := false
 		for _, val := range v {
 			if !isPrimitive(val) {
@@ -171,7 +184,7 @@ func (p *SubsonicPlugin) writeXML(sb *strings.Builder, nodeName string, data int
 				break
 			}
 		}
-		
+
 		if !hasChildren {
 			sb.WriteString(" />\n")
 		} else {
@@ -186,6 +199,10 @@ func (p *SubsonicPlugin) writeXML(sb *strings.Builder, nodeName string, data int
 	case []map[string]interface{}:
 		for _, item := range v {
 			p.writeXML(sb, nodeName, item)
+		}
+	case []int:
+		for _, item := range v {
+			fmt.Fprintf(sb, "<%s>%d</%s>\n", nodeName, item, nodeName)
 		}
 	case []interface{}:
 		for _, item := range v {
@@ -208,26 +225,30 @@ func (p *SubsonicPlugin) writeError(w http.ResponseWriter, r *http.Request, code
 func (p *SubsonicPlugin) handleGetLicense(w http.ResponseWriter, r *http.Request) {
 	p.writeResponse(w, r, map[string]interface{}{
 		"license": map[string]interface{}{
-			"valid":          true,
-			"email":          "soltros@proton.me",
+			"valid": true,
+
 			"licenseExpires": "2099-01-01T00:00:00.000Z",
 		},
 	})
 }
 
 func (p *SubsonicPlugin) handleGetUser(w http.ResponseWriter, r *http.Request) {
-	userParam := r.URL.Query().Get("username")
+	user := r.Context().Value(userContextKey).(*models.User)
+	userParam := r.FormValue("username")
 	if userParam == "" {
-		// Default to authenticated user if not provided
-		userParam = r.URL.Query().Get("u")
+		userParam = user.Username
+	}
+	if userParam != user.Username {
+		p.writeError(w, r, 50, "Only your own account is available")
+		return
 	}
 
 	p.writeResponse(w, r, map[string]interface{}{
 		"user": map[string]interface{}{
-			"username":          userParam,
-			"email":             userParam + "@example.com", // Stub email
+			"username": userParam,
+
 			"scrobblingEnabled": true,
-			"adminRole":         true,
+			"adminRole":         user.IsAdmin,
 			"settingsRole":      true,
 			"downloadRole":      true,
 			"uploadRole":        false,
@@ -243,23 +264,17 @@ func (p *SubsonicPlugin) handleGetUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *SubsonicPlugin) handleGetOpenSubsonicExtensions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	if err := r.ParseForm(); err != nil {
+		p.writeError(w, r, 10, "Invalid parameters")
+		return
+	}
 	p.writeResponse(w, r, map[string]interface{}{
-		"openSubsonicExtensions": map[string]interface{}{
-			"extension": []map[string]interface{}{
-				{
-					"name":     "supernova",
-					"versions": []int{1},
-				},
-				{
-					"name":     "songLyrics",
-					"versions": []int{1},
-				},
-				{
-					"name":     "transcodeOffset",
-					"versions": []int{1},
-				},
-			},
-		},
+		"openSubsonicExtensions": []map[string]interface{}{{"name": "formPost", "versions": []int{1}}},
 	})
 }
 
@@ -278,7 +293,7 @@ func (p *SubsonicPlugin) handleGetMusicFolders(w http.ResponseWriter, r *http.Re
 
 func (p *SubsonicPlugin) handleGetIndexes(w http.ResponseWriter, r *http.Request) {
 	// Subsonic expects an alphabetic index of artists
-	artists, err := p.repo.GetArtists(context.Background(), 1000, 0)
+	artists, err := p.repo.GetArtists(r.Context(), 1000, 0)
 	if err != nil {
 		p.writeError(w, r, 0, "Database error")
 		return
@@ -308,6 +323,7 @@ func (p *SubsonicPlugin) handleGetIndexes(w http.ResponseWriter, r *http.Request
 		})
 	}
 
+	sort.Slice(indexes, func(i, j int) bool { return indexes[i]["name"].(string) < indexes[j]["name"].(string) })
 	p.writeResponse(w, r, map[string]interface{}{
 		"indexes": map[string]interface{}{
 			"lastModified":    0,
@@ -319,7 +335,7 @@ func (p *SubsonicPlugin) handleGetIndexes(w http.ResponseWriter, r *http.Request
 
 func (p *SubsonicPlugin) handleGetArtists(w http.ResponseWriter, r *http.Request) {
 	// Modern clients use getArtists (returns ID3 tags, grouped differently)
-	artists, err := p.repo.GetArtists(context.Background(), 1000, 0)
+	artists, err := p.repo.GetArtists(r.Context(), 1000, 0)
 	if err != nil {
 		p.writeError(w, r, 0, "Database error")
 		return
@@ -348,24 +364,25 @@ func (p *SubsonicPlugin) handleGetArtists(w http.ResponseWriter, r *http.Request
 			"artist": items,
 		})
 	}
-	
+
+	sort.Slice(indexes, func(i, j int) bool { return indexes[i]["name"].(string) < indexes[j]["name"].(string) })
 	p.writeResponse(w, r, map[string]interface{}{
 		"artists": map[string]interface{}{
 			"ignoredArticles": "",
-			"index": indexes,
+			"index":           indexes,
 		},
 	})
 }
 
 func (p *SubsonicPlugin) handleGetArtist(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	artist, err := p.repo.GetArtistByID(context.Background(), id)
+	id := r.FormValue("id")
+	artist, err := p.repo.GetArtistByID(r.Context(), id)
 	if err != nil {
 		p.writeError(w, r, 70, "Artist not found")
 		return
 	}
-	albums, _ := p.repo.GetAlbums(context.Background(), id, 100, 0)
-	
+	albums, _ := p.repo.GetAlbums(r.Context(), id, -1, 0)
+
 	var albumList []map[string]interface{}
 	for _, al := range albums {
 		albumList = append(albumList, map[string]interface{}{
@@ -390,18 +407,18 @@ func (p *SubsonicPlugin) handleGetArtist(w http.ResponseWriter, r *http.Request)
 }
 
 func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	
+	id := r.FormValue("id")
+
 	if id == "1" {
 		// They are requesting the root music folder, return artists as directories
-		artists, _ := p.repo.GetArtists(context.Background(), 1000, 0)
+		artists, _ := p.repo.GetArtists(r.Context(), 1000, 0)
 		var children []map[string]interface{}
 		for _, a := range artists {
 			children = append(children, map[string]interface{}{
-				"id":    a.ID,
+				"id":     a.ID,
 				"parent": "1",
-				"isDir": true,
-				"title": a.Name,
+				"isDir":  true,
+				"title":  a.Name,
 				"artist": a.Name,
 			})
 		}
@@ -414,12 +431,12 @@ func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.
 		})
 		return
 	}
-	
+
 	// First check if it's an artist
-	artist, err := p.repo.GetArtistByID(context.Background(), id)
+	artist, err := p.repo.GetArtistByID(r.Context(), id)
 	if err == nil {
 		// It's an artist, return their albums as directories
-		albums, _ := p.repo.GetAlbumsByArtistID(context.Background(), id)
+		albums, _ := p.repo.GetAlbumsByArtistID(r.Context(), id)
 		var children []map[string]interface{}
 		for _, album := range albums {
 			children = append(children, map[string]interface{}{
@@ -443,9 +460,9 @@ func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.
 	}
 
 	// Try as an album
-	album, err := p.repo.GetAlbumByID(context.Background(), id)
+	album, err := p.repo.GetAlbumByID(r.Context(), id)
 	if err == nil {
-		tracks, _ := p.repo.GetTracksByAlbumID(context.Background(), id)
+		tracks, _ := p.repo.GetTracksByAlbumID(r.Context(), id)
 		var children []map[string]interface{}
 		for _, track := range tracks {
 			children = append(children, map[string]interface{}{
@@ -460,7 +477,7 @@ func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.
 				"duration":    track.DurationMs / 1000,
 				"path":        track.FilePath,
 				"coverArt":    album.ID,
-				"contentType": "audio/" + track.Format,
+				"contentType": media.ContentType(track.Format),
 				"suffix":      track.Format,
 			})
 		}
@@ -478,18 +495,18 @@ func (p *SubsonicPlugin) handleGetMusicDirectory(w http.ResponseWriter, r *http.
 }
 
 func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	album, err := p.repo.GetAlbumByID(context.Background(), id)
+	id := r.FormValue("id")
+	album, err := p.repo.GetAlbumByID(r.Context(), id)
 	if err != nil {
 		p.writeError(w, r, 70, "Album not found")
 		return
 	}
-	
-	tracks, _ := p.repo.GetTracks(context.Background(), id, "", 100, 0)
-	
+
+	tracks, _ := p.repo.GetTracks(r.Context(), id, "", -1, 0)
+
 	var songList []map[string]interface{}
 	for _, t := range tracks {
-		contentType := "audio/" + strings.ToLower(t.Format)
+		contentType := media.ContentType(t.Format)
 		if t.Format == "" {
 			contentType = "audio/mpeg"
 		}
@@ -530,42 +547,44 @@ func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) 
 }
 
 func (p *SubsonicPlugin) handleStream(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	track, err := p.repo.GetTrackByID(context.Background(), id)
+	id := r.FormValue("id")
+	track, err := p.repo.GetTrackByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Not found", 404)
 		return
 	}
-	if !strings.HasPrefix(track.FilePath, os.Getenv("MEDIA_PATH")) {
+	resolved, err := media.Resolve(track.FilePath)
+	if err != nil {
 		http.Error(w, "Access denied", http.StatusForbidden)
 		return
 	}
-	http.ServeFile(w, r, track.FilePath)
+	http.ServeFile(w, r, resolved)
 }
 
 func (p *SubsonicPlugin) handleDownload(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	track, err := p.repo.GetTrackByID(context.Background(), id)
+	id := r.FormValue("id")
+	track, err := p.repo.GetTrackByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Not found", 404)
 		return
 	}
-	if !strings.HasPrefix(track.FilePath, os.Getenv("MEDIA_PATH")) {
+	resolved, err := media.Resolve(track.FilePath)
+	if err != nil {
 		http.Error(w, "Access denied", http.StatusForbidden)
 		return
 	}
-	
+
 	// Set headers for download
 	filename := track.Title + ".flac" // Or get extension from file path
 	if idx := strings.LastIndex(track.FilePath, "."); idx != -1 {
 		filename = track.Title + track.FilePath[idx:]
 	}
-	
+
 	// Escape filename quotes
 	filename = strings.ReplaceAll(filename, "\"", "")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
-	
-	http.ServeFile(w, r, track.FilePath)
+
+	http.ServeFile(w, r, resolved)
 }
 func (p *SubsonicPlugin) handleGetPlaylists(w http.ResponseWriter, r *http.Request) {
 	u, ok := r.Context().Value(userContextKey).(*models.User)
@@ -574,7 +593,7 @@ func (p *SubsonicPlugin) handleGetPlaylists(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	playlists, err := p.repo.GetPlaylists(context.Background(), u.ID)
+	playlists, err := p.repo.GetPlaylists(r.Context(), u.ID)
 	if err != nil {
 		p.writeError(w, r, 0, "Database error")
 		return
@@ -612,18 +631,18 @@ func (p *SubsonicPlugin) handleGetPlaylist(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	id := r.URL.Query().Get("id")
+	id := r.FormValue("id")
 	if id == "" {
 		p.writeError(w, r, 10, "Required parameter is missing: id")
 		return
 	}
 
-	playlists, err := p.repo.GetPlaylists(context.Background(), u.ID)
+	playlists, err := p.repo.GetPlaylists(r.Context(), u.ID)
 	if err != nil {
 		p.writeError(w, r, 0, "Database error")
 		return
 	}
-	
+
 	var playlist *models.Playlist
 	for _, pl := range playlists {
 		if pl.ID == id {
@@ -631,13 +650,13 @@ func (p *SubsonicPlugin) handleGetPlaylist(w http.ResponseWriter, r *http.Reques
 			break
 		}
 	}
-	
+
 	if playlist == nil {
 		p.writeError(w, r, 70, "Playlist not found")
 		return
 	}
 
-	tracks, err := p.repo.GetPlaylistTracks(context.Background(), u.ID, id)
+	tracks, err := p.repo.GetPlaylistTracks(r.Context(), u.ID, id)
 	if err != nil {
 		p.writeError(w, r, 0, "Database error")
 		return
@@ -645,7 +664,7 @@ func (p *SubsonicPlugin) handleGetPlaylist(w http.ResponseWriter, r *http.Reques
 
 	var entryList []map[string]interface{}
 	for _, t := range tracks {
-		contentType := "audio/" + strings.ToLower(t.Format)
+		contentType := media.ContentType(t.Format)
 		if t.Format == "" {
 			contentType = "audio/mpeg"
 		}
@@ -667,7 +686,7 @@ func (p *SubsonicPlugin) handleGetPlaylist(w http.ResponseWriter, r *http.Reques
 			"bitRate":     t.Bitrate,
 		})
 	}
-	
+
 	if entryList == nil {
 		entryList = make([]map[string]interface{}, 0)
 	}
@@ -688,22 +707,22 @@ func (p *SubsonicPlugin) handleGetPlaylist(w http.ResponseWriter, r *http.Reques
 }
 
 func (p *SubsonicPlugin) handleGetAlbumList(w http.ResponseWriter, r *http.Request) {
-	listType := r.URL.Query().Get("type")
-	
+	listType := r.FormValue("type")
+
 	var albums []models.Album
 	var err error
 
 	if listType == "starred" {
 		u, ok := r.Context().Value(userContextKey).(*models.User)
 		if ok && u != nil {
-			_, albums, _, _, err = p.repo.GetHeartDetails(context.Background(), u.ID)
+			_, albums, _, _, err = p.repo.GetHeartDetails(r.Context(), u.ID)
 		} else {
 			p.writeError(w, r, 0, "Not authenticated")
 			return
 		}
 	} else {
 		// Placeholder for other types (newest, random, frequent, recent, etc.)
-		albums, err = p.repo.GetAlbums(context.Background(), "", 100, 0)
+		albums, err = p.repo.GetAlbums(r.Context(), "", 100, 0)
 	}
 
 	if err != nil {
@@ -727,7 +746,7 @@ func (p *SubsonicPlugin) handleGetAlbumList(w http.ResponseWriter, r *http.Reque
 	if albumList == nil {
 		albumList = make([]map[string]interface{}, 0)
 	}
-	
+
 	// getAlbumList uses albumList, getAlbumList2 uses albumList2.
 	// Since we handle both with this one function, we can check path
 	isList2 := strings.Contains(r.URL.Path, "getAlbumList2")
@@ -744,22 +763,26 @@ func (p *SubsonicPlugin) handleGetAlbumList(w http.ResponseWriter, r *http.Reque
 }
 
 func (p *SubsonicPlugin) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
+	id := r.FormValue("id")
 	if id == "" {
 		http.Error(w, "missing id parameter", http.StatusBadRequest)
 		return
 	}
 
 	// Try as album ID first
-	if album, err := p.repo.GetAlbumByID(context.Background(), id); err == nil && album != nil && album.CoverArtPath != "" {
-		http.ServeFile(w, r, album.CoverArtPath)
+	if album, err := p.repo.GetAlbumByID(r.Context(), id); err == nil && album != nil && album.CoverArtPath != "" {
+		if !media.ServeArt(w, r, album.CoverArtPath) {
+			http.NotFound(w, r)
+		}
 		return
 	}
 
 	// Fallback: try as track ID to fetch track's album cover art
-	if track, err := p.repo.GetTrackByID(context.Background(), id); err == nil && track != nil && track.AlbumID != "" {
-		if album, err := p.repo.GetAlbumByID(context.Background(), track.AlbumID); err == nil && album != nil && album.CoverArtPath != "" {
-			http.ServeFile(w, r, album.CoverArtPath)
+	if track, err := p.repo.GetTrackByID(r.Context(), id); err == nil && track != nil && track.AlbumID != "" {
+		if album, err := p.repo.GetAlbumByID(r.Context(), track.AlbumID); err == nil && album != nil && album.CoverArtPath != "" {
+			if !media.ServeArt(w, r, album.CoverArtPath) {
+				http.NotFound(w, r)
+			}
 			return
 		}
 	}
@@ -771,6 +794,6 @@ func (p *SubsonicPlugin) handleGetCoverArt(w http.ResponseWriter, r *http.Reques
 func (p *SubsonicPlugin) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 	// Stub to prevent 404s when clients check for OpenSubsonic lyrics
 	p.writeResponse(w, r, map[string]interface{}{
-		"lyricsList": map[string]interface{}{},
+		"lyrics": map[string]interface{}{},
 	})
 }

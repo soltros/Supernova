@@ -60,7 +60,7 @@ func (e *Enricher) Start(ctx context.Context) {
 // processQueue iterates over the database finding albums missing an MBID
 func (e *Enricher) processQueue(ctx context.Context) {
 	log.Println("Enricher waking up to check database for missing metadata...")
-	
+
 	// Process batches of 50 unenriched albums at a time
 	for {
 		albums, err := e.repo.GetUnenrichedAlbums(ctx, 50)
@@ -68,7 +68,7 @@ func (e *Enricher) processQueue(ctx context.Context) {
 			log.Printf("Enricher DB error: %v", err)
 			return
 		}
-		
+
 		if len(albums) == 0 {
 			// If no albums need MBID enrichment, check for missing artist data via LastFM
 			e.processArtistQueue(ctx)
@@ -91,23 +91,23 @@ func (e *Enricher) processQueue(ctx context.Context) {
 			go func(album database.UnenrichedAlbum) {
 				defer wg.Done()
 				defer func() { <-semaphore }()
-				
+
 				meta := &models.TrackMetadata{
 					Title:  album.TrackTitle,
 					Album:  album.AlbumTitle,
 					Artist: album.ArtistName,
 				}
-				
+
 				// mbClient automatically sleeps for 1.1s to respect MusicBrainz rate limits
 				err := e.mbClient.EnhanceMetadata(meta)
-				
+
 				if err == nil {
 					// If we found an MBID, update the database
 					if meta.AlbumMBID != "" {
 						_ = e.repo.UpdateMBIDs(ctx, album.AlbumID, meta.AlbumMBID, album.ArtistID, meta.ArtistMBID)
 						log.Printf("Successfully background-enriched album: %s", album.AlbumTitle)
 					} else {
-						// To prevent infinite loops on albums that don't exist in MusicBrainz, 
+						// To prevent infinite loops on albums that don't exist in MusicBrainz,
 						// we write a special flag 'NOT_FOUND' so GetUnenrichedAlbums ignores it next time.
 						_ = e.repo.UpdateMBIDs(ctx, album.AlbumID, "NOT_FOUND", album.ArtistID, "")
 						log.Printf("No MusicBrainz data found for album: %s", album.AlbumTitle)
@@ -194,7 +194,7 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 				} else {
 					log.Printf("Successfully enriched artist via LastFM: %s", artist.Name)
 				}
-				
+
 				// Additionally fetch top tracks to update local track popularity
 				topTracks, err := e.lastfm.GetArtistTopTracks(artist.Name)
 				if err == nil && topTracks != nil {
@@ -206,7 +206,7 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 						} else {
 							fmt.Sscanf(track.Playcount, "%d", &popularity)
 						}
-						
+
 						if popularity > 0 {
 							_ = e.repo.UpdateArtistTracksPopularity(ctx, artist.ID, track.Name, popularity)
 						}
@@ -215,7 +215,7 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 				}
 			}(a)
 		}
-		
+
 		wg.Wait() // Wait for batch to finish before fetching next batch
 	}
 }
