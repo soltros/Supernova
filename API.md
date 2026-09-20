@@ -7,6 +7,10 @@ The Supernova backend exposes a lightweight, strictly-typed JSON REST API.
 
 ---
 
+## Authentication
+
+`POST /api/auth/register` accepts `username`, `password`, and `invite_code`. The first account is administrator; subsequent accounts require `REGISTRATION_INVITE_CODE`. `POST /api/auth/login` returns a bearer token. Send `Authorization: Bearer <token>` to private routes. `GET /api/auth/me` returns the current user and `is_admin`. Maintenance runs and library scanning require administrator access.
+
 ## 1. Library (Metadata)
 
 ### Get Albums

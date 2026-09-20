@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+ "net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -171,7 +172,7 @@ func main() {
 		fmt.Println("Supernova CLI")
 		fmt.Println("Usage: sn <command> [args]")
 		fmt.Println("\nAuthentication:")
-		fmt.Println("  register <url> <username> <password>")
+		fmt.Println("  register <url> <username> <password> [invite-code]")
 		fmt.Println("  login <url> <username> <password>")
 		fmt.Println("\nLibrary:")
 		fmt.Println("  artists [id]")
@@ -211,11 +212,16 @@ func main() {
 	// AUTHENTICATION
 	// ---------------------------------------------------------
 	case "register":
-		requireArgs(5, "sn register <url> <username> <password>")
+		requireArgs(5, "sn register <url> <username> <password> [invite-code]")
 		url := strings.TrimRight(os.Args[2], "/")
+		invite := ""
+		if len(os.Args) > 5 {
+			invite = os.Args[5]
+		}
 		payload, err := json.Marshal(map[string]string{
-			"username": os.Args[3],
-			"password": os.Args[4],
+			"username":    os.Args[3],
+			"password":    os.Args[4],
+			"invite_code": invite,
 		})
 		if err != nil {
 			fmt.Println("Error encoding JSON:", err)
@@ -327,23 +333,23 @@ func main() {
 	case "play":
 		requireArgs(3, "sn play <track_id>")
 		c := requireConfig()
-		
+
 		if _, err := exec.LookPath("mpv"); err != nil {
 			fmt.Println("Error: 'mpv' media player not found in PATH.")
 			os.Exit(1)
 		}
-		
+
 		trackID := os.Args[2]
 		streamURL := c.URL + "/api/stream/" + trackID
 		authHeader := "Authorization: Bearer " + c.Token
 
 		fmt.Printf("Starting mpv for track %s...\n", trackID)
-		
+
 		cmd := exec.Command("mpv", "--http-header-fields="+authHeader, streamURL)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin
-		
+
 		if err := cmd.Run(); err != nil {
 			fmt.Println("Playback failed:", err)
 			os.Exit(1)
@@ -424,15 +430,8 @@ func main() {
 	case "unheart":
 		requireArgs(4, "sn unheart <entity_type> <entity_id>")
 		c := requireConfig()
-		payload, err := json.Marshal(map[string]string{
-			"entity_type": os.Args[2],
-			"entity_id":   os.Args[3],
-		})
-		if err != nil {
-			fmt.Println("Error encoding JSON:", err)
-			os.Exit(1)
-		}
-		_, err = doRequest("DELETE", "/api/hearts", bytes.NewBuffer(payload), c.Token)
+values := url.Values{"entity_type": {os.Args[2]}, "entity_id": {os.Args[3]}}
+ _, err := doRequest("DELETE", "/api/hearts?"+values.Encode(), nil, c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
 			os.Exit(1)
@@ -590,9 +589,9 @@ func main() {
 		}
 
 		type HeartBackup struct {
-			EntityType string `json:"entityType"`
+			EntityType string `json:"entity_type"`
 			Reference  string `json:"reference"`
-			CreatedAt  string `json:"createdAt"`
+			CreatedAt  string `json:"created_at"`
 		}
 
 		var backups []HeartBackup
@@ -656,7 +655,7 @@ func main() {
 
 		type PlaylistBackup struct {
 			Name      string   `json:"name"`
-			CreatedAt string   `json:"createdAt"`
+			CreatedAt string   `json:"created_at"`
 			Tracks    []string `json:"tracks"`
 		}
 

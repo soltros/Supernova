@@ -26,10 +26,10 @@ func (r *Repository) GetArtists(ctx context.Context, limit, offset int) ([]model
 		}
 		artists = append(artists, a)
 	}
- if err := rows.Err(); err != nil {
- 	return nil, err
- }
-	
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	if artists == nil {
 		return []models.Artist{}, nil
 	}
@@ -63,9 +63,9 @@ func (r *Repository) GetArtistsByLetter(ctx context.Context, letter string, limi
 		}
 		artists = append(artists, a)
 	}
- if err := rows.Err(); err != nil {
- 	return nil, err
- }
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	if artists == nil {
 		return []models.Artist{}, nil
@@ -78,7 +78,7 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 	// Replace spaces with '%' to allow fuzzy matching (e.g., ignoring punctuation like apostrophes)
 	fuzzyTerm := strings.ReplaceAll(query, " ", "%")
 	likeQuery := "%" + fuzzyTerm + "%"
-	
+
 	// Search Artists
 	artistRows, err := r.db.QueryContext(ctx, `SELECT id, name, image_url FROM artists WHERE name LIKE ? LIMIT ?`, likeQuery, limit)
 	if err != nil {
@@ -92,9 +92,9 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 			artists = append(artists, map[string]interface{}{"id": id, "name": name, "image_url": img})
 		}
 	}
- if err := artistRows.Err(); err != nil {
- 	return nil, err
- }
+	if err := artistRows.Err(); err != nil {
+		return nil, err
+	}
 
 	// Search Albums
 	albumRows, err := r.db.QueryContext(ctx, `
@@ -122,9 +122,9 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 			})
 		}
 	}
- if err := albumRows.Err(); err != nil {
- 	return nil, err
- }
+	if err := albumRows.Err(); err != nil {
+		return nil, err
+	}
 
 	// Search Tracks
 	trackRows, err := r.db.QueryContext(ctx, `
@@ -150,24 +150,30 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) (map[s
 				name = *artistName
 			}
 			tracks = append(tracks, map[string]interface{}{
-				"id": id, "title": title, "album_title": albumTitle, 
+				"id": id, "title": title, "album_title": albumTitle,
 				"artist_name": name, "duration_ms": durationMs,
 				"album_id": albumID, "cover_art_url": coverArt,
 			})
 		}
 	}
- if err := trackRows.Err(); err != nil {
- 	return nil, err
- }
+	if err := trackRows.Err(); err != nil {
+		return nil, err
+	}
 
-	if artists == nil { artists = []map[string]interface{}{} }
-	if albums == nil { albums = []map[string]interface{}{} }
-	if tracks == nil { tracks = []map[string]interface{}{} }
+	if artists == nil {
+		artists = []map[string]interface{}{}
+	}
+	if albums == nil {
+		albums = []map[string]interface{}{}
+	}
+	if tracks == nil {
+		tracks = []map[string]interface{}{}
+	}
 
 	return map[string]interface{}{
 		"artists": artists,
-		"albums": albums,
-		"tracks": tracks,
+		"albums":  albums,
+		"tracks":  tracks,
 	}, nil
 }
 
@@ -193,9 +199,9 @@ func (r *Repository) GetPodcastSubscriptions(ctx context.Context, userID string)
 		}
 		subs = append(subs, s)
 	}
- if err := rows.Err(); err != nil {
- 	return nil, err
- }
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return subs, nil
 }
 
@@ -203,7 +209,7 @@ func (r *Repository) AddPodcastSubscription(ctx context.Context, sub models.Podc
 	query := `
 		INSERT INTO podcast_subscriptions (id, user_id, feed_id, feed_url, title, image_url)
 		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(user_id, feed_id) DO UPDATE SET title=excluded.title, image_url=excluded.image_url
+		ON CONFLICT(user_id, feed_id) DO UPDATE SET title=excluded.title, image_url=excluded.image_url, feed_url=excluded.feed_url
 	`
 	_, err := r.db.ExecContext(ctx, query, sub.ID, sub.UserID, sub.FeedID, sub.FeedURL, sub.Title, sub.ImageURL)
 	return err
@@ -237,7 +243,7 @@ func (r *Repository) GetPodcastProgress(ctx context.Context, userID string, epis
 		args[i+1] = id
 	}
 	query := fmt.Sprintf(`SELECT episode_id, position_ms, completed, updated_at FROM podcast_progress WHERE user_id = ? AND episode_id IN (%s)`, strings.Join(placeholders, ","))
-	
+
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -253,12 +259,11 @@ func (r *Repository) GetPodcastProgress(ctx context.Context, userID string, epis
 		}
 		progress[p.EpisodeID] = p
 	}
- if err := rows.Err(); err != nil {
- 	return nil, err
- }
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return progress, nil
 }
-
 
 // Radio DB operations
 
@@ -282,9 +287,9 @@ func (r *Repository) GetRadioSubscriptions(ctx context.Context, userID string) (
 		}
 		subs = append(subs, s)
 	}
- if err := rows.Err(); err != nil {
- 	return nil, err
- }
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return subs, nil
 }
 
@@ -292,7 +297,7 @@ func (r *Repository) AddRadioSubscription(ctx context.Context, sub models.RadioS
 	query := `
 		INSERT INTO radio_subscriptions (id, user_id, station_id, url, name, favicon)
 		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(user_id, station_id) DO UPDATE SET name=excluded.name, favicon=excluded.favicon
+		ON CONFLICT(user_id, station_id) DO UPDATE SET name=excluded.name, favicon=excluded.favicon, url=excluded.url
 	`
 	_, err := r.db.ExecContext(ctx, query, sub.ID, sub.UserID, sub.StationID, sub.URL, sub.Name, sub.Favicon)
 	return err
@@ -303,7 +308,6 @@ func (r *Repository) RemoveRadioSubscription(ctx context.Context, userID, statio
 	_, err := r.db.ExecContext(ctx, query, userID, stationID)
 	return err
 }
-
 
 func (r *Repository) GetArtistByID(ctx context.Context, id string) (models.Artist, error) {
 	query := `SELECT id, name, musicbrainz_id, image_url, bio FROM artists WHERE id = ?`
@@ -349,9 +353,9 @@ func (r *Repository) GetUnenrichedArtists(ctx context.Context, limit int) ([]mod
 		}
 		artists = append(artists, a)
 	}
- if err := rows.Err(); err != nil {
- 	return nil, err
- }
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return artists, nil
 }
 
@@ -392,10 +396,10 @@ func (r *Repository) GetAlbums(ctx context.Context, artistID string, limit, offs
 		}
 		albums = append(albums, a)
 	}
- if err := rows.Err(); err != nil {
- 	return nil, err
- }
-	
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	if albums == nil {
 		return []models.Album{}, nil
 	}
@@ -411,7 +415,7 @@ func (r *Repository) GetTracks(ctx context.Context, albumID string, artistID str
 		LEFT JOIN artists art ON ta.artist_id = art.id
 	`
 	args := []any{}
-	
+
 	where := []string{}
 	if albumID != "" {
 		where = append(where, `t.album_id = ?`)
@@ -457,10 +461,10 @@ func (r *Repository) GetTracks(ctx context.Context, albumID string, artistID str
 		}
 		tracks = append(tracks, t)
 	}
- if err := rows.Err(); err != nil {
- 	return nil, err
- }
-	
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	if tracks == nil {
 		return []models.Track{}, nil
 	}
@@ -520,9 +524,9 @@ func (r *Repository) GetUnenrichedAlbums(ctx context.Context, limit int) ([]Unen
 		}
 		albums = append(albums, a)
 	}
- if err := rows.Err(); err != nil {
- 	return nil, err
- }
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return albums, nil
 }
 
@@ -555,9 +559,9 @@ func (r *Repository) GetAlbumsMissingBio(ctx context.Context, limit int) ([]Unen
 			albums = append(albums, a)
 		}
 	}
- if err := rows.Err(); err != nil {
- 	return nil, err
- }
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return albums, nil
 }
 
@@ -622,9 +626,36 @@ func (r *Repository) GetAlbumByID(ctx context.Context, id string) (*models.Album
 
 // HeartEntity saves a favorite for a specific user
 func (r *Repository) HeartEntity(ctx context.Context, userID, entityType, entityID string) error {
-	id := generateUUID()
-	query := `INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id) VALUES (?, ?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, id, userID, entityType, entityID)
+	var table string
+	switch entityType {
+	case "track":
+		table = "tracks"
+	case "album":
+		table = "albums"
+	case "artist":
+		table = "artists"
+	case "playlist":
+		table = "playlists"
+	case "radio", "podcast":
+		if entityID == "" {
+			return fmt.Errorf("missing entity id")
+		}
+	default:
+		return fmt.Errorf("invalid entity type")
+	}
+	if table != "" {
+		query := "SELECT 1 FROM " + table + " WHERE id = ?"
+		args := []any{entityID}
+		if entityType == "playlist" {
+			query += " AND user_id = ?"
+			args = append(args, userID)
+		}
+		var exists int
+		if err := r.db.QueryRowContext(ctx, query, args...).Scan(&exists); err != nil {
+			return fmt.Errorf("entity not found")
+		}
+	}
+	_, err := r.db.ExecContext(ctx, `INSERT OR IGNORE INTO hearts (id, user_id, entity_type, entity_id) VALUES (?, ?, ?, ?)`, generateUUID(), userID, entityType, entityID)
 	return err
 }
 
@@ -692,9 +723,9 @@ func (r *Repository) GetHeartDetails(ctx context.Context, userID string) ([]mode
 		}
 		tracks = append(tracks, t)
 	}
- if err := rowsT.Err(); err != nil {
- 	return nil, nil, nil, nil, err
- }
+	if err := rowsT.Err(); err != nil {
+		return nil, nil, nil, nil, err
+	}
 
 	// 2. Fetch albums
 	queryAlbums := `
@@ -728,9 +759,9 @@ func (r *Repository) GetHeartDetails(ctx context.Context, userID string) ([]mode
 		}
 		albums = append(albums, a)
 	}
- if err := rowsA.Err(); err != nil {
- 	return nil, nil, nil, nil, err
- }
+	if err := rowsA.Err(); err != nil {
+		return nil, nil, nil, nil, err
+	}
 
 	if tracks == nil {
 		tracks = []models.Track{}
@@ -761,9 +792,9 @@ func (r *Repository) GetHeartDetails(ctx context.Context, userID string) ([]mode
 		}
 		artists = append(artists, a)
 	}
- if err := rowsArt.Err(); err != nil {
- 	return nil, nil, nil, nil, err
- }
+	if err := rowsArt.Err(); err != nil {
+		return nil, nil, nil, nil, err
+	}
 	if artists == nil {
 		artists = []models.Artist{}
 	}
@@ -772,7 +803,7 @@ func (r *Repository) GetHeartDetails(ctx context.Context, userID string) ([]mode
 	queryPlaylists := `
 		SELECT p.id, p.user_id, p.name, p.created_at
 		FROM playlists p
-		JOIN hearts h ON p.id = h.entity_id AND h.entity_type = 'playlist'
+		JOIN hearts h ON p.id = h.entity_id AND h.entity_type = 'playlist' AND p.user_id = h.user_id
 		WHERE h.user_id = ?
 		ORDER BY h.created_at DESC
 	`
@@ -790,9 +821,9 @@ func (r *Repository) GetHeartDetails(ctx context.Context, userID string) ([]mode
 		}
 		playlists = append(playlists, p)
 	}
- if err := rowsP.Err(); err != nil {
- 	return nil, nil, nil, nil, err
- }
+	if err := rowsP.Err(); err != nil {
+		return nil, nil, nil, nil, err
+	}
 	if playlists == nil {
 		playlists = []models.Playlist{}
 	}
@@ -816,7 +847,7 @@ func (r *Repository) ExportHearts(ctx context.Context, userID string) ([]models.
 		LEFT JOIN tracks t ON h.entity_type = 'track' AND h.entity_id = t.id
 		LEFT JOIN albums a ON h.entity_type = 'album' AND h.entity_id = a.id
 		LEFT JOIN artists art ON h.entity_type = 'artist' AND h.entity_id = art.id
-		LEFT JOIN playlists p ON h.entity_type = 'playlist' AND h.entity_id = p.id
+		LEFT JOIN playlists p ON h.entity_type = 'playlist' AND h.entity_id = p.id AND p.user_id = h.user_id
 		WHERE h.user_id = ?
 		AND CASE 
 				WHEN h.entity_type = 'track' THEN t.file_path
@@ -839,9 +870,9 @@ func (r *Repository) ExportHearts(ctx context.Context, userID string) ([]models.
 		}
 		backups = append(backups, b)
 	}
- if err := rows.Err(); err != nil {
- 	return nil, err
- }
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return backups, nil
 }
 
@@ -928,8 +959,8 @@ func (r *Repository) GetRecentScrobbles(ctx context.Context, userID string, limi
 		}
 		tracks = append(tracks, t)
 	}
- if err := rows.Err(); err != nil {
- 	return nil, err
- }
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return tracks, nil
 }

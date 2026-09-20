@@ -24,16 +24,20 @@ Built with a highly-concurrent Go backend and a Progressive Web App (PWA) React 
 ## Getting Started
 
 ### Prerequisites
-- Go 1.22+
-- Node.js 20+
+- Go 1.26.4+
+- Node.js 24+
+- FFmpeg (including `ffprobe`)
 
 ### Backend Development
 The backend is a monolithic Go binary holding the SQLite database and static file servers.
 ```bash
 cd backend
+# Generate a fresh secret; configure MEDIA_PATH as needed.
+export JWT_SECRET="$(openssl rand -hex 32)"
+export CORS_ALLOWED_ORIGIN=http://localhost:5173
 go run cmd/server/main.go
 ```
-*The backend binds to `http://localhost:8080` and provisions its SQLite database at `~/.supernova/supernova.db`.*
+*The backend binds to `http://localhost:8080` and provisions its SQLite database at `./data/supernova.db` (relative to the backend working directory).*
 
 ### Frontend Development
 The frontend is a Vite-powered React Single Page Application (SPA).
@@ -70,7 +74,7 @@ Authorization: Bearer <your_jwt_token>
 - `GET /api/art/album/{id}` - Serves extracted and highly-optimized embedded cover art.
 
 #### Authentication
-- `POST /api/auth/register` - Registers a new user. Accepts JSON `{ "username", "password" }`.
+- `POST /api/auth/register` - Registers a new user. Accepts JSON `{ "username", "password", "invite_code" }`. The first account becomes administrator; later accounts require the owner-configured invite.
 - `POST /api/auth/login` - Authenticates a user and returns the JWT token.
 
 #### User Data (Requires Auth)
@@ -102,7 +106,7 @@ Copy the example file and fill in your values:
 cp .env.example .env
 ```
 
-Then edit `.env`. At minimum you **must** set `JWT_SECRET`:
+Then edit `.env`. At minimum you **must** set `JWT_SECRET`. Set `REGISTRATION_INVITE_CODE` to allow invited registrations after the first account; leaving it blank closes registration after initial setup. Rotate it by changing the value and recreating the backend container.
 
 ```bash
 # Generate a cryptographically secure secret (run this in your terminal):

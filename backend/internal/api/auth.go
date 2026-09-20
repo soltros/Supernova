@@ -3,47 +3,41 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"github.com/soltros/Supernova/internal/authn"
+	"github.com/soltros/Supernova/internal/database"
+	"github.com/soltros/Supernova/internal/models"
 	"log"
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
-var (
-	jwtSecret     []byte
-	jwtSecretOnce sync.Once
-)
-
 func getJWTSecret() []byte {
-	jwtSecretOnce.Do(func() {
-		secret := os.Getenv("JWT_SECRET")
-		if len(secret) < 32 {
-			log.Fatal("FATAL: JWT_SECRET env var must be set and at least 32 characters long. Set it before starting the server.")
-		}
-		jwtSecret = []byte(secret)
-	})
-	return jwtSecret
+	secret, err := authn.Secret()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return secret
 }
 
 type contextKey string
+
 const userIDKey contextKey = "user_id"
 
 type AuthRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	InviteCode string `json:"invite_code"`
 }
 
 type AuthResponse struct {
-	Token string `json:"token"`
-	User  struct {
-		ID       string `json:"id"`
-		Username string `json:"username"`
-	} `json:"user"`
+	Token string       `json:"token"`
+	User  *models.User `json:"user"`
 }
 
 func (s *Server) handleRegister() http.HandlerFunc {
@@ -54,8 +48,9 @@ func (s *Server) handleRegister() http.HandlerFunc {
 			return
 		}
 
-		if len(req.Username) < 3 || len(req.Password) < 6 {
-			http.Error(w, "username must be 3+ chars and password 6+ chars", http.StatusBadRequest)
+		req.Username = strings.TrimSpace(req.Username)
+		if len(req.Username) < 3 || len(req.Username) > 64 || len(req.Password) < 6 || len(req.Password) > 72 {
+			http.Error(w, "username must be 3–64 bytes and password 6–72 bytes", http.StatusBadRequest)
 			return
 		}
 
@@ -65,7 +60,11 @@ func (s *Server) handleRegister() http.HandlerFunc {
 			return
 		}
 
-		user, err := s.repo.CreateUser(r.Context(), req.Username, string(hash))
+		user, err := s.repo.RegisterUser(r.Context(), req.Username, string(hash), req.InviteCode, os.Getenv("REGISTRATION_INVITE_CODE"))
+		if errors.Is(err, database.ErrInviteRequired) {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
 		if err != nil {
 			http.Error(w, "username already exists", http.StatusConflict)
 			return
@@ -83,13 +82,7 @@ func (s *Server) handleRegister() http.HandlerFunc {
 
 		json.NewEncoder(w).Encode(AuthResponse{
 			Token: token,
-			User: struct {
-				ID       string `json:"id"`
-				Username string `json:"username"`
-			}{
-				ID:       user.ID,
-				Username: user.Username,
-			},
+			User:  user,
 		})
 	}
 }
@@ -130,13 +123,7 @@ func (s *Server) handleLogin() http.HandlerFunc {
 
 		json.NewEncoder(w).Encode(AuthResponse{
 			Token: token,
-			User: struct {
-				ID       string `json:"id"`
-				Username string `json:"username"`
-			}{
-				ID:       user.ID,
-				Username: user.Username,
-			},
+			User:  user,
 		})
 	}
 }
@@ -149,57 +136,29 @@ func generateJWT(userID string) (string, error) {
 	return token.SignedString(getJWTSecret())
 }
 
-// requireAuth is a middleware that intercepts protected routes, validates the JWT, and injects the user_id into the context
+// requireAuth validates the token against the current account on every request.
 func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		tokenString := ""
-		
-		authHeader := r.Header.Get("Authorization")
-		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
-			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
-		} else if r.URL.Query().Get("token") != "" {
-			// Fallback to query parameter (required for native <audio> tags connecting to stream endpoints)
-			tokenString = r.URL.Query().Get("token")
-		}
-
-		if tokenString == "" {
-			http.Error(w, "unauthorized - missing token", http.StatusUnauthorized)
+		allowQuery := r.Method == http.MethodGet || r.Method == http.MethodHead
+		allowQuery = allowQuery && (strings.HasPrefix(r.URL.Path, "/api/stream/") || strings.HasPrefix(r.URL.Path, "/api/download/"))
+		user, err := authn.Authenticate(r, s.repo, allowQuery)
+		if err != nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, jwt.ErrSignatureInvalid
-			}
-			return getJWTSecret(), nil
-		})
-
-		if err != nil || !token.Valid {
-			http.Error(w, "unauthorized - invalid token", http.StatusUnauthorized)
-			return
-		}
-
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			http.Error(w, "unauthorized - invalid claims", http.StatusUnauthorized)
-			return
-		}
-
-		userID, ok := claims["user_id"].(string)
-		if !ok {
-			http.Error(w, "unauthorized - invalid user id claim", http.StatusUnauthorized)
-			return
-		}
-
-		// Double-check the database to completely prevent Phantom Users
-		user, err := s.repo.GetUserByID(r.Context(), userID)
-		if err != nil || user == nil {
-			http.Error(w, "unauthorized - user does not exist", http.StatusUnauthorized)
-			return
-		}
-
-		// Inject userID into context
-		ctx := context.WithValue(r.Context(), userIDKey, userID)
-		next.ServeHTTP(w, r.WithContext(ctx))
+		ctx := context.WithValue(r.Context(), userIDKey, user.ID)
+		ctx = context.WithValue(ctx, contextKey("user"), user)
+		next(w, r.WithContext(ctx))
 	}
+}
+
+func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		user := r.Context().Value(contextKey("user")).(*models.User)
+		if !user.IsAdmin {
+			http.Error(w, "administrator access required", http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	})
 }

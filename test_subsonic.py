@@ -30,7 +30,7 @@ class SubsonicClient:
         print(f"-> GET {url} | params: {self._mask_password(params)}")
         
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=15)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -142,7 +142,7 @@ def run_tests():
     print(json.dumps(res, indent=2))
     
     print("\n--- Testing getArtists ---")
-    res = client.getArtists() # Whoops, python uses snake case for my defs
+    res = client.get_artists() # Whoops, python uses snake case for my defs
     
     # We will just write the structure, user can run it interactively.
 

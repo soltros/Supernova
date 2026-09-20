@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"unicode"
 
 	"github.com/soltros/Supernova/internal/database"
@@ -12,7 +13,8 @@ import (
 )
 
 type AlbumMergerPlugin struct {
-	repo *database.Repository
+	repo    *database.Repository
+	running atomic.Bool
 }
 
 func init() {
@@ -45,7 +47,11 @@ func (p *AlbumMergerPlugin) handleRunMerger(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	go p.runMergeJob()
+	if !p.running.CompareAndSwap(false, true) {
+		http.Error(w, "job already running", http.StatusConflict)
+		return
+	}
+	go func() { defer p.running.Store(false); p.runMergeJob() }()
 	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte(`{"status": "album-merger job started in background"}`))
 }
@@ -53,10 +59,10 @@ func (p *AlbumMergerPlugin) handleRunMerger(w http.ResponseWriter, r *http.Reque
 // normalizeName strips punctuation, lowercases, and removes common variations
 func normalizeName(name string) string {
 	lower := strings.ToLower(name)
-	
+
 	// Strip common suffixes
 	suffixes := []string{
-		" (deluxe)", " (deluxe edition)", " [deluxe edition]", 
+		" (deluxe)", " (deluxe edition)", " [deluxe edition]",
 		" (remastered)", " [remastered]", " - remastered",
 		" (bonus track version)", " (explicit)", " (clean)",
 		" disc 1", " disc 2", " cd 1", " cd 2",
@@ -89,15 +95,15 @@ func (p *AlbumMergerPlugin) runMergeJob() {
 		log.Printf("[AlbumMerger] Failed to fetch albums: %v\n", err)
 		return
 	}
-	
+
 	type albumData struct {
 		id       string
 		title    string
 		artistID string
 	}
-	
+
 	groups := make(map[string][]albumData)
-	
+
 	for rows.Next() {
 		var a albumData
 		var artistID *string
@@ -133,7 +139,7 @@ func (p *AlbumMergerPlugin) runMergeJob() {
 				if a.id == canonical.id {
 					continue
 				}
-				
+
 				log.Printf("[AlbumMerger] Merging '%s' into '%s'\n", a.title, canonical.title)
 
 				tx, err := db.BeginTx(ctx, nil)

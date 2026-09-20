@@ -148,6 +148,7 @@
 
   <div class="setup-container">
     <h1>Supernova</h1>
+    <p id="error" role="alert" style="color:#fca5a5;display:none"></p>
     <p>Enter the URL of your Supernova instance to get started.</p>
     
     <div class="input-group">
@@ -157,10 +158,12 @@
   </div>
 
   <script>
-    document.getElementById('connectBtn').addEventListener('click', () => {
+    document.getElementById('connectBtn').addEventListener('click', async () => {
       const url = document.getElementById('urlInput').value.trim();
       if (url && window.supernovaDesktop) {
-        window.supernovaDesktop.saveInstance(url);
+        try { await window.supernovaDesktop.saveInstance(url); } catch {
+          const error = document.getElementById('error'); error.textContent = 'Could not connect. Check the server address and try again.'; error.style.display = 'block';
+        }
       }
     });
 

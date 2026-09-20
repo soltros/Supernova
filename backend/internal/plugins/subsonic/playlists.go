@@ -1,7 +1,6 @@
 package subsonic
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -16,13 +15,13 @@ func (p *SubsonicPlugin) handleCreatePlaylist(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	name := r.URL.Query().Get("name")
+	name := r.FormValue("name")
 	if name == "" {
 		p.writeError(w, r, 10, "Required parameter is missing: name")
 		return
 	}
 
-	playlist, err := p.repo.CreatePlaylist(context.Background(), u.ID, name)
+	playlist, err := p.repo.CreatePlaylist(r.Context(), u.ID, name)
 	if err != nil {
 		p.writeError(w, r, 0, "Failed to create playlist")
 		return
@@ -32,7 +31,7 @@ func (p *SubsonicPlugin) handleCreatePlaylist(w http.ResponseWriter, r *http.Req
 	r.ParseForm()
 	if songIds, ok := r.Form["songId"]; ok {
 		for _, songId := range songIds {
-			p.repo.AddTrackToPlaylist(context.Background(), u.ID, playlist.ID, songId)
+			p.repo.AddTrackToPlaylist(r.Context(), u.ID, playlist.ID, songId)
 		}
 	}
 
@@ -58,13 +57,13 @@ func (p *SubsonicPlugin) handleUpdatePlaylist(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	playlistId := r.URL.Query().Get("playlistId")
+	playlistId := r.FormValue("playlistId")
 	if playlistId == "" {
 		p.writeError(w, r, 10, "Required parameter is missing: playlistId")
 		return
 	}
 
-	name := r.URL.Query().Get("name")
+	name := r.FormValue("name")
 	if name != "" {
 		// Update name not directly supported by repo yet?
 		// We would do p.repo.UpdatePlaylistName
@@ -74,23 +73,23 @@ func (p *SubsonicPlugin) handleUpdatePlaylist(w http.ResponseWriter, r *http.Req
 	// Add songs
 	if songIdsToAdd, ok := r.Form["songIdToAdd"]; ok {
 		for _, songId := range songIdsToAdd {
-			p.repo.AddTrackToPlaylist(context.Background(), u.ID, playlistId, songId)
+			p.repo.AddTrackToPlaylist(r.Context(), u.ID, playlistId, songId)
 		}
 	}
 
 	// Remove songs
 	if songIndexesToRemove, ok := r.Form["songIndexToRemove"]; ok {
 		// repo.RemoveTrackFromPlaylist takes trackId, but Subsonic gives songIndexToRemove.
-		// For a barebones implementation, we might need to fetch the playlist tracks, 
+		// For a barebones implementation, we might need to fetch the playlist tracks,
 		// find the track ID at that index, and delete it.
-		tracks, err := p.repo.GetPlaylistTracks(context.Background(), u.ID, playlistId)
+		tracks, err := p.repo.GetPlaylistTracks(r.Context(), u.ID, playlistId)
 		if err == nil {
 			for _, idxStr := range songIndexesToRemove {
 				// Convert to int
 				var idx int
 				if _, err := fmt.Sscanf(idxStr, "%d", &idx); err == nil {
 					if idx >= 0 && idx < len(tracks) {
-						p.repo.RemoveTrackFromPlaylist(context.Background(), u.ID, playlistId, tracks[idx].ID)
+						p.repo.RemoveTrackFromPlaylist(r.Context(), u.ID, playlistId, tracks[idx].ID)
 					}
 				}
 			}
@@ -107,13 +106,13 @@ func (p *SubsonicPlugin) handleDeletePlaylist(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	id := r.URL.Query().Get("id")
+	id := r.FormValue("id")
 	if id == "" {
 		p.writeError(w, r, 10, "Required parameter is missing: id")
 		return
 	}
 
-	err := p.repo.DeletePlaylist(context.Background(), u.ID, id)
+	err := p.repo.DeletePlaylist(r.Context(), u.ID, id)
 	if err != nil {
 		p.writeError(w, r, 0, "Failed to delete playlist")
 		return

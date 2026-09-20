@@ -8,7 +8,8 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "test": "node --test security.test.js"
   },
   "build": {
     "appId": "com.supernova.desktop",
@@ -18,17 +19,23 @@
       "icon": "build/icon.png"
     },
     "linux": {
-      "target": ["AppImage", "deb", "pacman"],
+      "target": [
+        "AppImage",
+        "deb",
+        "pacman"
+      ],
       "category": "Audio",
       "icon": "build/icon.png"
     },
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "build/icon.png"
     }
   },
   "devDependencies": {
-    "electron": "^28.2.0",
-    "electron-builder": "^24.9.1"
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3"
   }
 }

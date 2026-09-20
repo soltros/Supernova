@@ -15,7 +15,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/soltros/Supernova/internal/authn"
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/models"
 	"github.com/soltros/Supernova/internal/plugins"
@@ -66,28 +66,11 @@ func (p *PodcastsPlugin) SetupRoutes(mux *http.ServeMux) {
 }
 
 func (p *PodcastsPlugin) authenticate(r *http.Request) (string, error) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" || len(authHeader) < 8 {
-		return "", fmt.Errorf("missing token")
+	user, err := authn.Authenticate(r, p.repo, false)
+	if err != nil {
+		return "", err
 	}
-	tokenString := authHeader[7:]
-
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return []byte(os.Getenv("JWT_SECRET")), nil
-	})
-	if err != nil || !token.Valid {
-		return "", fmt.Errorf("invalid token")
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return "", fmt.Errorf("invalid claims")
-	}
-	userID, ok := claims["user_id"].(string)
-	if !ok {
-		return "", fmt.Errorf("missing user_id")
-	}
-	return userID, nil
+	return user.ID, nil
 }
 
 func (p *PodcastsPlugin) doPodcastIndexRequest(endpoint string, queryValues string) (*http.Response, error) {
@@ -129,7 +112,7 @@ func (p *PodcastsPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
 	resp, err := p.doPodcastIndexRequest("/search/byterm", "q="+url.QueryEscape(query))
 	if err != nil {
 		if err.Error() == "Podcast Index API keys are not configured in the .env file" {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
 			return
 		}
 		http.Error(w, "Failed to contact Podcast Index", http.StatusInternalServerError)
@@ -162,7 +145,7 @@ func (p *PodcastsPlugin) handleEpisodes(w http.ResponseWriter, r *http.Request) 
 	resp, err := p.doPodcastIndexRequest("/episodes/byfeedid", "id="+url.QueryEscape(id))
 	if err != nil {
 		if err.Error() == "Podcast Index API keys are not configured in the .env file" {
-			http.Error(w, err.Error(), http.StatusUnauthorized)
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
 			return
 		}
 		http.Error(w, "Failed to contact Podcast Index", http.StatusInternalServerError)
@@ -251,6 +234,10 @@ func (p *PodcastsPlugin) handleSaveProgress(w http.ResponseWriter, r *http.Reque
 	var prog models.PodcastProgress
 	if err := json.NewDecoder(r.Body).Decode(&prog); err != nil {
 		http.Error(w, "Invalid body", http.StatusBadRequest)
+		return
+	}
+	if prog.EpisodeID == "" || prog.PositionMs < 0 {
+		http.Error(w, "Invalid progress", http.StatusBadRequest)
 		return
 	}
 	prog.UserID = userID
@@ -346,7 +333,12 @@ func (p *PodcastsPlugin) handleImportOPML(w http.ResponseWriter, r *http.Request
 	}
 
 	// Parse OPML file
-	r.ParseMultipartForm(10 << 20) // 10 MB
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		http.Error(w, "Invalid or oversized upload", http.StatusBadRequest)
+		return
+	}
+	defer r.MultipartForm.RemoveAll()
 	file, _, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, "Missing file", http.StatusBadRequest)

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { User, AuthResponse } from '../types';
 
 interface AuthContextType {
@@ -21,12 +21,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('sn_token'));
 
+  const logout = useCallback(() => {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem('sn_user');
+    localStorage.removeItem('sn_token');
+    localStorage.removeItem('lastfm_session');
+  }, []);
+
   useEffect(() => {
     const handleAuthError = () => logout();
     window.addEventListener('auth_error', handleAuthError);
     return () => window.removeEventListener('auth_error', handleAuthError);
-  }, []);
+  }, [logout]);
 
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    const base = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
+    fetch(`${base}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async response => {
+        if (cancelled) return;
+        if (response.status === 401) { logout(); return; }
+        if (!response.ok) return;
+        const account = await response.json();
+        if (!cancelled) { setUser(account); localStorage.setItem('sn_user', JSON.stringify(account)); }
+      }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [token, logout]);
 
   const login = (data: AuthResponse) => {
     setUser(data.user);
@@ -35,12 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('sn_token', data.token);
   };
 
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('sn_user');
-    localStorage.removeItem('sn_token');
-  };
+
 
   return (
     <AuthContext.Provider value={{ user, token, login, logout }}>

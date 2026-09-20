@@ -48,7 +48,7 @@ const PodcastsPage: React.FC = () => {
         }
       });
       if (!response.ok) {
-        if (response.status === 401) {
+        if (response.status === 503) {
           throw new Error('Podcast Index API keys are missing. Please add PODCAST_INDEX_API_KEY and PODCAST_INDEX_API_SECRET to your .env file.');
         }
         throw new Error('Search failed');
@@ -78,29 +78,18 @@ const PodcastsPage: React.FC = () => {
         }
       });
       if (!response.ok) {
-        if (response.status === 401) {
+        if (response.status === 503) {
           throw new Error('Podcast Index API keys are missing.');
         }
         throw new Error('Failed to fetch episodes');
       }
       const data = await response.json();
-      setEpisodes(data);
+      setEpisodes(data || []);
       setSelectedPodcast(podcast);
       
       // Load progress
       try {
-        const token = localStorage.getItem('sn_token');
-        if (token) {
-          const progRes = await fetch(`${API_BASE_URL}/api/plugins/podcasts/progress`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (progRes.ok) {
-            const progData = await progRes.json();
-            const progMap: Record<string, any> = {};
-            progData.forEach((p: any) => progMap[p.episode_id] = p);
-            setProgressData(progMap);
-          }
-        }
+        setProgressData(await apiService.getPodcastProgressBatch((data || []).map((episode: any) => String(episode.id))));
       } catch (e) {
         console.error("Failed to load podcast progress", e);
       }

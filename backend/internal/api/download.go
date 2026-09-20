@@ -3,7 +3,10 @@ package api
 import (
 	"archive/zip"
 	"fmt"
+	"github.com/soltros/Supernova/internal/media"
 	"io"
+	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -25,12 +28,18 @@ func (s *Server) handleDownloadTrack() http.HandlerFunc {
 			return
 		}
 
+		resolved, err := media.Resolve(track.FilePath)
+		if err != nil {
+			http.Error(w, "media file unavailable", http.StatusNotFound)
+			return
+		}
+		track.FilePath = resolved
 		safeTitle := strings.ReplaceAll(track.Title, "\"", "'")
 		safeTitle = strings.ReplaceAll(safeTitle, "\n", " ")
 		safeTitle = strings.ReplaceAll(safeTitle, "\r", "")
 		filename := fmt.Sprintf("%s%s", safeTitle, filepath.Ext(track.FilePath))
 
-		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 		w.Header().Del("Content-Type")
 		http.ServeFile(w, r, track.FilePath)
 	}
@@ -51,7 +60,7 @@ func (s *Server) handleDownloadAlbum() http.HandlerFunc {
 			return
 		}
 
-		tracks, err := s.repo.GetTracks(r.Context(), albumID, "", 1000, 0)
+		tracks, err := s.repo.GetTracks(r.Context(), albumID, "", -1, 0)
 		if err != nil {
 			http.Error(w, "failed to get tracks", http.StatusInternalServerError)
 			return
@@ -62,14 +71,16 @@ func (s *Server) handleDownloadAlbum() http.HandlerFunc {
 		safeTitle = strings.ReplaceAll(safeTitle, "\r", "")
 
 		// Pre-check files exist
-		for _, track := range tracks {
-			if _, err := os.Stat(track.FilePath); err != nil {
+		for i := range tracks {
+			resolved, err := media.Resolve(tracks[i].FilePath)
+			if err != nil {
 				http.Error(w, "one or more track files are missing from disk", http.StatusInternalServerError)
 				return
 			}
+			tracks[i].FilePath = resolved
 		}
 
-		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.zip"`, safeTitle))
+		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": safeTitle + ".zip"}))
 		w.Header().Set("Content-Type", "application/zip")
 
 		zipWriter := zip.NewWriter(w)
@@ -82,8 +93,8 @@ func (s *Server) handleDownloadAlbum() http.HandlerFunc {
 			}
 
 			ext := filepath.Ext(track.FilePath)
-			safeTrackTitle := strings.ReplaceAll(track.Title, "/", "-")
-			fileName := fmt.Sprintf("%02d - %s%s", track.TrackNumber, safeTrackTitle, ext)
+			safeTrackTitle := strings.NewReplacer("/", "-", "\\", "-", "\r", "", "\n", " ").Replace(track.Title)
+			fileName := fmt.Sprintf("%02d-%02d - %s-%s%s", track.DiscNumber, track.TrackNumber, safeTrackTitle, track.ID, ext)
 
 			f, err := zipWriter.Create(fileName)
 			if err != nil {
@@ -91,8 +102,12 @@ func (s *Server) handleDownloadAlbum() http.HandlerFunc {
 				continue
 			}
 
-			_, _ = io.Copy(f, file)
+			_, copyErr := io.Copy(f, file)
 			file.Close()
+			if copyErr != nil {
+				log.Printf("Album download interrupted: %v", copyErr)
+				return
+			}
 		}
 	}
 }

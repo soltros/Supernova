@@ -1,11 +1,14 @@
 package api
 
 import (
+	"bufio"
+	"context"
+	"github.com/soltros/Supernova/internal/media"
+	"io"
 	"log"
 	"net/http"
 	"os/exec"
 	"strconv"
-	"io"
 	"sync"
 )
 
@@ -24,6 +27,12 @@ func (s *Server) handleStreamTrack() http.HandlerFunc {
 			return
 		}
 
+		resolved, err := media.Resolve(track.FilePath)
+		if err != nil {
+			http.Error(w, "media file unavailable", http.StatusNotFound)
+			return
+		}
+		track.FilePath = resolved
 		format := r.URL.Query().Get("format")
 
 		// If no transcode requested, serve the raw file directly.
@@ -35,7 +44,7 @@ func (s *Server) handleStreamTrack() http.HandlerFunc {
 		}
 
 		// --- 1. VALIDATE INPUT PARAMETERS ---
-		
+
 		// Strict Whitelist for formats
 		switch format {
 		case "mp3", "aac", "ogg", "opus":
@@ -61,7 +70,7 @@ func (s *Server) handleStreamTrack() http.HandlerFunc {
 		}
 
 		// --- 2. SUPPORT SEEKING (TIME OFFSET) ---
-		
+
 		// Parse optional time offset (in seconds) for fast-forwarding
 		timeStr := r.URL.Query().Get("time")
 		seekTime := 0
@@ -72,7 +81,7 @@ func (s *Server) handleStreamTrack() http.HandlerFunc {
 		}
 
 		// --- 3. SET HTTP STREAM HEADERS ---
-		
+
 		if format == "mp3" {
 			w.Header().Set("Content-Type", "audio/mpeg")
 		} else if format == "aac" {
@@ -91,36 +100,53 @@ func (s *Server) handleStreamTrack() http.HandlerFunc {
 		w.Header().Set("Accept-Ranges", "none") // Crucial: Prevent the browser from breaking the pipe with Range requests
 
 		// --- BUILD FFMPEG COMMAND ---
-		
-		args := []string{}
-		
+
+		args := []string{"-nostdin", "-protocol_whitelist", "file,pipe"}
+		muxer := format
+		codec := map[string]string{"mp3": "libmp3lame", "aac": "aac", "ogg": "libvorbis", "opus": "libopus"}[format]
+		if format == "aac" {
+			muxer = "adts"
+		}
+
 		// If seeking is requested, pass -ss BEFORE the input file for extremely fast seeking
 		if seekTime > 0 {
 			args = append(args, "-ss", strconv.Itoa(seekTime))
 		}
-		
+
 		args = append(args,
 			"-i", track.FilePath,
 			"-map", "0:a:0", // Strip massive embedded cover art to save bandwidth
-			"-f", format,
+			"-f", muxer,
+			"-c:a", codec,
 			"-ab", strconv.Itoa(bitrate)+"k",
 			"-loglevel", "error",
 			"pipe:1",
 		)
 
-		cmd := exec.CommandContext(r.Context(), "ffmpeg", args...)
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
 			log.Printf("Failed to get stdout pipe: %v", err)
+			http.Error(w, "transcoding unavailable", http.StatusInternalServerError)
 			return
 		}
 
 		if err := cmd.Start(); err != nil {
 			log.Printf("Failed to start ffmpeg: %v", err)
+			http.Error(w, "transcoding unavailable", http.StatusServiceUnavailable)
 			return
 		}
 
+		reader := bufio.NewReader(stdout)
+		if _, err := reader.Peek(1); err != nil {
+			cancel()
+			_ = cmd.Wait()
+			http.Error(w, "transcoding failed", http.StatusInternalServerError)
+			return
+		}
 		// Flush headers so the browser begins playback immediately without buffering
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
@@ -129,10 +155,11 @@ func (s *Server) handleStreamTrack() http.HandlerFunc {
 		// Leverage io.CopyBuffer with a pooled buffer for efficient streaming
 		buf := streamPool.Get().([]byte)
 		defer streamPool.Put(buf)
-		
-		_, err = io.CopyBuffer(w, stdout, buf)
+
+		_, err = io.CopyBuffer(w, reader, buf)
 		if err != nil {
 			log.Printf("Stream interrupted: %v", err)
+			cancel()
 		}
 
 		cmd.Wait()

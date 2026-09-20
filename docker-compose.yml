@@ -30,6 +30,9 @@ services:
       - SUPERNOVA_PLUGIN_DEDUPER=${SUPERNOVA_PLUGIN_DEDUPER:-}
       # Required: set a strong random secret >= 32 chars, e.g. openssl rand -hex 32
       - JWT_SECRET=${JWT_SECRET}
+      - REGISTRATION_INVITE_CODE=${REGISTRATION_INVITE_CODE:-}
+      - SUPERNOVA_PLUGIN_ALBUMMERGER=${SUPERNOVA_PLUGIN_ALBUMMERGER:-}
+      - CORS_ALLOWED_ORIGIN=${CORS_ALLOWED_ORIGIN:-http://localhost:5174}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/health"]
       interval: 10s

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { apiService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 const SettingsPage: React.FC = () => {
   const { addToast, confirm } = useToast();
+  const { user } = useAuth();
   const [plugins, setPlugins] = useState<any[]>([]);
   const [scanStatus, setScanStatus] = useState<{status: string, files_scanned: number}>({ status: 'idle', files_scanned: 0 });
   const [lastfmSession, setLastfmSession] = useState<string | null>(localStorage.getItem('lastfm_session'));
@@ -126,24 +128,23 @@ const SettingsPage: React.FC = () => {
           <div style={{ background: 'var(--bg-glass)', padding: '24px', borderRadius: '16px', border: '1px solid var(--border-glass)' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Library Management</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '16px' }}>
-              Manage your media directory and clean up metadata.
+              {user?.is_admin ? 'Manage your media directory and clean up metadata.' : 'Library maintenance is available to your administrator.'}
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
               <button 
                 onClick={() => {
                   apiService.scanLibrary().catch(console.error);
                 }}
-                disabled={scanStatus.status === 'scanning'}
+                disabled={!user?.is_admin || scanStatus.status === 'scanning'}
                 style={{ background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.2)', color: 'var(--accent-primary)', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, transition: 'var(--transition-fast)', opacity: scanStatus.status === 'scanning' ? 0.5 : 1 }}
               >
                 {scanStatus.status === 'scanning' ? 'Scanning...' : 'Scan Library'}
               </button>
 
-              {plugins.some(p => p.id === 'autotagger' && p.enabled) && (
+              {user?.is_admin && plugins.some(p => p.id === 'autotagger' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    apiService.runPluginJob('autotagger').catch(console.error);
-                    addToast("Auto-tagging job started in the background. Check backend logs for progress.", "success");
+                    apiService.runPluginJob('autotagger').then(() => addToast("Auto-tagging job started in the background. Check backend logs for progress.", "success")).catch(() => addToast('Could not start the job.', 'error'));
                   }}
                   style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#10b981', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
                 >
@@ -151,11 +152,10 @@ const SettingsPage: React.FC = () => {
                 </button>
               )}
 
-              {plugins.some(p => p.id === 'artistmerger' && p.enabled) && (
+              {user?.is_admin && plugins.some(p => p.id === 'artistmerger' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    apiService.runPluginJob('artistmerger').catch(console.error);
-                    addToast("Artist merger job started in the background. Check backend logs for progress.", "success");
+                    apiService.runPluginJob('artistmerger').then(() => addToast("Artist merger job started in the background. Check backend logs for progress.", "success")).catch(() => addToast('Could not start the job.', 'error'));
                   }}
                   style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
                 >
@@ -163,11 +163,10 @@ const SettingsPage: React.FC = () => {
                 </button>
               )}
 
-              {plugins.some(p => p.id === 'deduper' && p.enabled) && (
+              {user?.is_admin && plugins.some(p => p.id === 'deduper' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    apiService.runPluginJob('deduper').catch(console.error);
-                    addToast("Hide Duplicates job started in the background. Check backend logs for progress.", "success");
+                    apiService.runPluginJob('deduper').then(() => addToast("Hide Duplicates job started in the background. Check backend logs for progress.", "success")).catch(() => addToast('Could not start the job.', 'error'));
                   }}
                   style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
                 >
@@ -175,11 +174,10 @@ const SettingsPage: React.FC = () => {
                 </button>
               )}
 
-              {plugins.some(p => p.id === 'albummerger' && p.enabled) && (
+              {user?.is_admin && plugins.some(p => p.id === 'albummerger' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    apiService.runPluginJob('albummerger').catch(console.error);
-                    addToast("Album merger job started in the background. Check backend logs for progress.", "success");
+                    apiService.runPluginJob('albummerger').then(() => addToast("Album merger job started in the background. Check backend logs for progress.", "success")).catch(() => addToast('Could not start the job.', 'error'));
                   }}
                   style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', color: '#3b82f6', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
                 >
@@ -251,7 +249,7 @@ const SettingsPage: React.FC = () => {
             </p>
             <button 
               onClick={handleResetArtists}
-              disabled={isResetting}
+              disabled={!user?.is_admin || isResetting}
               style={{ background: 'rgba(236, 72, 153, 0.1)', border: '1px solid rgba(236, 72, 153, 0.2)', color: 'var(--accent-secondary)', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, transition: 'var(--transition-fast)', opacity: isResetting ? 0.5 : 1, cursor: isResetting ? 'not-allowed' : 'pointer' }}
               onMouseEnter={(e) => { if (!isResetting) e.currentTarget.style.background = 'rgba(236, 72, 153, 0.2)' }}
               onMouseLeave={(e) => { if (!isResetting) e.currentTarget.style.background = 'rgba(236, 72, 153, 0.1)' }}

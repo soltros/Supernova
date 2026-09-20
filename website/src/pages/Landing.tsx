@@ -115,11 +115,13 @@ volumes:
             <div style={{ background: 'rgba(0,0,0,0.5)', padding: '24px', borderRadius: '12px', textAlign: 'left', fontFamily: 'monospace', color: '#a5b4fc', border: '1px solid rgba(255,255,255,0.1)', overflowX: 'auto', whiteSpace: 'pre' }}>
 {`# ---- Core Configuration ----
 MEDIA_PATH=/root/Music
-DB_PATH=/root/supernova.db
-ART_CACHE_PATH=/root/art_cache
+DB_PATH=/root/.supernova/db/supernova.db
+ART_CACHE_PATH=/root/.supernova/art_cache
 PORT=8080
-CORS_ALLOWED_ORIGIN=*
-JWT_SECRET=change_me_to_a_random_string
+CORS_ALLOWED_ORIGIN=http://localhost:5174
+# Generate a unique value with: openssl rand -hex 32
+JWT_SECRET=replace_this_with_your_generated_secret
+REGISTRATION_INVITE_CODE=replace_with_your_invite_code
 
 # ---- Plugins ----
 SUPERNOVA_PLUGIN_LASTFM=true
@@ -134,9 +136,7 @@ LASTFM_API_SECRET=your_secret_here
 PODCAST_INDEX_API_KEY=your_key_here
 PODCAST_INDEX_API_SECRET=your_secret_here
 
-# ---- Advanced Settings ----
-# Set to true to calculate exact audio durations (slower initial library scan)
-SUPERNOVA_ENABLE_ESTIMATES=false`}
+# Audio duration is measured automatically using ffprobe.`}
             </div>
 
             <p style={{ marginTop: '24px', fontSize: '14px' }}>Then, just run <code>docker-compose up -d</code> to deploy the stack!</p>

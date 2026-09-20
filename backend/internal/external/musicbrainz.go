@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 	"sync"
+	"time"
 
 	"github.com/soltros/Supernova/internal/models"
 )
@@ -65,7 +65,7 @@ func (c *MusicBrainzClient) EnhanceMetadata(raw *models.TrackMetadata) error {
 	}
 
 	reqURL := fmt.Sprintf("%s/recording/?query=%s&fmt=json&limit=1", mbBaseURL, url.QueryEscape(query))
-	
+
 	// Globally lock to enforce 1 req/sec rate limit across all worker routines
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -97,11 +97,11 @@ func (c *MusicBrainzClient) EnhanceMetadata(raw *models.TrackMetadata) error {
 	// If we found a match, apply the highly accurate MusicBrainz data
 	if len(data.Recordings) > 0 {
 		rec := data.Recordings[0]
-		
+
 		// Set the official IDs (crucial for smart de-duplication later)
 		raw.TrackMBID = rec.ID
 		raw.Title = rec.Title // Corrects capitalization/spelling
-		
+
 		// Update Artist information
 		if len(rec.ArtistCredit) > 0 {
 			raw.Artist = rec.ArtistCredit[0].Name

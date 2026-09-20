@@ -13,36 +13,33 @@ const getHeaders = () => {
 };
 
 const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-  const mergedOptions = {
-    ...options,
-    headers: {
-      ...getHeaders(),
-      ...options.headers,
-    },
-  };
+  const headers = new Headers(getHeaders());
+  new Headers(options.headers).forEach((value, key) => headers.set(key, value));
+  if (options.body instanceof FormData) headers.delete('Content-Type');
+  let response: Response;
   try {
-    const response = await fetch(url, mergedOptions);
-    if (response.status === 401) {
-      // Phantom User fix: If the backend explicitly rejects our token, wipe state and dispatch event
+    response = await fetch(url, { ...options, headers });
+  } catch {
+    throw new Error("Network error. Please check your connection.");
+  }
+  if (response.status === 401 && !url.includes('/api/auth/login') && !url.includes('/api/auth/register')) {
+    // Do not let an old request log out a newly signed-in account.
+    if (headers.get('Authorization') === `Bearer ${localStorage.getItem('sn_token')}`) {
       localStorage.removeItem('sn_user');
       localStorage.removeItem('sn_token');
       window.dispatchEvent(new Event('auth_error'));
-      throw new Error("Unauthorized");
     }
-    return response;
-  } catch (error) {
-    console.error("Network error in fetchWithAuth:", error);
-    throw new Error("Network error. Please check your connection.");
   }
+  return response;
 };
 
 export const apiService = {
   // Auth
-  register: async (username: string, password: string): Promise<AuthResponse> => {
+  register: async (username: string, password: string, inviteCode: string = ''): Promise<AuthResponse> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password, invite_code: inviteCode })
     });
     if (!response.ok) {
       const errorMsg = await response.text();
@@ -119,6 +116,15 @@ export const apiService = {
     return response.json();
   },
 
+  exportHearts: async (): Promise<void> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts/export`);
+    if (!response.ok) throw new Error('Failed to export favorites');
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a'); link.href = url; link.download = 'supernova_hearts_backup.json';
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+
   // Hearts API
   fetchHearts: async (): Promise<{ id: string, entity_type: string, entity_id: string }[]> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts`);
@@ -185,11 +191,13 @@ export const apiService = {
   },
 
   runPluginJob: async (pluginId: string): Promise<void> => {
-    await fetchWithAuth(`${API_BASE_URL}/api/plugins/${pluginId}/run`, { method: 'POST' });
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/${pluginId}/run`, { method: 'POST' });
+    if (!response.ok) throw new Error('Failed to start maintenance job');
   },
 
   getLastFmAuthUrl: async (cb: string): Promise<{url: string}> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/lastfm/auth-url?cb=${encodeURIComponent(cb)}`);
+    if (!response.ok) throw new Error('Failed to start Last.fm authorization');
     return response.json();
   },
 
@@ -198,6 +206,7 @@ export const apiService = {
       method: 'POST',
       body: JSON.stringify({ token })
     });
+    if (!response.ok) throw new Error('Failed to exchange Last.fm token');
     return response.json();
   },
 
@@ -366,34 +375,17 @@ export const apiService = {
     const formData = new FormData();
     formData.append('file', file);
     
-    const token = localStorage.getItem('sn_token');
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    // We intentionally bypass fetchWithAuth to avoid the 'application/json' Content-Type injection
-    const response = await fetch(`${API_BASE_URL}/api/plugins/podcasts/opml/import`, {
-      method: 'POST',
-      headers,
-      body: formData
-    });
-    
-    if (response.status === 401) {
-      localStorage.removeItem('sn_user');
-      localStorage.removeItem('sn_token');
-      window.dispatchEvent(new Event('auth_error'));
-    }
-    
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/opml/import`, { method: 'POST', body: formData });
     if (!response.ok) throw new Error('Failed to import OPML');
   },
 
   savePodcastProgress: async (episodeId: string, positionMs: number, completed: boolean): Promise<void> => {
-    await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/progress`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/podcasts/progress`, {
       method: 'POST',
       
       body: JSON.stringify({ episode_id: episodeId, position_ms: positionMs, completed })
     });
+    if (!response.ok) throw new Error('Failed to save progress');
   },
 
   getPodcastProgressBatch: async (episodeIds: string[]): Promise<Record<string, any>> => {

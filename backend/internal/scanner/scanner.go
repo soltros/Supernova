@@ -111,7 +111,7 @@ func (s *Scanner) FullScan() error {
 		}
 	}()
 
-	// 2. Spawn 10 concurrent worker goroutines purely for CPU-bound ID3 extraction
+	// 2. Bound concurrent tag extraction and ffprobe processes to ten workers.
 	numWorkers := 10
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
@@ -129,14 +129,18 @@ func (s *Scanner) FullScan() error {
 	err := filepath.WalkDir(s.mediaPath, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			log.Printf("Scanner permission error skipping path %s: %v", path, err)
-			return nil
+			return err
 		}
 		if d.IsDir() {
 			s.watcher.Add(path) // Watch for real-time changes
 			return nil
 		}
 		if isAudioFile(path) {
-			jobs <- path // Instantly dispatch to a worker
+			select {
+			case jobs <- path:
+			case <-s.ctx.Done():
+				return s.ctx.Err()
+			}
 		}
 		return nil
 	})
@@ -146,7 +150,7 @@ func (s *Scanner) FullScan() error {
 
 	// 5. Block until all workers have finished
 	wg.Wait()
-	
+
 	// Close DB jobs channel and wait for DB writer
 	close(dbJobs)
 	dbWg.Wait()
@@ -181,7 +185,7 @@ func (s *Scanner) Watch() {
 					return
 				}
 
-				if event.Op&fsnotify.Create == fsnotify.Create {
+				if event.Op&(fsnotify.Create|fsnotify.Write) != 0 {
 					info, err := os.Stat(event.Name)
 					if err == nil && info.IsDir() {
 						s.watcher.Add(event.Name)
@@ -190,7 +194,10 @@ func (s *Scanner) Watch() {
 							if err == nil && !d.IsDir() && isAudioFile(p) {
 								go func(path string) {
 									time.Sleep(2 * time.Second)
-									s.realtimeJobs <- path
+									select {
+									case s.realtimeJobs <- path:
+									case <-s.ctx.Done():
+									}
 								}(p)
 							} else if err == nil && d.IsDir() {
 								s.watcher.Add(p)
@@ -200,13 +207,19 @@ func (s *Scanner) Watch() {
 					} else if isAudioFile(event.Name) {
 						go func(path string) {
 							time.Sleep(2 * time.Second)
-							s.realtimeJobs <- path
+							select {
+							case s.realtimeJobs <- path:
+							case <-s.ctx.Done():
+							}
 						}(event.Name)
 					}
 				}
 
-			case <-s.watcher.Errors:
-				// ignore
+			case err, ok := <-s.watcher.Errors:
+				if !ok {
+					return
+				}
+				log.Printf("Watcher error: %v", err)
 			}
 		}
 	}()
@@ -223,10 +236,11 @@ func (s *Scanner) extractMetadata(path string) *models.TrackMetadata {
 	if err != nil {
 		return nil
 	}
-	
-	// Fast, purely native Go metadata extraction
-	meta, err := metadata.Extract(path)
+
+	// Read tags and measure the audio stream with cancellation support.
+	meta, err := metadata.ExtractContext(s.ctx, path)
 	if err != nil {
+		log.Printf("Metadata extraction failed for %s: %v", path, err)
 		return nil
 	}
 	meta.FilePath = path

@@ -8,14 +8,18 @@ export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    if (submitting) return;
+    setSubmitting(true);
 
     try {
       if (isRegistering) {
-        const data = await apiService.register(username, password);
+        const data = await apiService.register(username, password, inviteCode);
         login(data);
       } else {
         const data = await apiService.login(username, password);
@@ -23,6 +27,8 @@ export const LoginPage: React.FC = () => {
       }
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -52,7 +58,15 @@ export const LoginPage: React.FC = () => {
             style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-glass-bright)', backgroundColor: 'var(--bg-glass)', color: 'white', outline: 'none', fontFamily: 'Outfit', fontSize: '16px' }}
             required
           />
+          {isRegistering && <label style={{ color: 'var(--text-secondary)' }}>
+            Invite code
+            <input aria-label="Invite code" type="password" value={inviteCode}
+              onChange={e => setInviteCode(e.target.value)} autoComplete="off"
+              style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: '16px', marginTop: '8px', borderRadius: '12px', backgroundColor: 'var(--bg-glass)', color: 'white', border: '1px solid var(--border-glass-bright)' }} />
+            <small>Ask your admin for a code. Leave blank when setting up the first account.</small>
+          </label>}
           <button
+            disabled={submitting}
             type="submit"
             style={{ padding: '16px', borderRadius: '12px', border: 'none', background: 'var(--accent-gradient)', color: 'white', fontWeight: 700, fontSize: '18px', cursor: 'pointer', boxShadow: 'var(--accent-glow)', marginTop: '8px' }}
           >

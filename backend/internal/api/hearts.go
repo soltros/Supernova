@@ -11,7 +11,7 @@ import (
 func (s *Server) handleGetHearts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := r.Context().Value(userIDKey).(string)
-		
+
 		hearts, err := s.repo.GetAllHearts(r.Context(), userID)
 		if err != nil {
 			http.Error(w, "failed to get hearts", http.StatusInternalServerError)

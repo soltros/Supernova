@@ -1,28 +1,30 @@
 package subsonic
 
 import (
-	"context"
+	"github.com/soltros/Supernova/internal/media"
+	"github.com/soltros/Supernova/internal/models"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func (p *SubsonicPlugin) handleSearch3(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query().Get("query")
+	query := r.FormValue("query")
 	if query == "" {
 		p.writeError(w, r, 10, "Required parameter is missing: query")
 		return
 	}
 
-	limitStr := r.URL.Query().Get("songCount")
+	limitStr := r.FormValue("songCount")
 	limit := 20
 	if limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 500 {
 			limit = l
 		}
 	}
 
-	results, err := p.repo.Search(context.Background(), query, limit)
+	results, err := p.repo.Search(r.Context(), query, limit)
 	if err != nil {
 		p.writeError(w, r, 0, "Database error")
 		return
@@ -92,17 +94,69 @@ func (p *SubsonicPlugin) handleSearch3(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func songNode(t models.Track) map[string]interface{} {
+	return map[string]interface{}{"id": t.ID, "parent": t.AlbumID, "albumId": t.AlbumID, "isDir": false, "title": t.Title, "artist": t.ArtistName, "coverArt": t.AlbumID, "duration": t.DurationMs / 1000, "suffix": t.Format, "contentType": media.ContentType(t.Format), "bitRate": t.Bitrate, "track": t.TrackNumber, "discNumber": t.DiscNumber}
+}
+
+func (p *SubsonicPlugin) handleGetSong(w http.ResponseWriter, r *http.Request) {
+	track, err := p.repo.GetTrackByID(r.Context(), r.FormValue("id"))
+	if err != nil {
+		p.writeError(w, r, 70, "Song not found")
+		return
+	}
+	p.writeResponse(w, r, map[string]interface{}{"song": songNode(*track)})
+}
+
 func (p *SubsonicPlugin) handleGetRandomSongs(w http.ResponseWriter, r *http.Request) {
-	// For now, we return empty since repo doesn't have GetRandomTracks.
-	// But returning empty array prevents errors.
-	p.writeResponse(w, r, map[string]interface{}{
-		"randomSongs": map[string]interface{}{
-			"song": []map[string]interface{}{},
-		},
-	})
+	size := 10
+	if v, err := strconv.Atoi(r.FormValue("size")); err == nil && v >= 0 && v <= 500 {
+		size = v
+	}
+	tracks, err := p.repo.GetRandomTracks(r.Context(), size)
+	if err != nil {
+		p.writeError(w, r, 0, "Database error")
+		return
+	}
+	songs := make([]map[string]interface{}, 0, len(tracks))
+	for _, t := range tracks {
+		songs = append(songs, songNode(t))
+	}
+	p.writeResponse(w, r, map[string]interface{}{"randomSongs": map[string]interface{}{"song": songs}})
 }
 
 func (p *SubsonicPlugin) handleScrobble(w http.ResponseWriter, r *http.Request) {
-	// Acknowledge scrobble/play count updates so clients don't complain
-	p.writeResponse(w, r, map[string]interface{}{})
+	user := r.Context().Value(userContextKey).(*models.User)
+	ids, times := r.Form["id"], r.Form["time"]
+	if len(ids) == 0 || (len(times) != 0 && len(times) != len(ids)) {
+		p.writeError(w, r, 10, "Invalid id/time parameters")
+		return
+	}
+	submission := r.FormValue("submission")
+	if submission != "" && submission != "true" && submission != "false" {
+		p.writeError(w, r, 10, "Invalid submission")
+		return
+	}
+	timestamps := make([]time.Time, len(ids))
+	for i, id := range ids {
+		if _, err := p.repo.GetTrackByID(r.Context(), id); err != nil {
+			p.writeError(w, r, 70, "Song not found")
+			return
+		}
+		timestamps[i] = time.Now()
+		if len(times) != 0 {
+			ms, err := strconv.ParseInt(times[i], 10, 64)
+			if err != nil || ms <= 0 {
+				p.writeError(w, r, 10, "Invalid time")
+				return
+			}
+			timestamps[i] = time.UnixMilli(ms)
+		}
+	}
+	if submission != "false" {
+		if err := p.repo.ScrobbleBatch(r.Context(), user.ID, ids, timestamps); err != nil {
+			p.writeError(w, r, 0, "Failed to scrobble")
+			return
+		}
+	}
+	p.writeResponse(w, r, nil)
 }

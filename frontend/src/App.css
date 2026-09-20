@@ -658,6 +658,7 @@
   
   /* Expanded Mobile Player */
   .player-bar.expanded {
+    transform: none;
     position: fixed;
     top: 0;
     left: 0;
@@ -770,7 +771,9 @@
     opacity: 1; /* Always show actions on mobile */
   }
   .track-duration {
-    display: none; /* Hide duration on mobile to save space */
+    width: 48px;
+    flex-shrink: 0;
+    font-size: 12px;
   }
   .track-row {
     padding: 12px 8px;

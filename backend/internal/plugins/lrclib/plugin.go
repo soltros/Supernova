@@ -104,7 +104,7 @@ func (p *LRCLibPlugin) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to read response", http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(body)
 	if err != nil {

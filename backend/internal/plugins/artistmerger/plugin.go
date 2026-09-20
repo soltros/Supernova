@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"unicode"
 
 	"github.com/soltros/Supernova/internal/database"
@@ -12,7 +13,8 @@ import (
 )
 
 type ArtistMergerPlugin struct {
-	repo *database.Repository
+	repo    *database.Repository
+	running atomic.Bool
 }
 
 func init() {
@@ -47,7 +49,11 @@ func (p *ArtistMergerPlugin) handleRunMerger(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	go p.runMergeJob()
+	if !p.running.CompareAndSwap(false, true) {
+		http.Error(w, "job already running", http.StatusConflict)
+		return
+	}
+	go func() { defer p.running.Store(false); p.runMergeJob() }()
 	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte(`{"status": "artist-merger job started in background"}`))
 }
@@ -58,7 +64,7 @@ func normalizeName(name string) string {
 	lower = strings.TrimPrefix(lower, "the ")
 	lower = strings.TrimPrefix(lower, "a ")
 	lower = strings.TrimPrefix(lower, "an ")
-	
+
 	var sb strings.Builder
 	for _, r := range lower {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
@@ -79,14 +85,14 @@ func (p *ArtistMergerPlugin) runMergeJob() {
 		log.Printf("[ArtistMerger] Failed to fetch artists: %v\n", err)
 		return
 	}
-	
+
 	type artistData struct {
 		id   string
 		name string
 	}
-	
+
 	groups := make(map[string][]artistData)
-	
+
 	for rows.Next() {
 		var a artistData
 		if err := rows.Scan(&a.id, &a.name); err == nil {
@@ -116,7 +122,7 @@ func (p *ArtistMergerPlugin) runMergeJob() {
 				if a.id == canonical.id {
 					continue
 				}
-				
+
 				log.Printf("[ArtistMerger] Merging '%s' into '%s'\n", a.name, canonical.name)
 
 				tx, err := db.BeginTx(ctx, nil)

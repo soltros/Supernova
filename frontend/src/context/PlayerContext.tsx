@@ -39,6 +39,8 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const activeTrackRef = useRef<Track | null>(null);
+  const playbackRequestRef = useRef(0);
   
   // We use Refs for state accessed inside event listeners to avoid stale closures
   const queueRef = useRef<Track[]>([]);
@@ -56,15 +58,19 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     audio.volume = 1.0;
     audioRef.current = audio;
     setAudioElement(audio);
+    const controller = new AbortController();
+    const listen = (type: string, callback: EventListener) => audio.addEventListener(type, callback, { signal: controller.signal });
+    listen('error', () => setIsPlaying(false));
+    listen('loadedmetadata', () => { if (Number.isFinite(audio.duration)) setDuration(audio.duration); });
 
-    audio.addEventListener('timeupdate', () => {
+    listen('timeupdate', () => {
       if (audio.duration && isFinite(audio.duration)) {
         setDuration(audio.duration);
       }
       
       // Phase 6: Internal Scrobbling Engine (Scrub-Proof)
-      const activeTrack = queueRef.current[queueIndexRef.current];
-      if (activeTrack && !hasScrobbledRef.current) {
+      const activeTrack = activeTrackRef.current;
+      if (activeTrack && !activeTrack.stream_url && !hasScrobbledRef.current) {
         // Calculate real time delta
         const diff = audio.currentTime - lastTimeRef.current;
         
@@ -99,8 +105,8 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       }
     });
 
-    audio.addEventListener('ended', () => {
-      const activeTrack = queueRef.current[queueIndexRef.current];
+    listen('ended', () => {
+      const activeTrack = activeTrackRef.current;
       if (activeTrack && activeTrack.id.startsWith('podcast-')) {
         const episodeId = activeTrack.id.replace('podcast-', '');
         apiService.savePodcastProgress(episodeId, 0, true).catch(e => console.error("Podcast progress save failed:", e));
@@ -111,7 +117,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       }
     });
 
-    audio.addEventListener('play', () => {
+    listen('play', () => {
       setIsPlaying(true);
       if ('mediaSession' in navigator) {
         navigator.mediaSession.playbackState = 'playing';
@@ -119,22 +125,22 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       
       // Last.fm Now Playing integration
       const lastfmSession = localStorage.getItem('lastfm_session');
-      const activeTrack = queueRef.current[queueIndexRef.current];
-      if (lastfmSession && activeTrack && accumulatedPlayTimeRef.current < 5) {
+      const activeTrack = activeTrackRef.current;
+      if (lastfmSession && activeTrack && !activeTrack.stream_url && accumulatedPlayTimeRef.current < 5) {
         const artist = activeTrack.artist_name || 'Unknown Artist';
         apiService.updateNowPlayingToLastFm(lastfmSession, artist, activeTrack.title)
           .catch(e => console.error("Last.fm now playing failed:", e));
       }
     });
     
-    audio.addEventListener('pause', () => {
+    listen('pause', () => {
       setIsPlaying(false);
       if ('mediaSession' in navigator) {
         navigator.mediaSession.playbackState = 'paused';
       }
       
-      const activeTrack = queueRef.current[queueIndexRef.current];
-      if (activeTrack && activeTrack.id.startsWith('podcast-') && audioRef.current) {
+      const activeTrack = activeTrackRef.current;
+      if (!audio.ended && activeTrack && activeTrack.id.startsWith('podcast-') && audioRef.current) {
         const episodeId = activeTrack.id.replace('podcast-', '');
         apiService.savePodcastProgress(episodeId, Math.floor(audioRef.current.currentTime * 1000), false).catch(e => console.error("Podcast progress save failed:", e));
       }
@@ -149,14 +155,17 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       
       // Support lock-screen scrubbing
       navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (details.seekTime && audioRef.current) {
+        if (details.seekTime !== undefined && audioRef.current) {
           audioRef.current.currentTime = details.seekTime;
         }
       });
     }
 
     return () => {
+      controller.abort();
+      playbackRequestRef.current++;
       audio.pause();
+      audioRef.current = null;
       audio.src = '';
       if ('mediaSession' in navigator) {
         navigator.mediaSession.setActionHandler('play', null);
@@ -169,46 +178,39 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
   }, []);
 
   const internalPlay = useCallback(async (track: Track, album: Album, options?: { podcast_episode_id?: string, start_position_ms?: number }) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const request = ++playbackRequestRef.current;
+    // Pause the outgoing source while its identity is still current.
+    audio.pause();
+    activeTrackRef.current = track;
+    if (track.stream_url) {
+      queueRef.current = [track]; queueIndexRef.current = 0; albumRef.current = album;
+      setQueue([track]); setQueueIndex(0);
+    }
     hasScrobbledRef.current = false;
     accumulatedPlayTimeRef.current = 0;
     lastTimeRef.current = 0;
-    
-    setCurrentTrack(track);
-    setCurrentAlbum(album);
+    setCurrentTrack(track); setCurrentAlbum(album);
     setDuration(track.duration_ms / 1000);
-    
-    if (!audioRef.current) return;
-
-    // Safely await any pending play() Promises before mutating .src
-    // This entirely prevents the DOMException race condition
-    if (playPromiseRef.current) {
-      await playPromiseRef.current.catch(() => {});
-    }
-
-    audioRef.current.pause();
     const token = localStorage.getItem('sn_token');
-    const tokenQuery = token ? `?token=${token}` : '';
-    audioRef.current.src = track.stream_url ? track.stream_url : `${API_BASE_URL}/api/stream/${track.id}${tokenQuery}`;
-    
-    if (options && options.start_position_ms && options.start_position_ms > 0) {
-      audioRef.current.currentTime = options.start_position_ms / 1000;
-      lastTimeRef.current = options.start_position_ms / 1000;
+    const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
+    audio.src = track.stream_url || `${API_BASE_URL}/api/stream/${track.id}${tokenQuery}`;
+    const resumeAt = (options?.start_position_ms || 0) / 1000;
+    if (resumeAt > 0) {
+      audio.addEventListener('loadedmetadata', () => {
+        if (request !== playbackRequestRef.current) return;
+        audio.currentTime = resumeAt; lastTimeRef.current = resumeAt;
+      }, { once: true });
     }
-    
     try {
-      playPromiseRef.current = audioRef.current.play();
-      await playPromiseRef.current;
-      
-      // Notify Last.fm that the track is now playing
-      const lastfmSession = localStorage.getItem('lastfm_session');
-      if (lastfmSession) {
-        const artist = track.artist_name || 'Unknown Artist';
-        apiService.updateNowPlayingToLastFm(lastfmSession, artist, track.title)
-          .catch(e => console.error("Last.fm Now Playing failed:", e));
-      }
-    } catch (e) {
-      console.log("Playback interrupted safely by next track load.");
+      // Replacing src cancels the old play promise; never wait on a stalled source.
+      const promise = audio.play(); playPromiseRef.current = promise;
+      await promise;
+    } catch {
+      if (request === playbackRequestRef.current) setIsPlaying(false);
     }
+    if (request !== playbackRequestRef.current) return;
 
     // Update Lock Screen Metadata (Media Session API)
     if ('mediaSession' in navigator) {
@@ -231,6 +233,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
   }, []);
 
   const playContext = useCallback(async (tracks: Track[], startIndex: number, album: Album) => {
+    if (!Number.isInteger(startIndex) || !tracks[startIndex]) return;
     setQueue(tracks);
     setQueueIndex(startIndex);
     
@@ -295,40 +298,35 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     }
   }, [internalPlay]);
 
-  playNextRef.current = playNext;
-  playPrevRef.current = playPrev;
+  useEffect(() => { playNextRef.current = playNext; playPrevRef.current = playPrev; }, [playNext, playPrev]);
 
   const togglePlay = useCallback(async () => {
     if (!audioRef.current || !currentTrack) return;
     
-    if (playPromiseRef.current) {
-      await playPromiseRef.current.catch(() => {});
-    }
-
-    if (isPlaying) {
+    if (!audioRef.current.paused) {
       audioRef.current.pause();
     } else {
       try {
         playPromiseRef.current = audioRef.current.play();
         await playPromiseRef.current;
-      } catch (e) {
+      } catch {
         console.log("Playback resumed and instantly interrupted.");
       }
     }
-  }, [currentTrack, isPlaying]);
+  }, [currentTrack]);
 
   const seekTo = useCallback((percent: number) => {
     if (!audioRef.current) return;
     const activeDuration = duration || (currentTrack ? currentTrack.duration_ms / 1000 : 0);
-    if (!activeDuration) return;
+    if (!Number.isFinite(activeDuration) || activeDuration <= 0 || !Number.isFinite(percent)) return;
 
-    const newTime = (percent / 100) * activeDuration;
+    const newTime = (Math.max(0, Math.min(100, percent)) / 100) * activeDuration;
     audioRef.current.currentTime = newTime;
     lastTimeRef.current = newTime; // Prevent scrub spikes
   }, [currentTrack, duration]);
 
   const changeVolume = useCallback((level: number) => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || !Number.isFinite(level)) return;
     const safeLevel = Math.max(0, Math.min(1, level));
     audioRef.current.volume = safeLevel;
     setVolume(safeLevel);

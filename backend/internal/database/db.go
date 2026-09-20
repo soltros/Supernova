@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,20 +38,30 @@ func Init(dbPath string) (*DB, error) {
 	// We enable WAL (Write-Ahead Logging) for significantly better concurrency,
 	// allowing simultaneous reads (e.g. streaming) and writes (e.g. background scanning).
 	// We also enforce foreign keys since they are disabled by default in SQLite.
-	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)", dbPath)
-	
+	absPath, err := filepath.Abs(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	u := url.URL{Scheme: "file", Path: absPath}
+	dsn := u.String() + "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)"
+
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
+	success := false
+	defer func() {
+		if !success {
+			db.Close()
+		}
+	}()
+
 	if err := db.PingContext(context.Background()); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	// CONCURRENCY TUNING:
-	// We serialize all database access with 1 open connection. This prevents 
-	// SQLite 'database is locked' deadlocks when multiple goroutines read-then-write.
+	// WAL allows concurrent readers; repository transactions serialize related writes.
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(10)
 	db.SetConnMaxLifetime(time.Hour)
@@ -159,11 +170,29 @@ func Init(dbPath string) (*DB, error) {
 		if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
 			return nil, fmt.Errorf("migration to v4 failed: %w", err)
 		}
-		
+
 		if _, err := db.Exec("PRAGMA user_version = 4"); err != nil {
 			return nil, fmt.Errorf("failed to write user_version 4: %w", err)
 		}
 	}
 
+	if version < 5 {
+		tx, err := db.Begin()
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
+		if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0;`); err != nil {
+			return nil, err
+		}
+		// Preserve ownership on upgrade: the oldest account becomes administrator.
+		if _, err := tx.Exec(`UPDATE users SET is_admin = 1 WHERE id = (SELECT id FROM users ORDER BY created_at, rowid LIMIT 1); PRAGMA user_version = 5;`); err != nil {
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+	}
+	success = true
 	return &DB{db}, nil
 }

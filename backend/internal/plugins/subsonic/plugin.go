@@ -74,11 +74,12 @@ func (p *SubsonicPlugin) SetupRoutes(mux *http.ServeMux) {
 	routes := map[string]http.HandlerFunc{
 		"/rest/getMusicFolders":           p.auth(p.handleGetMusicFolders),
 		"/rest/getUser":                   p.auth(p.handleGetUser),
-		"/rest/getOpenSubsonicExtensions": p.auth(p.handleGetOpenSubsonicExtensions),
+		"/rest/getOpenSubsonicExtensions": p.handleGetOpenSubsonicExtensions,
 		"/rest/getIndexes":                p.auth(p.handleGetIndexes),
 		"/rest/getArtists":                p.auth(p.handleGetArtists),
 		"/rest/getArtist":                 p.auth(p.handleGetArtist),
 		"/rest/getMusicDirectory":         p.auth(p.handleGetMusicDirectory),
+		"/rest/getSong":                   p.auth(p.handleGetSong),
 		"/rest/getAlbum":                  p.auth(p.handleGetAlbum),
 		"/rest/getAlbumList":              p.auth(p.handleGetAlbumList),
 		"/rest/getAlbumList2":             p.auth(p.handleGetAlbumList),
@@ -93,12 +94,12 @@ func (p *SubsonicPlugin) SetupRoutes(mux *http.ServeMux) {
 		"/rest/getLyrics":                 p.auth(p.handleGetLyrics),
 		"/rest/scrobble":                  p.auth(p.handleScrobble),
 		"/rest/getCoverArt":               p.auth(p.handleGetCoverArt),
-		"/rest/stream":            p.auth(p.handleStream),
-		"/rest/download":          p.auth(p.handleDownload),
-		"/rest/star":              p.auth(p.handleStar),
-		"/rest/unstar":            p.auth(p.handleUnstar),
-		"/rest/getStarred":        p.auth(p.handleGetStarred),
-		"/rest/getStarred2":       p.auth(p.handleGetStarred),
+		"/rest/stream":                    p.auth(p.handleStream),
+		"/rest/download":                  p.auth(p.handleDownload),
+		"/rest/star":                      p.auth(p.handleStar),
+		"/rest/unstar":                    p.auth(p.handleUnstar),
+		"/rest/getStarred":                p.auth(p.handleGetStarred),
+		"/rest/getStarred2":               p.auth(p.handleGetStarred),
 	}
 
 	for path, handler := range routes {

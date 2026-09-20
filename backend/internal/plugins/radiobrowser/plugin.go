@@ -2,15 +2,14 @@ package radiobrowser
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
-	"fmt"
-	"os"
 
+	"github.com/soltros/Supernova/internal/authn"
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/models"
 	"github.com/soltros/Supernova/internal/plugins"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type RadioPlugin struct {
@@ -60,34 +59,17 @@ func (p *RadioPlugin) SetupRoutes(mux *http.ServeMux) {
 }
 
 func (p *RadioPlugin) authenticate(r *http.Request) (string, error) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" || len(authHeader) < 8 {
-		return "", fmt.Errorf("missing token")
+	user, err := authn.Authenticate(r, p.repo, false)
+	if err != nil {
+		return "", err
 	}
-	tokenString := authHeader[7:]
-	
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return []byte(os.Getenv("JWT_SECRET")), nil
-	})
-	if err != nil || !token.Valid {
-		return "", fmt.Errorf("invalid token")
-	}
-	
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return "", fmt.Errorf("invalid claims")
-	}
-	userID, ok := claims["user_id"].(string)
-	if !ok {
-		return "", fmt.Errorf("missing user_id")
-	}
-	return userID, nil
+	return user.ID, nil
 }
 
 func (p *RadioPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 	country := r.URL.Query().Get("country")
-	
+
 	if query == "" && country == "" {
 		http.Error(w, "query parameter 'q' or 'country' is required", http.StatusBadRequest)
 		return

@@ -2,7 +2,6 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.tsx';
-import { PlayerProvider } from './context/PlayerContext';
 
 if ('serviceWorker' in navigator) {
   // Register the Service Worker and force it to ignore HTTP caching
@@ -18,9 +17,7 @@ createRoot(document.getElementById('root')!).render(
     {/* Wrap the entire app in the Router so navigation works */}
     <BrowserRouter>
       {/* Wrap the app in the global audio state provider */}
-      <PlayerProvider>
-        <App />
-      </PlayerProvider>
+      <App />
     </BrowserRouter>
   </StrictMode>,
 );
