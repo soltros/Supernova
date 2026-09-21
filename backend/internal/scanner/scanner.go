@@ -15,6 +15,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/soltros/Supernova/internal/database"
+	"github.com/soltros/Supernova/internal/jobs"
 	"github.com/soltros/Supernova/internal/metadata"
 	"github.com/soltros/Supernova/internal/models"
 )
@@ -31,6 +32,7 @@ type Scanner struct {
 	watcher *fsnotify.Watcher
 	repo *database.Repository
 	enricher *Enricher
+	supervisor *jobs.Supervisor
 
 	ctx context.Context
 	cancel context.CancelFunc
@@ -43,12 +45,12 @@ type Scanner struct {
 	filesScanned int
 }
 
-func New(parent context.Context, mediaPath string, repo *database.Repository, enricher *Enricher) (*Scanner,error) {
+func New(parent context.Context, mediaPath string, repo *database.Repository, enricher *Enricher, supervisor *jobs.Supervisor) (*Scanner,error) {
 	watcher,err:=fsnotify.NewWatcher()
 	if err!=nil{return nil,err}
 	ctx,cancel:=context.WithCancel(parent)
 	s:=&Scanner{
-		mediaPath:mediaPath,watcher:watcher,repo:repo,enricher:enricher,
+		mediaPath:mediaPath,watcher:watcher,repo:repo,enricher:enricher,supervisor:supervisor,
 		ctx:ctx,cancel:cancel,realtimeEvents:make(chan realtimeEvent,2048),
 		realtimeJobs:make(chan string,512),status:"idle",
 	}
@@ -100,7 +102,16 @@ func (s *Scanner) debounceWorker(){
 	}
 }
 
-func (s *Scanner) FullScan() error {
+func (s *Scanner) FullScan() (scanErr error) {
+	var finish func(error)
+	if s.supervisor != nil {
+		var err error
+		finish, err = s.supervisor.AcquireMutation(s.ctx, "library-scan")
+		if err != nil {
+			return err
+		}
+		defer func() { finish(scanErr) }()
+	}
 	s.stateMu.Lock()
 	if s.status=="scanning"{s.stateMu.Unlock();return nil}
 	s.status="scanning";s.filesScanned=0
