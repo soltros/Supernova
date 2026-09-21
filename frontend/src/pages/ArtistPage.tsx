@@ -33,19 +33,16 @@ const ArtistPage: FC = () => {
   const [isDownloadingDiscography, setIsDownloadingDiscography] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
 
-  const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
 
   const handleDownloadDiscography = async () => {
     if (albums.length === 0) return;
     setIsDownloadingDiscography(true);
     setDownloadProgress(0);
-    const token = localStorage.getItem('sn_token');
-    
     for (let i = 0; i < albums.length; i++) {
         setDownloadProgress(i + 1);
         const album = albums[i];
         const a = document.createElement('a');
-        a.href = `${API_BASE_URL}/api/download/album/${album.id}?token=${token}`;
+        a.href = await apiService.mediaUrl('download-album', album.id);
         a.download = `${album.title}.zip`;
         a.style.display = 'none';
         document.body.appendChild(a);
@@ -69,8 +66,8 @@ const ArtistPage: FC = () => {
     setLoading(true);
     Promise.all([
       apiService.fetchArtistById(id),
-      apiService.fetchAlbums(50, 0, id),
-      apiService.fetchTracks(undefined, 50, 0, id)
+      apiService.fetchAllAlbums(id),
+      apiService.fetchAllTracks(undefined, id)
     ])
       .then(([artistData, albumsData, tracksData]) => {
         if (!isMounted) return;
