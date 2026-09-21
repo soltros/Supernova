@@ -32,16 +32,21 @@ func (s *Server) handleGetHeartDetails() http.HandlerFunc {
 			return
 		}
 
+		radio, podcasts, err := s.repo.GetExternalHeartMetadata(r.Context(), userID)
+		if err != nil {
+			http.Error(w, "failed to get external heart details", http.StatusInternalServerError)
+			return
+		}
 		response := struct {
 			Tracks    []models.Track    `json:"tracks"`
 			Albums    []models.Album    `json:"albums"`
 			Artists   []models.Artist   `json:"artists"`
 			Playlists []models.Playlist `json:"playlists"`
+			Radio     []json.RawMessage `json:"radio"`
+			Podcasts  []json.RawMessage `json:"podcasts"`
 		}{
-			Tracks:    tracks,
-			Albums:    albums,
-			Artists:   artists,
-			Playlists: playlists,
+			Tracks: tracks, Albums: albums, Artists: artists, Playlists: playlists,
+			Radio: radio, Podcasts: podcasts,
 		}
 
 		json.NewEncoder(w).Encode(response)
@@ -54,8 +59,9 @@ func (s *Server) handleAddHeart() http.HandlerFunc {
 		userID := r.Context().Value(userIDKey).(string)
 
 		var req struct {
-			EntityType string `json:"entity_type"`
-			EntityID   string `json:"entity_id"`
+			EntityType string          `json:"entity_type"`
+			EntityID   string          `json:"entity_id"`
+			Metadata   json.RawMessage `json:"metadata"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request", http.StatusBadRequest)
@@ -74,7 +80,7 @@ func (s *Server) handleAddHeart() http.HandlerFunc {
 			http.Error(w, "entity_id is required", http.StatusBadRequest)
 			return
 		}
-		if err := s.repo.HeartEntity(r.Context(), userID, req.EntityType, req.EntityID); err != nil {
+		if err := s.repo.HeartEntityWithMetadata(r.Context(), userID, req.EntityType, req.EntityID, req.Metadata); err != nil {
 			http.Error(w, "failed to add heart", http.StatusInternalServerError)
 			return
 		}
@@ -112,7 +118,7 @@ func (s *Server) handleExportHearts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := r.Context().Value(userIDKey).(string)
 
-		hearts, err := s.repo.ExportHearts(r.Context(), userID)
+		hearts, err := s.repo.ExportHeartsV2(r.Context(), userID)
 		if err != nil {
 			http.Error(w, "failed to export hearts", http.StatusInternalServerError)
 			return
@@ -134,7 +140,7 @@ func (s *Server) handleImportHearts() http.HandlerFunc {
 			http.Error(w, "invalid backup format", http.StatusBadRequest)
 			return
 		}
-		if err := s.repo.ImportHeartBackups(r.Context(), userID, backups); err != nil {
+		if err := s.repo.ImportHeartBackupsV2(r.Context(), userID, backups); err != nil {
 			http.Error(w, "failed to import backups", http.StatusInternalServerError)
 			return
 		}
