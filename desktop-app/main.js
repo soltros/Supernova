@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { normalizeInstanceUrl, sameOrigin } = require('./security');
+const { normalizeInstanceUrl, sameOrigin, isLastFmAuthUrl } = require('./security');
 const SETUP_PATH = path.join(__dirname, 'setup.html');
 const SETUP_URL = pathToFileURL(SETUP_PATH).href;
 
@@ -114,17 +114,6 @@ function trustedMainRenderer(event) {
     event.sender === mainWindow.webContents &&
     event.senderFrame === mainWindow.webContents.mainFrame &&
     sameOrigin(event.senderFrame.url, instance);
-}
-
-function isLastFmAuthUrl(value) {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' &&
-      (url.hostname === 'www.last.fm' || url.hostname === 'last.fm') &&
-      (url.pathname === '/api/auth' || url.pathname === '/api/auth/');
-  } catch {
-    return false;
-  }
 }
 
 ipcMain.handle('open-lastfm-auth', async (event, authUrl) => {
