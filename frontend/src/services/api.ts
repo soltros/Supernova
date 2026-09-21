@@ -98,6 +98,16 @@ export const apiService = {
     return response.json();
   },
 
+  fetchAllAlbums: async (artistId?: string): Promise<Album[]> => {
+    const pageSize = 100;
+    const all: Album[] = [];
+    for (let offset = 0;; offset += pageSize) {
+      const page = await apiService.fetchAlbums(pageSize, offset, artistId);
+      all.push(...page);
+      if (page.length < pageSize) return all;
+    }
+  },
+
   fetchAlbumById: async (id: string): Promise<Album> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/albums/${id}`);
     if (!response.ok) throw new Error('Failed to fetch album');
@@ -127,6 +137,16 @@ export const apiService = {
     const response = await fetchWithAuth(url);
     if (!response.ok) throw new Error('Failed to fetch tracks');
     return response.json();
+  },
+
+  fetchAllTracks: async (albumId?: string, artistId?: string): Promise<Track[]> => {
+    const pageSize = 200;
+    const all: Track[] = [];
+    for (let offset = 0;; offset += pageSize) {
+      const page = await apiService.fetchTracks(albumId, pageSize, offset, artistId);
+      all.push(...page);
+      if (page.length < pageSize) return all;
+    }
   },
 
   search: async (query: string): Promise<{ artists: Artist[], albums: Album[], tracks: Track[] }> => {
