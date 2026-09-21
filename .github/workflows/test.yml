@@ -1,7 +1,20 @@
 name: Regression tests
-on: [push, pull_request]
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+  workflow_call:
+  workflow_dispatch:
+
+concurrency:
+  group: regression-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -16,6 +29,8 @@ jobs:
         working-directory: backend
       - run: go test ./... && go vet ./...
         working-directory: supernova-cli
+      - name: Validate manual Subsonic smoke client
+        run: python3 -m py_compile test_subsonic.py
   clients:
     runs-on: ubuntu-latest
     steps:

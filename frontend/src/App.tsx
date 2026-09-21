@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
@@ -28,6 +28,27 @@ import './App.css';
 function AppContent() {
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [updateRegistration, setUpdateRegistration] = useState<ServiceWorkerRegistration | null>(null);
+
+  useEffect(() => {
+    const onUpdate = (event: Event) => {
+      setUpdateRegistration((event as CustomEvent<ServiceWorkerRegistration>).detail);
+    };
+    window.addEventListener('supernova:update-ready', onUpdate);
+    return () => window.removeEventListener('supernova:update-ready', onUpdate);
+  }, []);
+
+  const applyUpdate = () => {
+    const waiting = updateRegistration?.waiting;
+    if (!waiting) return;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    }, { once: true });
+    waiting.postMessage({ type: 'SKIP_WAITING' });
+  };
 
   if (!user) {
     return <LoginPage />;
@@ -39,6 +60,16 @@ function AppContent() {
       <PlaylistsProvider>
 
           <div className="app-container">
+            {updateRegistration && (
+              <button
+                type="button"
+                onClick={applyUpdate}
+                aria-label="Reload Supernova to apply the available update"
+                style={{ position: 'fixed', top: '12px', right: '12px', zIndex: 20000, padding: '10px 16px', borderRadius: '999px', background: 'var(--accent-primary)', color: 'white', boxShadow: 'var(--accent-glow)' }}
+              >
+                Update available · Reload
+              </button>
+            )}
             <Sidebar isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
             
             <main className="main-content">

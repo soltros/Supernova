@@ -1,5 +1,7 @@
 package models
 
+import "encoding/json"
+
 // TrackMetadata holds the standardized metadata extracted from any audio file.
 // This serves as the middle-layer between the raw file and the database schema.
 type TrackMetadata struct {
@@ -18,7 +20,10 @@ type TrackMetadata struct {
 	Bitrate        int
 	FilePath       string // Crucial for database unique constraints and streaming
 	CoverArtPath   string // Extracted embedded image or folder image path
-	FileModifiedAt int64  // Used to prevent overwriting plugin changes during re-scans
+	FileModifiedAt int64  // Unix seconds retained for compatibility
+	FileModifiedNs int64  // Nanosecond-resolution modification time
+	FileSize       int64  // File size used with mtime for change detection
+	FileFingerprint string // Bounded content fingerprint used to preserve identity across moves
 }
 
 // Artist represents a row in the artists table for JSON API responses
@@ -59,10 +64,11 @@ type Track struct {
 
 // Heart represents a user's favorite track, album, or artist
 type Heart struct {
-	ID         string `json:"id"`
-	EntityType string `json:"entity_type"`
-	EntityID   string `json:"entity_id"`
-	CreatedAt  string `json:"created_at"`
+	ID         string          `json:"id"`
+	EntityType string          `json:"entity_type"`
+	EntityID   string          `json:"entity_id"`
+	CreatedAt  string          `json:"created_at"`
+	Metadata   json.RawMessage `json:"metadata,omitempty"`
 }
 
 type PodcastSubscription struct {
@@ -95,9 +101,16 @@ type RadioSubscription struct {
 
 // HeartBackup securely exports hearts by absolute file_path instead of volatile UUIDs
 type HeartBackup struct {
-	EntityType string `json:"entity_type"`
-	Reference  string `json:"reference"`
-	CreatedAt  string `json:"created_at"`
+	EntityType    string          `json:"entity_type"`
+	Reference     string          `json:"reference"`
+	ReferenceType string          `json:"reference_type,omitempty"`
+	CreatedAt     string          `json:"created_at"`
+	Metadata      json.RawMessage `json:"metadata,omitempty"`
+}
+
+type HeartBackupEnvelope struct {
+	Version int           `json:"version"`
+	Hearts  []HeartBackup `json:"hearts"`
 }
 
 // User represents an authenticated account
@@ -117,8 +130,19 @@ type Playlist struct {
 }
 
 // PlaylistBackup is used for exporting playlists robustly, matching tracks by file_path
+type PlaylistTrackBackup struct {
+	FilePath    string `json:"file_path,omitempty"`
+	Fingerprint string `json:"fingerprint,omitempty"`
+}
+
 type PlaylistBackup struct {
-	Name      string   `json:"name"`
-	CreatedAt string   `json:"created_at"`
-	Tracks    []string `json:"tracks"` // file paths
+	Name      string                `json:"name"`
+	CreatedAt string                `json:"created_at"`
+	Tracks    []string              `json:"tracks,omitempty"` // legacy file paths
+	TrackRefs []PlaylistTrackBackup `json:"track_refs,omitempty"`
+}
+
+type PlaylistBackupEnvelope struct {
+	Version   int              `json:"version"`
+	Playlists []PlaylistBackup `json:"playlists"`
 }

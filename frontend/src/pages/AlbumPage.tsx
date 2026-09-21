@@ -41,7 +41,7 @@ const AlbumPage: FC = () => {
     let isMounted = true;
     Promise.all([
       apiService.fetchAlbumById(id),
-      apiService.fetchTracks(id, 100, 0)
+      apiService.fetchAllTracks(id)
     ])
     .then(([albumData, tracksData]) => {
       if (!isMounted) return;
@@ -120,9 +120,12 @@ const AlbumPage: FC = () => {
               onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
               title="Download Album"
-              onClick={() => {
-                const token = localStorage.getItem('sn_token');
-                window.location.href = `${API_BASE_URL}/api/download/album/${album.id}?token=${token}`;
+              onClick={async () => {
+                try {
+                  window.location.href = await apiService.mediaUrl('download-album', album.id);
+                } catch (err) {
+                  console.error('Failed to prepare album download:', err);
+                }
               }}
             >
               <Download size={24} />
@@ -225,9 +228,12 @@ const AlbumPage: FC = () => {
             
             <div 
               style={{ padding: '10px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-primary)', fontSize: '14px', transition: 'background 0.2s' }}
-              onClick={() => {
-                const token = localStorage.getItem('sn_token');
-                window.location.href = `${API_BASE_URL}/api/download/track/${contextMenu.track.id}?token=${token}`;
+              onClick={async () => {
+                try {
+                  window.location.href = await apiService.mediaUrl('download-track', contextMenu.track.id);
+                } catch (err) {
+                  console.error('Failed to prepare track download:', err);
+                }
                 setContextMenu(null);
               }}
               onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}

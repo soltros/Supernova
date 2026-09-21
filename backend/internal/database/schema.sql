@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS tracks (
     file_path TEXT UNIQUE NOT NULL,
     popularity INTEGER DEFAULT 0,
     file_modified_at INTEGER DEFAULT 0,
+    file_modified_ns INTEGER DEFAULT 0,
+    file_size INTEGER DEFAULT 0,
+    file_fingerprint TEXT DEFAULT '',
     FOREIGN KEY (album_id) REFERENCES albums (id) ON DELETE CASCADE
 );
 
@@ -52,6 +55,7 @@ CREATE TABLE IF NOT EXISTS hearts (
     entity_type TEXT NOT NULL,
     entity_id TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    metadata_json TEXT,
     UNIQUE(user_id, entity_type, entity_id),
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -98,6 +102,7 @@ CREATE TABLE IF NOT EXISTS album_artists (
 -- Indexes to massively speed up library scanning and API queries
 CREATE INDEX IF NOT EXISTS idx_tracks_album_id ON tracks(album_id);
 CREATE INDEX IF NOT EXISTS idx_tracks_file_path ON tracks(file_path);
+CREATE INDEX IF NOT EXISTS idx_tracks_fingerprint ON tracks(file_fingerprint);
 CREATE INDEX IF NOT EXISTS idx_artists_name ON artists(name);
 CREATE INDEX IF NOT EXISTS idx_albums_title ON albums(title);
 
@@ -117,13 +122,14 @@ CREATE TABLE IF NOT EXISTS playlists (
 );
 
 CREATE TABLE IF NOT EXISTS playlist_tracks (
+    entry_id TEXT PRIMARY KEY,
     playlist_id TEXT NOT NULL,
     track_id TEXT NOT NULL,
     position INTEGER NOT NULL,
     added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (playlist_id, track_id),
     FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
-    FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE
+    FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE,
+    UNIQUE(playlist_id, position)
 );
 
 CREATE INDEX IF NOT EXISTS idx_playlists_user_id ON playlists(user_id);
@@ -164,3 +170,25 @@ CREATE TABLE IF NOT EXISTS radio_subscriptions (
     UNIQUE(user_id, station_id),
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,
+    revoked_at DATETIME,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_active ON sessions(user_id, expires_at, revoked_at);
+
+
+CREATE TABLE IF NOT EXISTS enrichment_retry (
+    kind TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_error TEXT NOT NULL DEFAULT '',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(kind, entity_id)
+);
+CREATE INDEX IF NOT EXISTS idx_enrichment_retry_due ON enrichment_retry(kind, next_attempt_at);

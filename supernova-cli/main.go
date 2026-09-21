@@ -121,14 +121,23 @@ func doRequest(method, endpoint string, body io.Reader, token string) ([]byte, e
 func downloadFile(endpoint, dest string) error {
 	c := requireConfig()
 
+	if _, err := os.Stat(dest); err == nil {
+		return fmt.Errorf("destination already exists: %s", dest)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("check destination: %w", err)
+	}
+
 	req, err := http.NewRequest("GET", c.URL+endpoint, nil)
 	if err != nil {
 		return err
 	}
-
 	req.Header.Set("Authorization", "Bearer "+c.Token)
+
 	client := &http.Client{
-		Timeout: 15 * time.Second,
+		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			ResponseHeaderTimeout: 15 * time.Second,
+		},
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -140,14 +149,37 @@ func downloadFile(endpoint, dest string) error {
 		return fmt.Errorf("API error: %s", resp.Status)
 	}
 
-	out, err := os.Create(dest)
+	dir := filepath.Dir(dest)
+	if dir == "" {
+		dir = "."
+	}
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(dest)+".partial-*")
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	tmpName := tmp.Name()
+	published := false
+	defer func() {
+		_ = tmp.Close()
+		if !published {
+			_ = os.Remove(tmpName)
+		}
+	}()
 
-	_, err = io.Copy(out, resp.Body)
-	return err
+	if _, err := io.Copy(tmp, resp.Body); err != nil {
+		return fmt.Errorf("download failed: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		return fmt.Errorf("sync download: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close download: %w", err)
+	}
+	if err := os.Rename(tmpName, dest); err != nil {
+		return fmt.Errorf("publish download: %w", err)
+	}
+	published = true
+	return nil
 }
 
 func printPrettyJSON(data []byte) {

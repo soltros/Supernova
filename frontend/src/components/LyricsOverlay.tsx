@@ -14,6 +14,7 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const requestGeneration = useRef(0);
   
   // Track parsed synced lyrics
   const [syncedLines, setSyncedLines] = useState<{time: number, text: string}[]>([]);
@@ -25,6 +26,7 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
       return;
     }
 
+    const generation = ++requestGeneration.current;
     setLoading(true);
     setError(null);
     setLyricsData(null);
@@ -45,18 +47,22 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
       currentTrack.duration_ms / 1000
     )
       .then(data => {
+        if (generation !== requestGeneration.current) return;
         setLyricsData(data);
         if (data.syncedLyrics) {
           parseSyncedLyrics(data.syncedLyrics);
         }
       })
       .catch(err => {
+        if (generation !== requestGeneration.current) return;
         console.error("Lyrics error:", err);
         setError("Lyrics not found for this track.");
       })
       .finally(() => {
-        setLoading(false);
+        if (generation === requestGeneration.current) setLoading(false);
       });
+
+    return () => { requestGeneration.current++; };
   }, [isOpen, currentTrack, currentAlbum]);
 
   useEffect(() => {
@@ -132,6 +138,7 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
     }}>
       <button 
         onClick={onClose}
+        aria-label="Close lyrics"
         style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '50%', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
         <X size={16} />

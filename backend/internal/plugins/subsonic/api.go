@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"github.com/soltros/Supernova/internal/media"
 	"net/http"
-	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/soltros/Supernova/internal/api"
@@ -59,18 +59,17 @@ func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 
-			// We retrieve the symmetric JWT_SECRET to decrypt the password
-			secret := os.Getenv("JWT_SECRET")
-			if len(secret) < 32 {
-				p.writeError(w, r, 40, "Server configuration error.")
-				return
-			}
-
-			// Decrypt using the crypto utility
-			plain, err := api.DecryptPassword(encPass, []byte(secret))
+			plain, legacy, err := api.DecryptSubsonicPassword(encPass)
 			if err != nil {
 				p.writeError(w, r, 40, "Wrong username or password.")
 				return
+			}
+			// Opportunistically migrate credentials written before the dedicated
+			// SUBSONIC_CREDENTIAL_KEY existed.
+			if legacy {
+				if migrated, encErr := api.EncryptSubsonicPassword(plain); encErr == nil {
+					_ = p.repo.SetSubsonicPassword(r.Context(), u, migrated)
+				}
 			}
 
 			expectedToken := fmt.Sprintf("%x", md5.Sum([]byte(plain+s)))
@@ -549,16 +548,52 @@ func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) 
 func (p *SubsonicPlugin) handleStream(w http.ResponseWriter, r *http.Request) {
 	id := r.FormValue("id")
 	track, err := p.repo.GetTrackByID(r.Context(), id)
-	if err != nil {
-		http.Error(w, "Not found", 404)
+	if err != nil { http.Error(w, "Not found", 404); return }
+	file, err := media.Open(track.FilePath)
+	if err != nil { http.Error(w, "Access denied", http.StatusForbidden); return }
+	defer file.Close()
+
+	format := strings.ToLower(strings.TrimSpace(r.FormValue("format")))
+	if format == "raw" { format = "" }
+	maxBitRate := 0
+	if raw := r.FormValue("maxBitRate"); raw != "" {
+		maxBitRate, err = strconv.Atoi(raw)
+		if err != nil || maxBitRate <= 0 { p.writeError(w,r,10,"Invalid maxBitRate"); return }
+	}
+	offset := 0
+	if raw := r.FormValue("timeOffset"); raw != "" {
+		seconds, parseErr := strconv.ParseFloat(raw,64)
+		if parseErr != nil || seconds < 0 { p.writeError(w,r,10,"Invalid timeOffset"); return }
+		offset = int(seconds)
+	}
+	if format == "" && maxBitRate == 0 && offset == 0 {
+		info, err := file.Stat()
+		if err != nil { http.Error(w,"Not found",404); return }
+		w.Header().Set("Content-Type",media.ContentType(track.Format))
+		http.ServeContent(w,r,info.Name(),info.ModTime(),file)
 		return
 	}
-	resolved, err := media.Resolve(track.FilePath)
-	if err != nil {
-		http.Error(w, "Access denied", http.StatusForbidden)
+	if format == "" {
+		format = "mp3"
+	}
+	switch format {
+	case "mp3","aac","ogg","opus":
+	default:
+		p.writeError(w,r,10,"Unsupported transcode format")
 		return
 	}
-	http.ServeFile(w, r, resolved)
+	bitrate := maxBitRate
+	if bitrate == 0 { bitrate = 128 }
+	contentType := map[string]string{"mp3":"audio/mpeg","aac":"audio/aac","ogg":"audio/ogg","opus":"audio/ogg; codecs=opus"}[format]
+	committed:=false
+	if err := media.StreamTranscode(r.Context(),file,media.TranscodeOptions{Format:format,BitrateKbps:bitrate,SeekSeconds:offset},w,func(){
+		w.Header().Set("Content-Type",contentType)
+		w.Header().Set("Accept-Ranges","none")
+		committed=true
+		if flusher,ok:=w.(http.Flusher);ok{flusher.Flush()}
+	}); err != nil {
+		if !committed{http.Error(w,"Transcoding unavailable",http.StatusServiceUnavailable)}
+	}
 }
 
 func (p *SubsonicPlugin) handleDownload(w http.ResponseWriter, r *http.Request) {
@@ -706,60 +741,23 @@ func (p *SubsonicPlugin) handleGetPlaylist(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (p *SubsonicPlugin) handleGetAlbumList(w http.ResponseWriter, r *http.Request) {
-	listType := r.FormValue("type")
-
-	var albums []models.Album
-	var err error
-
-	if listType == "starred" {
-		u, ok := r.Context().Value(userContextKey).(*models.User)
-		if ok && u != nil {
-			_, albums, _, _, err = p.repo.GetHeartDetails(r.Context(), u.ID)
-		} else {
-			p.writeError(w, r, 0, "Not authenticated")
-			return
-		}
-	} else {
-		// Placeholder for other types (newest, random, frequent, recent, etc.)
-		albums, err = p.repo.GetAlbums(r.Context(), "", 100, 0)
+func (p *SubsonicPlugin) handleGetAlbumList(w http.ResponseWriter,r *http.Request){
+	u,ok:=r.Context().Value(userContextKey).(*models.User)
+	if !ok||u==nil{p.writeError(w,r,0,"Not authenticated");return}
+	listType:=r.FormValue("type")
+	if listType==""{listType="alphabeticalByName"}
+	size:=10
+	if raw:=r.FormValue("size");raw!=""{n,err:=strconv.Atoi(raw);if err!=nil||n<0||n>500{p.writeError(w,r,10,"Invalid size");return};size=n}
+	offset:=0
+	if raw:=r.FormValue("offset");raw!=""{n,err:=strconv.Atoi(raw);if err!=nil||n<0{p.writeError(w,r,10,"Invalid offset");return};offset=n}
+	albums,err:=p.repo.GetSubsonicAlbumList(r.Context(),u.ID,listType,size,offset)
+	if err!=nil{p.writeError(w,r,10,err.Error());return}
+	out:=make([]map[string]interface{},0,len(albums))
+	for _,album:=range albums{
+		out=append(out,map[string]interface{}{"id":album["id"],"name":album["title"],"title":album["title"],"artist":album["artist_name"],"artistId":album["artist_id"],"coverArt":album["id"],"songCount":album["song_count"],"duration":album["duration"],"year":album["year"]})
 	}
-
-	if err != nil {
-		p.writeError(w, r, 0, "Database error")
-		return
-	}
-
-	var albumList []map[string]interface{}
-	for _, a := range albums {
-		albumList = append(albumList, map[string]interface{}{
-			"id":        a.ID,
-			"name":      a.Title,
-			"title":     a.Title, // some clients use title instead of name
-			"artist":    a.ArtistName,
-			"artistId":  a.ArtistID,
-			"coverArt":  a.ID,
-			"songCount": 1, // Minimum 1 to show as a valid album
-		})
-	}
-
-	if albumList == nil {
-		albumList = make([]map[string]interface{}, 0)
-	}
-
-	// getAlbumList uses albumList, getAlbumList2 uses albumList2.
-	// Since we handle both with this one function, we can check path
-	isList2 := strings.Contains(r.URL.Path, "getAlbumList2")
-	key := "albumList"
-	if isList2 {
-		key = "albumList2"
-	}
-
-	p.writeResponse(w, r, map[string]interface{}{
-		key: map[string]interface{}{
-			"album": albumList,
-		},
-	})
+	key:="albumList";if strings.Contains(r.URL.Path,"getAlbumList2"){key="albumList2"}
+	p.writeResponse(w,r,map[string]interface{}{key:map[string]interface{}{"album":out}})
 }
 
 func (p *SubsonicPlugin) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {

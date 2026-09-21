@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/soltros/Supernova/internal/models"
 )
@@ -338,7 +339,15 @@ func (r *Repository) UpdateTrackDuration(ctx context.Context, albumID string, ti
 }
 
 func (r *Repository) GetUnenrichedArtists(ctx context.Context, limit int) ([]models.Artist, error) {
-	query := `SELECT id, name, musicbrainz_id, image_url, bio FROM artists WHERE image_url = '' OR image_url IS NULL LIMIT ?`
+	query := `SELECT id, name, musicbrainz_id, image_url, bio FROM artists
+		WHERE (image_url = '' OR image_url IS NULL)
+		  AND NOT EXISTS (
+		      SELECT 1 FROM enrichment_retry er
+		      WHERE er.kind = 'lastfm-artist'
+		        AND er.entity_id = artists.id
+		        AND er.next_attempt_at > CURRENT_TIMESTAMP
+		  )
+		LIMIT ?`
 	rows, err := r.db.QueryContext(ctx, query, limit)
 	if err != nil {
 		return nil, err
@@ -506,7 +515,13 @@ func (r *Repository) GetUnenrichedAlbums(ctx context.Context, limit int) ([]Unen
 		JOIN album_artists aa ON a.id = aa.album_id
 		JOIN artists art ON aa.artist_id = art.id
 		JOIN tracks t ON a.id = t.album_id
-		WHERE a.musicbrainz_id IS NULL OR a.musicbrainz_id = ''
+		WHERE (a.musicbrainz_id IS NULL OR a.musicbrainz_id = '')
+		  AND NOT EXISTS (
+		      SELECT 1 FROM enrichment_retry er
+		      WHERE er.kind = 'musicbrainz-album'
+		        AND er.entity_id = a.id
+		        AND er.next_attempt_at > CURRENT_TIMESTAMP
+		  )
 		GROUP BY a.id
 		LIMIT ?
 	`
@@ -543,6 +558,12 @@ func (r *Repository) GetAlbumsMissingBio(ctx context.Context, limit int) ([]Unen
 		LEFT JOIN tracks t ON a.id = t.album_id
 		WHERE (a.bio = '' OR a.bio IS NULL)
 		AND COALESCE(a.bio, '') != 'NOT_FOUND'
+		AND NOT EXISTS (
+		    SELECT 1 FROM enrichment_retry er
+		    WHERE er.kind = 'lastfm-album'
+		      AND er.entity_id = a.id
+		      AND er.next_attempt_at > CURRENT_TIMESTAMP
+		)
 		GROUP BY a.id
 		LIMIT ?
 	`
@@ -963,4 +984,70 @@ func (r *Repository) GetRecentScrobbles(ctx context.Context, userID string, limi
 		return nil, err
 	}
 	return tracks, nil
+}
+
+
+// MarkEnrichmentFailure records a persisted exponential backoff window for transient
+// provider/database errors so restarts do not immediately hammer the same entity.
+func (r *Repository) MarkEnrichmentFailure(ctx context.Context, kind, entityID string, cause error) error {
+	if kind == "" || entityID == "" || cause == nil {
+		return fmt.Errorf("invalid enrichment failure")
+	}
+
+	var attempts int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT attempts FROM enrichment_retry WHERE kind=? AND entity_id=?`,
+		kind, entityID,
+	).Scan(&attempts)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	attempts++
+
+	backoff := 30 * time.Second
+	for i := 1; i < attempts && backoff < 6*time.Hour; i++ {
+		backoff *= 2
+		if backoff > 6*time.Hour {
+			backoff = 6 * time.Hour
+		}
+	}
+	next := time.Now().UTC().Add(backoff)
+	_, err = r.db.ExecContext(ctx, `
+		INSERT INTO enrichment_retry(kind,entity_id,attempts,next_attempt_at,last_error,updated_at)
+		VALUES(?,?,?,?,?,CURRENT_TIMESTAMP)
+		ON CONFLICT(kind,entity_id) DO UPDATE SET
+			attempts=excluded.attempts,
+			next_attempt_at=excluded.next_attempt_at,
+			last_error=excluded.last_error,
+			updated_at=CURRENT_TIMESTAMP
+	`, kind, entityID, attempts, next, cause.Error())
+	return err
+}
+
+func (r *Repository) ClearEnrichmentFailure(ctx context.Context, kind, entityID string) error {
+	_, err := r.db.ExecContext(ctx,
+		`DELETE FROM enrichment_retry WHERE kind=? AND entity_id=?`,
+		kind, entityID,
+	)
+	return err
+}
+
+type EnrichmentRetryState struct {
+	Kind          string
+	EntityID      string
+	Attempts      int
+	NextAttemptAt time.Time
+	LastError     string
+}
+
+func (r *Repository) GetEnrichmentRetryState(ctx context.Context, kind, entityID string) (*EnrichmentRetryState, error) {
+	var state EnrichmentRetryState
+	err := r.db.QueryRowContext(ctx, `
+		SELECT kind,entity_id,attempts,next_attempt_at,last_error
+		FROM enrichment_retry WHERE kind=? AND entity_id=?
+	`, kind, entityID).Scan(&state.Kind,&state.EntityID,&state.Attempts,&state.NextAttemptAt,&state.LastError)
+	if err != nil {
+		return nil, err
+	}
+	return &state,nil
 }

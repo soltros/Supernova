@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/soltros/Supernova/internal/models"
+	"github.com/soltros/Supernova/internal/resourcebudget"
 )
 
 const mbBaseURL = "https://musicbrainz.org/ws/2"
@@ -23,9 +24,7 @@ type MusicBrainzClient struct {
 // NewMusicBrainzClient creates a new client. MusicBrainz strictly requires a descriptive User-Agent.
 func NewMusicBrainzClient(appName, version, contact string) *MusicBrainzClient {
 	return &MusicBrainzClient{
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		client: resourcebudget.NewHTTPClient(10 * time.Second),
 		userAgent: fmt.Sprintf("%s/%s ( %s )", appName, version, contact),
 	}
 }

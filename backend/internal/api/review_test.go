@@ -81,3 +81,33 @@ func TestAuthInviteAdminAndPluginBoundary(t *testing.T) {
 		t.Fatalf("deleted user accepted: %d", w.Code)
 	}
 }
+
+
+func TestSubsonicCredentialKeyIsIndependentFromJWTSecret(t *testing.T) {
+	t.Setenv("JWT_SECRET", strings.Repeat("j", 32))
+	t.Setenv("SUBSONIC_CREDENTIAL_KEY", strings.Repeat("c", 32))
+
+	encrypted, err := EncryptSubsonicPassword("password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, legacy, err := DecryptSubsonicPassword(encrypted)
+	if err != nil || plain != "password" || legacy {
+		t.Fatalf("dedicated-key decrypt: plain=%q legacy=%v err=%v", plain, legacy, err)
+	}
+
+	legacyEncrypted, err := EncryptPassword("password", []byte(strings.Repeat("j", 32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, legacy, err = DecryptSubsonicPassword(legacyEncrypted)
+	if err != nil || plain != "password" || !legacy {
+		t.Fatalf("legacy decrypt: plain=%q legacy=%v err=%v", plain, legacy, err)
+	}
+
+	t.Setenv("JWT_SECRET", strings.Repeat("n", 32))
+	plain, legacy, err = DecryptSubsonicPassword(encrypted)
+	if err != nil || plain != "password" || legacy {
+		t.Fatalf("JWT rotation affected dedicated credential: plain=%q legacy=%v err=%v", plain, legacy, err)
+	}
+}

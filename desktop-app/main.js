@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { normalizeInstanceUrl, sameOrigin } = require('./security');
+const { normalizeInstanceUrl, sameOrigin, isLastFmAuthUrl } = require('./security');
 const SETUP_PATH = path.join(__dirname, 'setup.html');
 const SETUP_URL = pathToFileURL(SETUP_PATH).href;
 
@@ -104,5 +104,55 @@ ipcMain.handle('clear-instance', (event) => {
   if (mainWindow) {
     mainWindow.loadFile(SETUP_PATH);
   }
+  return true;
+});
+
+
+function trustedMainRenderer(event) {
+  const instance = getConfig().instanceUrl;
+  return !!mainWindow &&
+    event.sender === mainWindow.webContents &&
+    event.senderFrame === mainWindow.webContents.mainFrame &&
+    sameOrigin(event.senderFrame.url, instance);
+}
+
+ipcMain.handle('open-lastfm-auth', async (event, authUrl) => {
+  if (!trustedMainRenderer(event)) throw new Error('Untrusted request.');
+  if (!isLastFmAuthUrl(authUrl)) throw new Error('Invalid Last.fm authorization URL.');
+
+  const instance = getConfig().instanceUrl;
+  const oauthWindow = new BrowserWindow({
+    parent: mainWindow,
+    modal: true,
+    width: 720,
+    height: 800,
+    title: 'Connect Last.fm',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true
+    }
+  });
+  oauthWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  oauthWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+
+  const handleNavigation = (event, target) => {
+    if (isLastFmAuthUrl(target)) return;
+    try {
+      const url = new URL(target);
+      const callbackAllowed = sameOrigin(target, instance) && url.pathname === '/settings' && url.searchParams.has('token');
+      const lastFmAllowed = url.protocol === 'https:' && (url.hostname === 'www.last.fm' || url.hostname === 'last.fm');
+      if (callbackAllowed) {
+        event.preventDefault();
+        void mainWindow.loadURL(target);
+        oauthWindow.close();
+        return;
+      }
+      if (lastFmAllowed) return;
+    } catch {}
+    event.preventDefault();
+  };
+  oauthWindow.webContents.on('will-navigate', handleNavigation);
+  await oauthWindow.loadURL(authUrl);
   return true;
 });

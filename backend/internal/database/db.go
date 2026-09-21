@@ -193,6 +193,123 @@ func Init(dbPath string) (*DB, error) {
 			return nil, err
 		}
 	}
+
+	if version < 6 {
+		log.Println("Migrating database to version 6 (ordered playlist entries)...")
+		var hasEntryID int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('playlist_tracks') WHERE name = 'entry_id'`).Scan(&hasEntryID); err != nil {
+			return nil, fmt.Errorf("migration to v6 inspection failed: %w", err)
+		}
+		if hasEntryID == 0 {
+			tx, err := db.Begin()
+			if err != nil {
+				return nil, fmt.Errorf("migration to v6 begin failed: %w", err)
+			}
+			if _, err := tx.Exec(`
+				CREATE TABLE playlist_tracks_v6 (
+					entry_id TEXT PRIMARY KEY,
+					playlist_id TEXT NOT NULL,
+					track_id TEXT NOT NULL,
+					position INTEGER NOT NULL,
+					added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+					FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+					FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE,
+					UNIQUE(playlist_id, position)
+				);
+				INSERT INTO playlist_tracks_v6(entry_id, playlist_id, track_id, position, added_at)
+				SELECT lower(hex(randomblob(16))), playlist_id, track_id, position, added_at
+				FROM playlist_tracks
+				ORDER BY playlist_id, position;
+				DROP TABLE playlist_tracks;
+				ALTER TABLE playlist_tracks_v6 RENAME TO playlist_tracks;
+				CREATE INDEX idx_playlist_tracks_playlist_id_pos ON playlist_tracks(playlist_id, position);
+			`); err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("migration to v6 failed: %w", err)
+			}
+			if err := tx.Commit(); err != nil {
+				return nil, fmt.Errorf("migration to v6 commit failed: %w", err)
+			}
+		}
+		if _, err := db.Exec("PRAGMA user_version = 6"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 6: %w", err)
+		}
+		version = 6
+	}
+
+	if version < 7 {
+		log.Println("Migrating database to version 7 (stable file identity)...")
+		for _, stmt := range []string{
+			"ALTER TABLE tracks ADD COLUMN file_modified_ns INTEGER DEFAULT 0;",
+			"ALTER TABLE tracks ADD COLUMN file_size INTEGER DEFAULT 0;",
+			"ALTER TABLE tracks ADD COLUMN file_fingerprint TEXT DEFAULT '';",
+		} {
+			if _, err := db.Exec(stmt); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+				return nil, fmt.Errorf("migration to v7 failed: %w", err)
+			}
+		}
+		if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_tracks_fingerprint ON tracks(file_fingerprint)"); err != nil {
+			return nil, fmt.Errorf("migration to v7 index failed: %w", err)
+		}
+		if _, err := db.Exec("PRAGMA user_version = 7"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 7: %w", err)
+		}
+		version = 7
+	}
+
+	if version < 8 {
+		log.Println("Migrating database to version 8 (revocable sessions)...")
+		if _, err := db.Exec(`
+			CREATE TABLE IF NOT EXISTS sessions (
+				id TEXT PRIMARY KEY,
+				user_id TEXT NOT NULL,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				expires_at DATETIME NOT NULL,
+				revoked_at DATETIME,
+				FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+			);
+			CREATE INDEX IF NOT EXISTS idx_sessions_user_active ON sessions(user_id, expires_at, revoked_at);
+		`); err != nil {
+			return nil, fmt.Errorf("migration to v8 failed: %w", err)
+		}
+		if _, err := db.Exec("PRAGMA user_version = 8"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 8: %w", err)
+		}
+		version = 8
+	}
+
+	if version < 9 {
+		log.Println("Migrating database to version 9 (external favorite metadata)...")
+		if _, err := db.Exec("ALTER TABLE hearts ADD COLUMN metadata_json TEXT;"); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+			return nil, fmt.Errorf("migration to v9 failed: %w", err)
+		}
+		if _, err := db.Exec("PRAGMA user_version = 9"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 9: %w", err)
+		}
+		version = 9
+	}
+
+	if version < 10 {
+		log.Println("Migrating database to version 10 (enrichment retry state)...")
+		if _, err := db.Exec(`
+			CREATE TABLE IF NOT EXISTS enrichment_retry (
+				kind TEXT NOT NULL,
+				entity_id TEXT NOT NULL,
+				attempts INTEGER NOT NULL DEFAULT 0,
+				next_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				last_error TEXT NOT NULL DEFAULT '',
+				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY(kind, entity_id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_enrichment_retry_due ON enrichment_retry(kind, next_attempt_at);
+		`); err != nil {
+			return nil, fmt.Errorf("migration to v10 failed: %w", err)
+		}
+		if _, err := db.Exec("PRAGMA user_version = 10"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 10: %w", err)
+		}
+		version = 10
+	}
 	success = true
 	return &DB{db}, nil
 }

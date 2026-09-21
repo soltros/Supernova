@@ -1,11 +1,9 @@
 package artistmerger
 
 import (
-	"context"
-	"log"
+	"encoding/json"
 	"net/http"
 	"strings"
-	"sync/atomic"
 	"unicode"
 
 	"github.com/soltros/Supernova/internal/database"
@@ -13,25 +11,19 @@ import (
 )
 
 type ArtistMergerPlugin struct {
-	repo    *database.Repository
-	running atomic.Bool
+	repo *database.Repository
 }
 
 func init() {
-	// Register an instance directly (Register expects a plugins.Plugin value)
 	plugins.Register(&ArtistMergerPlugin{})
 }
 
-func (p *ArtistMergerPlugin) ID() string {
-	return "artistmerger"
-}
+func (p *ArtistMergerPlugin) ID() string { return "artistmerger" }
 
-func (p *ArtistMergerPlugin) Name() string {
-	return "Artist Merger"
-}
+func (p *ArtistMergerPlugin) Name() string { return "Artist Merge Preview" }
 
 func (p *ArtistMergerPlugin) Description() string {
-	return "Automatically groups and merges misspelled or alternate artist names (e.g. 'Beatles' and 'The Beatles') into a single unified artist."
+	return "Read-only administrator preview of possible artist groupings. Destructive apply is disabled pending a reviewed recovery and undo design."
 }
 
 func (p *ArtistMergerPlugin) Init(config plugins.PluginConfig) error {
@@ -40,25 +32,81 @@ func (p *ArtistMergerPlugin) Init(config plugins.PluginConfig) error {
 }
 
 func (p *ArtistMergerPlugin) SetupRoutes(mux *http.ServeMux) {
-	// ServeMux patterns are path-only; route by method inside the handler.
 	mux.HandleFunc("/api/plugins/artistmerger/run", p.handleRunMerger)
+	mux.HandleFunc("/api/plugins/artistmerger/preview", p.handlePreview)
 }
 
 func (p *ArtistMergerPlugin) handleRunMerger(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !p.running.CompareAndSwap(false, true) {
-		http.Error(w, "job already running", http.StatusConflict)
-		return
-	}
-	go func() { defer p.running.Store(false); p.runMergeJob() }()
-	w.WriteHeader(http.StatusAccepted)
-	w.Write([]byte(`{"status": "artist-merger job started in background"}`))
+	http.Error(
+		w,
+		"destructive artist merging is disabled until a reviewed recovery/undo plan is approved; inspect /api/plugins/artistmerger/preview",
+		http.StatusConflict,
+	)
 }
 
-// normalizeName strips punctuation, lowercases, and removes common prefixes
+func (p *ArtistMergerPlugin) handlePreview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	rows, err := p.repo.DB().QueryContext(r.Context(), `
+		SELECT a.id,a.name,COALESCE(a.musicbrainz_id,''),
+		       (SELECT COUNT(*) FROM album_artists aa WHERE aa.artist_id=a.id),
+		       (SELECT COUNT(*) FROM track_artists ta WHERE ta.artist_id=a.id),
+		       (SELECT COUNT(*) FROM hearts h WHERE h.entity_type='artist' AND h.entity_id=a.id)
+		FROM artists a
+		ORDER BY a.name,a.id
+	`)
+	if err != nil {
+		http.Error(w, "preview query failed", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type item struct {
+		ID, Name, MBID       string
+		Albums, Tracks, Hearts int
+	}
+
+	groups := map[string][]item{}
+	for rows.Next() {
+		var x item
+		if err := rows.Scan(&x.ID, &x.Name, &x.MBID, &x.Albums, &x.Tracks, &x.Hearts); err != nil {
+			http.Error(w, "preview scan failed", http.StatusInternalServerError)
+			return
+		}
+		key := normalizeName(x.Name)
+		if key != "" {
+			groups[key] = append(groups[key], x)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		http.Error(w, "preview iteration failed", http.StatusInternalServerError)
+		return
+	}
+
+	out := make([][]item, 0)
+	for _, group := range groups {
+		if len(group) > 1 {
+			out = append(out, group)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"mode":       "read-only",
+		"warning":    "normalized-name matches are candidates only, not merge authorization",
+		"candidates": out,
+	})
+}
+
+// normalizeName is intentionally preview-only. Matching normalized names is
+// never sufficient authorization for a destructive merge.
 func normalizeName(name string) string {
 	lower := strings.ToLower(name)
 	lower = strings.TrimPrefix(lower, "the ")
@@ -72,102 +120,4 @@ func normalizeName(name string) string {
 		}
 	}
 	return sb.String()
-}
-
-func (p *ArtistMergerPlugin) runMergeJob() {
-	log.Println("[ArtistMerger] Starting background merge job...")
-	ctx := context.Background()
-	db := p.repo.DB()
-
-	// 1. Fetch all artists
-	rows, err := db.QueryContext(ctx, "SELECT id, name FROM artists")
-	if err != nil {
-		log.Printf("[ArtistMerger] Failed to fetch artists: %v\n", err)
-		return
-	}
-
-	type artistData struct {
-		id   string
-		name string
-	}
-
-	groups := make(map[string][]artistData)
-
-	for rows.Next() {
-		var a artistData
-		if err := rows.Scan(&a.id, &a.name); err == nil {
-			norm := normalizeName(a.name)
-			if norm != "" {
-				groups[norm] = append(groups[norm], a)
-			}
-		}
-	}
-	rows.Close()
-
-	mergeCount := 0
-
-	// 2. Identify and merge duplicates
-	for _, group := range groups {
-		if len(group) > 1 {
-			// Pick canonical artist (longest name string usually has better formatting, e.g. "The Beatles" over "Beatles")
-			canonical := group[0]
-			for _, a := range group {
-				if len(a.name) > len(canonical.name) {
-					canonical = a
-				}
-			}
-
-			// Merge others into canonical
-			for _, a := range group {
-				if a.id == canonical.id {
-					continue
-				}
-
-				log.Printf("[ArtistMerger] Merging '%s' into '%s'\n", a.name, canonical.name)
-
-				tx, err := db.BeginTx(ctx, nil)
-				if err != nil {
-					log.Printf("[ArtistMerger] Failed to begin transaction: %v", err)
-					continue
-				}
-
-				// Update album_artists
-				_, err = tx.ExecContext(ctx, "UPDATE OR IGNORE album_artists SET artist_id = ? WHERE artist_id = ?", canonical.id, a.id)
-				if err != nil {
-					tx.Rollback()
-					continue
-				}
-				_, err = tx.ExecContext(ctx, "DELETE FROM album_artists WHERE artist_id = ?", a.id)
-				if err != nil {
-					tx.Rollback()
-					continue
-				}
-
-				// Update track_artists
-				_, err = tx.ExecContext(ctx, "UPDATE OR IGNORE track_artists SET artist_id = ? WHERE artist_id = ?", canonical.id, a.id)
-				if err != nil {
-					tx.Rollback()
-					continue
-				}
-				_, err = tx.ExecContext(ctx, "DELETE FROM track_artists WHERE artist_id = ?", a.id)
-				if err != nil {
-					tx.Rollback()
-					continue
-				}
-
-				// Delete duplicate artist
-				_, err = tx.ExecContext(ctx, "DELETE FROM artists WHERE id = ?", a.id)
-				if err != nil {
-					tx.Rollback()
-					continue
-				}
-
-				if err := tx.Commit(); err == nil {
-					mergeCount++
-				}
-			}
-		}
-	}
-
-	log.Printf("[ArtistMerger] Background merge job completed. Merged %d duplicate artists.\n", mergeCount)
 }

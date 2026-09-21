@@ -4,7 +4,7 @@ import { apiService } from '../services/api';
 
 interface HeartsState {
   heartedIds: Set<string>;
-  toggleHeart: (entityType: string, entityId: string) => Promise<void>;
+  toggleHeart: (entityType: string, entityId: string, metadata?: any) => Promise<void>;
   isHearted: (entityId: string) => boolean;
   refreshHearts: () => Promise<void>;
 }
@@ -19,6 +19,35 @@ export const HeartsProvider: FC<{ children: ReactNode }> = ({ children }) => {
       const hearts = await apiService.fetchHearts();
       const newSet = new Set((hearts || []).map(h => h.entity_id));
       setHeartedIds(newSet);
+
+      const migrateLegacy = async (key: string, entityType: 'radio' | 'podcast', idOf: (value: any) => string) => {
+        let cached: any[] = [];
+        try {
+          const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+          if (Array.isArray(parsed)) cached = parsed;
+        } catch {
+          return;
+        }
+        if (cached.length === 0) return;
+        const migrated = new Set<string>();
+        for (const value of cached) {
+          const id = idOf(value);
+          if (!id || !newSet.has(id)) continue;
+          try {
+            await apiService.addHeart(entityType, id, value);
+            migrated.add(id);
+          } catch {
+            // Keep failed entries for a later retry.
+          }
+        }
+        if (migrated.size === 0) return;
+        const remaining = cached.filter(value => !migrated.has(idOf(value)));
+        if (remaining.length === 0) localStorage.removeItem(key);
+        else localStorage.setItem(key, JSON.stringify(remaining));
+      };
+
+      await migrateLegacy('heartedRadioStations', 'radio', value => String(value?.stationuuid || ''));
+      await migrateLegacy('heartedPodcasts', 'podcast', value => String(value?.id ?? ''));
     } catch (e) {
       console.error("Failed to fetch hearts:", e);
     }
@@ -28,7 +57,7 @@ export const HeartsProvider: FC<{ children: ReactNode }> = ({ children }) => {
     refreshHearts();
   }, [refreshHearts]);
 
-  const toggleHeart = useCallback(async (entityType: string, entityId: string) => {
+  const toggleHeart = useCallback(async (entityType: string, entityId: string, metadata?: any) => {
     const currentlyHearted = heartedIds.has(entityId);
     
     // Optimistic UI update
@@ -44,7 +73,7 @@ export const HeartsProvider: FC<{ children: ReactNode }> = ({ children }) => {
         await apiService.removeHeart(entityType, entityId);
       } else {
         // The backend securely generates the UUID now
-        await apiService.addHeart(entityType, entityId);
+        await apiService.addHeart(entityType, entityId, metadata);
       }
     } catch (e) {
       console.error("Failed to toggle heart:", e);

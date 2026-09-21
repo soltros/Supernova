@@ -35,6 +35,31 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
 
 export const apiService = {
   // Auth
+  logout: async (): Promise<void> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/auth/logout`, { method: 'POST' });
+    if (!response.ok && response.status !== 401) throw new Error('Failed to revoke session');
+  },
+
+  createMediaTicket: async (scope: 'stream' | 'download-track' | 'download-album', resource: string): Promise<string> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/media-ticket`, {
+      method: 'POST',
+      body: JSON.stringify({ scope, resource })
+    });
+    if (!response.ok) throw new Error('Failed to create media ticket');
+    const data = await response.json();
+    return data.ticket;
+  },
+
+  mediaUrl: async (scope: 'stream' | 'download-track' | 'download-album', resource: string): Promise<string> => {
+    const ticket = await apiService.createMediaTicket(scope, resource);
+    const path = scope === 'stream'
+      ? `/api/stream/${resource}`
+      : scope === 'download-track'
+        ? `/api/download/track/${resource}`
+        : `/api/download/album/${resource}`;
+    return `${API_BASE_URL}${path}?ticket=${encodeURIComponent(ticket)}`;
+  },
+
   register: async (username: string, password: string, inviteCode: string = ''): Promise<AuthResponse> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
@@ -73,6 +98,16 @@ export const apiService = {
     return response.json();
   },
 
+  fetchAllAlbums: async (artistId?: string): Promise<Album[]> => {
+    const pageSize = 100;
+    const all: Album[] = [];
+    for (let offset = 0;; offset += pageSize) {
+      const page = await apiService.fetchAlbums(pageSize, offset, artistId);
+      all.push(...page);
+      if (page.length < pageSize) return all;
+    }
+  },
+
   fetchAlbumById: async (id: string): Promise<Album> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/albums/${id}`);
     if (!response.ok) throw new Error('Failed to fetch album');
@@ -104,6 +139,16 @@ export const apiService = {
     return response.json();
   },
 
+  fetchAllTracks: async (albumId?: string, artistId?: string): Promise<Track[]> => {
+    const pageSize = 200;
+    const all: Track[] = [];
+    for (let offset = 0;; offset += pageSize) {
+      const page = await apiService.fetchTracks(albumId, pageSize, offset, artistId);
+      all.push(...page);
+      if (page.length < pageSize) return all;
+    }
+  },
+
   search: async (query: string): Promise<{ artists: Artist[], albums: Album[], tracks: Track[] }> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/search?q=${encodeURIComponent(query)}`);
     if (!response.ok) throw new Error('Search failed');
@@ -132,17 +177,16 @@ export const apiService = {
     return response.json();
   },
 
-  fetchHeartDetails: async (): Promise<{ tracks: Track[], albums: Album[], artists: Artist[], playlists: Playlist[] }> => {
+  fetchHeartDetails: async (): Promise<{ tracks: Track[], albums: Album[], artists: Artist[], playlists: Playlist[], radio: any[], podcasts: any[] }> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts/details`);
     if (!response.ok) throw new Error('Failed to fetch heart details');
     return response.json();
   },
 
-  addHeart: async (entityType: string, entityId: string): Promise<void> => {
+  addHeart: async (entityType: string, entityId: string, metadata?: any): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts`, {
       method: 'POST',
-      
-      body: JSON.stringify({ entity_type: entityType, entity_id: entityId })
+      body: JSON.stringify({ entity_type: entityType, entity_id: entityId, metadata })
     });
     if (!response.ok) throw new Error('Failed to add heart');
   },
@@ -192,7 +236,13 @@ export const apiService = {
 
   runPluginJob: async (pluginId: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/${pluginId}/run`, { method: 'POST' });
-    if (!response.ok) throw new Error('Failed to start maintenance job');
+    if (!response.ok) throw new Error((await response.text()) || 'Failed to start maintenance job');
+  },
+
+  previewPluginJob: async (pluginId: 'artistmerger' | 'albummerger' | 'deduper'): Promise<{ mode: string, warning?: string, candidates: any[] }> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/${pluginId}/preview`);
+    if (!response.ok) throw new Error((await response.text()) || 'Failed to preview maintenance candidates');
+    return response.json();
   },
 
   getLastFmAuthUrl: async (cb: string): Promise<{url: string}> => {

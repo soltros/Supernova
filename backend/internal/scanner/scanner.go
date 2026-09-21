@@ -2,6 +2,10 @@ package scanner
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,249 +15,265 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/soltros/Supernova/internal/database"
+	"github.com/soltros/Supernova/internal/jobs"
 	"github.com/soltros/Supernova/internal/metadata"
 	"github.com/soltros/Supernova/internal/models"
 )
 
-// Scanner handles both the initial bulk scan and real-time directory watching.
-type Scanner struct {
-	mediaPath    string
-	watcher      *fsnotify.Watcher
-	repo         *database.Repository
-	enricher     *Enricher
-	ctx          context.Context
-	realtimeJobs chan string
+type realtimeEvent struct {
+	path   string
+	remove bool
+	due    time.Time
+}
 
-	stateMu      sync.RWMutex
-	status       string // "idle", "scanning"
+// Scanner handles both bulk scans and real-time filesystem reconciliation.
+type Scanner struct {
+	mediaPath string
+	watcher *fsnotify.Watcher
+	repo *database.Repository
+	enricher *Enricher
+	supervisor *jobs.Supervisor
+
+	ctx context.Context
+	cancel context.CancelFunc
+	realtimeEvents chan realtimeEvent
+	realtimeJobs chan string
+	wg sync.WaitGroup
+
+	stateMu sync.RWMutex
+	status string
 	filesScanned int
 }
 
-// New creates a new Scanner instance and initializes the file watcher.
-func New(ctx context.Context, mediaPath string, repo *database.Repository, enricher *Enricher) (*Scanner, error) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return nil, err
+func New(parent context.Context, mediaPath string, repo *database.Repository, enricher *Enricher, supervisor *jobs.Supervisor) (*Scanner,error) {
+	watcher,err:=fsnotify.NewWatcher()
+	if err!=nil{return nil,err}
+	ctx,cancel:=context.WithCancel(parent)
+	s:=&Scanner{
+		mediaPath:mediaPath,watcher:watcher,repo:repo,enricher:enricher,supervisor:supervisor,
+		ctx:ctx,cancel:cancel,realtimeEvents:make(chan realtimeEvent,2048),
+		realtimeJobs:make(chan string,512),status:"idle",
 	}
-
-	scanner := &Scanner{
-		mediaPath:    mediaPath,
-		watcher:      watcher,
-		repo:         repo,
-		enricher:     enricher,
-		ctx:          ctx,
-		realtimeJobs: make(chan string, 1000), // Buffer to absorb rapid drops
-		status:       "idle",
-		filesScanned: 0,
-	}
-
-	// Start a background worker for real-time events:
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case path := <-scanner.realtimeJobs:
-				meta := scanner.extractMetadata(path)
-				if meta != nil {
-					if err := scanner.repo.UpsertTrack(scanner.ctx, meta); err != nil {
-						log.Printf("DB Insert Failed (%s): %v", filepath.Base(path), err)
-					}
-				}
-				if scanner.enricher != nil {
-					scanner.enricher.Trigger()
-				}
-			}
-		}
-	}()
-
-	return scanner, nil
+	s.wg.Add(2)
+	go s.realtimeWorker()
+	go s.debounceWorker()
+	return s,nil
 }
 
-// FullScan recursively walks the media directory using a high-performance Worker Pool.
-func (s *Scanner) FullScan() error {
-	s.stateMu.Lock()
-	if s.status == "scanning" {
-		s.stateMu.Unlock()
-		return nil // Already scanning
+func (s *Scanner) realtimeWorker(){
+	defer s.wg.Done()
+	for{
+		select{
+		case <-s.ctx.Done():return
+		case path:=<-s.realtimeJobs:
+			meta:=s.extractMetadata(path)
+			if meta!=nil{
+				if err:=s.repo.UpsertTrack(s.ctx,meta);err!=nil{log.Printf("DB insert failed (%s): %v",filepath.Base(path),err)}
+				if s.enricher!=nil{s.enricher.Trigger()}
+			}
+		}
 	}
-	s.status = "scanning"
-	s.filesScanned = 0
+}
+
+func (s *Scanner) debounceWorker(){
+	defer s.wg.Done()
+	pending:=map[string]realtimeEvent{}
+	ticker:=time.NewTicker(250*time.Millisecond)
+	defer ticker.Stop()
+	for{
+		select{
+		case <-s.ctx.Done():return
+		case ev:=<-s.realtimeEvents:
+			ev.due=time.Now().Add(1500*time.Millisecond)
+			pending[ev.path]=ev
+		case now:=<-ticker.C:
+			for path,ev:=range pending{
+				if now.Before(ev.due){continue}
+				delete(pending,path)
+				if ev.remove{
+					if _,err:=os.Stat(path);errors.Is(err,os.ErrNotExist){
+						if err:=s.repo.RemoveTrackByPath(s.ctx,path);err!=nil{log.Printf("failed to reconcile removed media %s: %v",path,err)}
+					}
+					continue
+				}
+				select{case s.realtimeJobs<-path:case <-s.ctx.Done():return}
+			}
+		}
+	}
+}
+
+func (s *Scanner) FullScan() (scanErr error) {
+	var finish func(error)
+	if s.supervisor != nil {
+		var err error
+		finish, err = s.supervisor.AcquireMutation(s.ctx, "library-scan")
+		if err != nil {
+			return err
+		}
+		defer func() { finish(scanErr) }()
+	}
+	s.stateMu.Lock()
+	if s.status=="scanning"{s.stateMu.Unlock();return nil}
+	s.status="scanning";s.filesScanned=0
 	s.stateMu.Unlock()
+	defer func(){s.stateMu.Lock();s.status="idle";s.stateMu.Unlock()}()
 
-	defer func() {
-		s.stateMu.Lock()
-		s.status = "idle"
-		s.stateMu.Unlock()
-	}()
+	log.Printf("Starting library scan at: %s",s.mediaPath)
+	start:=time.Now()
+	jobs:=make(chan string,1024)
+	dbJobs:=make(chan *models.TrackMetadata,1024)
+	seen:=make(map[string]struct{})
+	var seenMu sync.Mutex
+	var workers,writer sync.WaitGroup
 
-	log.Printf("Starting highly concurrent library scan at: %s", s.mediaPath)
-	startTime := time.Now()
-
-	// 1. Create buffered job channels and WaitGroups
-	jobs := make(chan string, 5000)
-	dbJobs := make(chan *models.TrackMetadata, 5000)
-	var wg sync.WaitGroup
-	var dbWg sync.WaitGroup
-
-	// Dedicated database writer goroutine to batch inserts and avoid SQLite WAL lock contention
-	dbWg.Add(1)
-	go func() {
-		defer dbWg.Done()
-		for meta := range dbJobs {
-			if err := s.repo.UpsertTrack(s.ctx, meta); err != nil {
-				log.Printf("DB Insert Failed (%s): %v", filepath.Base(meta.FilePath), err)
-			} else {
-				s.stateMu.Lock()
-				s.filesScanned++
-				s.stateMu.Unlock()
+	writer.Add(1)
+	go func(){
+		defer writer.Done()
+		for meta:=range dbJobs{
+			if err:=s.repo.UpsertTrack(s.ctx,meta);err!=nil{
+				log.Printf("DB insert failed (%s): %v",filepath.Base(meta.FilePath),err)
+			}else{
+				s.stateMu.Lock();s.filesScanned++;s.stateMu.Unlock()
 			}
 		}
 	}()
 
-	// 2. Bound concurrent tag extraction and ffprobe processes to ten workers.
-	numWorkers := 10
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for path := range jobs {
-				if meta := s.extractMetadata(path); meta != nil {
-					dbJobs <- meta
+	for i:=0;i<10;i++{
+		workers.Add(1)
+		go func(){
+			defer workers.Done()
+			for path:=range jobs{
+				if meta:=s.extractMetadata(path);meta!=nil{
+					select{case dbJobs<-meta:case <-s.ctx.Done():return}
 				}
 			}
 		}()
 	}
 
-	// 3. Walk the directory rapidly and push files into the queue
-	err := filepath.WalkDir(s.mediaPath, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			log.Printf("Scanner permission error skipping path %s: %v", path, err)
-			return err
-		}
-		if d.IsDir() {
-			s.watcher.Add(path) // Watch for real-time changes
+	walkErr:=filepath.WalkDir(s.mediaPath,func(path string,d os.DirEntry,err error)error{
+		if err!=nil{log.Printf("scanner walk error %s: %v",path,err);return err}
+		if d.IsDir(){
+			if err:=s.watcher.Add(path);err!=nil{log.Printf("watch add failed for %s: %v",path,err)}
 			return nil
 		}
-		if isAudioFile(path) {
-			select {
-			case jobs <- path:
-			case <-s.ctx.Done():
-				return s.ctx.Err()
-			}
+		if !isAudioFile(path){return nil}
+		seenMu.Lock();seen[path]=struct{}{};seenMu.Unlock()
+		select{
+		case jobs<-path:return nil
+		case <-s.ctx.Done():return s.ctx.Err()
 		}
+	})
+	close(jobs);workers.Wait();close(dbJobs);writer.Wait()
+
+	if walkErr==nil && s.ctx.Err()==nil{
+		if err:=s.repo.ReconcileLibraryPaths(s.ctx,s.mediaPath,seen);err!=nil{
+			log.Printf("library reconciliation failed: %v",err)
+			walkErr=err
+		}
+	}
+	log.Printf("Full scan completed in %v",time.Since(start))
+	if s.enricher!=nil{s.enricher.Trigger()}
+	return walkErr
+}
+
+func (s *Scanner) GetStatus()(string,int){
+	s.stateMu.RLock();defer s.stateMu.RUnlock()
+	return s.status,s.filesScanned
+}
+
+func (s *Scanner) enqueueEvent(path string,remove bool){
+	select{
+	case s.realtimeEvents<-realtimeEvent{path:path,remove:remove}:
+	case <-s.ctx.Done():
+	default:
+		log.Printf("filesystem debounce queue full; scheduling full rescan for %s",path)
+	}
+}
+
+func (s *Scanner) addDirectoryTree(root string){
+	err:=filepath.WalkDir(root,func(path string,d os.DirEntry,err error)error{
+		if err!=nil{return err}
+		if d.IsDir(){
+			if err:=s.watcher.Add(path);err!=nil{log.Printf("watch add failed for %s: %v",path,err)}
+			return nil
+		}
+		if isAudioFile(path){s.enqueueEvent(path,false)}
 		return nil
 	})
-
-	// 4. Close the channel to signal workers no more jobs are coming
-	close(jobs)
-
-	// 5. Block until all workers have finished
-	wg.Wait()
-
-	// Close DB jobs channel and wait for DB writer
-	close(dbJobs)
-	dbWg.Wait()
-
-	log.Printf("Full scan completed in %v.", time.Since(startTime))
-
-	// 6. Wake up the background enricher to slowly fetch MusicBrainz data
-	if s.enricher != nil {
-		s.enricher.Trigger()
-	}
-
-	return err
+	if err!=nil{log.Printf("watch tree add failed for %s: %v",root,err)}
 }
 
-// GetStatus returns the current scanning state
-func (s *Scanner) GetStatus() (string, int) {
-	s.stateMu.RLock()
-	defer s.stateMu.RUnlock()
-	return s.status, s.filesScanned
-}
-
-// Watch starts listening for real-time file system events (adds, deletes, renames)
-func (s *Scanner) Watch() {
+func (s *Scanner) Watch(){
 	log.Println("Starting real-time file watcher...")
-	go func() {
-		for {
-			select {
-			case <-s.ctx.Done():
-				return
-			case event, ok := <-s.watcher.Events:
-				if !ok {
-					return
+	s.wg.Add(1)
+	go func(){
+		defer s.wg.Done()
+		for{
+			select{
+			case <-s.ctx.Done():return
+			case event,ok:=<-s.watcher.Events:
+				if !ok{return}
+				if event.Op&(fsnotify.Remove|fsnotify.Rename)!=0{
+					s.enqueueEvent(event.Name,true)
 				}
-
-				if event.Op&(fsnotify.Create|fsnotify.Write) != 0 {
-					info, err := os.Stat(event.Name)
-					if err == nil && info.IsDir() {
-						s.watcher.Add(event.Name)
-						// Recursively scan asynchronously in case the user dragged a folder
-						filepath.WalkDir(event.Name, func(p string, d os.DirEntry, err error) error {
-							if err == nil && !d.IsDir() && isAudioFile(p) {
-								go func(path string) {
-									time.Sleep(2 * time.Second)
-									select {
-									case s.realtimeJobs <- path:
-									case <-s.ctx.Done():
-									}
-								}(p)
-							} else if err == nil && d.IsDir() {
-								s.watcher.Add(p)
-							}
-							return nil
-						})
-					} else if isAudioFile(event.Name) {
-						go func(path string) {
-							time.Sleep(2 * time.Second)
-							select {
-							case s.realtimeJobs <- path:
-							case <-s.ctx.Done():
-							}
-						}(event.Name)
-					}
+				if event.Op&(fsnotify.Create|fsnotify.Write)!=0{
+					info,err:=os.Stat(event.Name)
+					if err==nil && info.IsDir(){s.addDirectoryTree(event.Name);continue}
+					if err==nil && isAudioFile(event.Name){s.enqueueEvent(event.Name,false)}
 				}
-
-			case err, ok := <-s.watcher.Errors:
-				if !ok {
-					return
-				}
-				log.Printf("Watcher error: %v", err)
+			case err,ok:=<-s.watcher.Errors:
+				if !ok{return}
+				log.Printf("watcher error: %v",err)
 			}
 		}
 	}()
 }
 
-// Close gracefully shuts down the file watcher
 func (s *Scanner) Close() error {
-	return s.watcher.Close()
+	s.cancel()
+	err:=s.watcher.Close()
+	s.wg.Wait()
+	return err
 }
 
-// extractMetadata extracts metadata without hitting the database
-func (s *Scanner) extractMetadata(path string) *models.TrackMetadata {
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil
+func fingerprintFile(path string,size int64)(string,error){
+	f,err:=os.Open(path)
+	if err!=nil{return "",err}
+	defer f.Close()
+	h:=sha256.New()
+	var sizeBuf [8]byte
+	for i:=uint(0);i<8;i++{sizeBuf[i]=byte(uint64(size)>>(8*i))}
+	_,_=h.Write(sizeBuf[:])
+	const chunk int64=64*1024
+	if _,err:=io.CopyN(h,f,min64(size,chunk));err!=nil && !errors.Is(err,io.EOF){return "",err}
+	if size>chunk{
+		offset:=size-chunk
+		if _,err:=f.Seek(offset,io.SeekStart);err!=nil{return "",err}
+		if _,err:=io.CopyN(h,f,min64(size,chunk));err!=nil && !errors.Is(err,io.EOF){return "",err}
 	}
+	return hex.EncodeToString(h.Sum(nil)),nil
+}
 
-	// Read tags and measure the audio stream with cancellation support.
-	meta, err := metadata.ExtractContext(s.ctx, path)
-	if err != nil {
-		log.Printf("Metadata extraction failed for %s: %v", path, err)
-		return nil
-	}
-	meta.FilePath = path
-	meta.FileModifiedAt = info.ModTime().Unix()
+func min64(a,b int64)int64{if a<b{return a};return b}
+
+func (s *Scanner) extractMetadata(path string)*models.TrackMetadata{
+	info,err:=os.Stat(path)
+	if err!=nil || !info.Mode().IsRegular(){return nil}
+	meta,err:=metadata.ExtractContext(s.ctx,path)
+	if err!=nil{log.Printf("metadata extraction failed for %s: %v",path,err);return nil}
+	fingerprint,err:=fingerprintFile(path,info.Size())
+	if err!=nil{log.Printf("fingerprint failed for %s: %v",path,err);return nil}
+	meta.FilePath=path
+	meta.FileModifiedAt=info.ModTime().Unix()
+	meta.FileModifiedNs=info.ModTime().UnixNano()
+	meta.FileSize=info.Size()
+	meta.FileFingerprint=fingerprint
 	return meta
 }
 
-// isAudioFile checks if the given file has a supported audio extension
-func isAudioFile(path string) bool {
-	ext := strings.ToLower(filepath.Ext(path))
-	switch ext {
-	case ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".opus", ".wav", ".alac", ".wma", ".aiff", ".m4b":
-		return true
+func isAudioFile(path string)bool{
+	switch strings.ToLower(filepath.Ext(path)){
+	case ".mp3",".flac",".ogg",".m4a",".aac",".opus",".wav",".alac",".wma",".aiff",".m4b":return true
 	}
 	return false
 }

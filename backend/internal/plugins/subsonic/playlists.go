@@ -1,8 +1,9 @@
 package subsonic
 
 import (
-	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/soltros/Supernova/internal/models"
@@ -10,113 +11,80 @@ import (
 
 func (p *SubsonicPlugin) handleCreatePlaylist(w http.ResponseWriter, r *http.Request) {
 	u, ok := r.Context().Value(userContextKey).(*models.User)
-	if !ok || u == nil {
-		p.writeError(w, r, 0, "Not authenticated")
+	if !ok || u == nil { p.writeError(w,r,0,"Not authenticated"); return }
+	if err := r.ParseForm(); err != nil { p.writeError(w,r,10,"Invalid request parameters"); return }
+
+	name := strings.TrimSpace(r.FormValue("name"))
+	playlistID := strings.TrimSpace(r.FormValue("playlistId"))
+	songIDs := append([]string(nil), r.Form["songId"]...)
+	if name == "" && playlistID == "" {
+		p.writeError(w,r,10,"Required parameter is missing: name or playlistId")
 		return
 	}
 
-	name := r.FormValue("name")
-	if name == "" {
-		p.writeError(w, r, 10, "Required parameter is missing: name")
-		return
+	var playlist *models.Playlist
+	var err error
+	if playlistID != "" {
+		playlist, err = p.repo.ReplacePlaylist(r.Context(),u.ID,playlistID,name,songIDs)
+	} else {
+		playlist, err = p.repo.CreatePlaylistWithTracks(r.Context(),u.ID,name,songIDs)
 	}
-
-	playlist, err := p.repo.CreatePlaylist(r.Context(), u.ID, name)
 	if err != nil {
-		p.writeError(w, r, 0, "Failed to create playlist")
+		p.writeError(w,r,70,err.Error())
 		return
 	}
+	count, duration, err := p.repo.PlaylistStats(r.Context(),u.ID,playlist.ID)
+	if err != nil { p.writeError(w,r,0,"Failed to read playlist state"); return }
 
-	// Add any provided songs
-	r.ParseForm()
-	if songIds, ok := r.Form["songId"]; ok {
-		for _, songId := range songIds {
-			p.repo.AddTrackToPlaylist(r.Context(), u.ID, playlist.ID, songId)
-		}
-	}
-
-	// Return the empty playlist object
-	p.writeResponse(w, r, map[string]interface{}{
-		"playlist": map[string]interface{}{
-			"id":        playlist.ID,
-			"name":      playlist.Name,
-			"owner":     u.Username,
-			"public":    false,
-			"songCount": len(r.Form["songId"]),
-			"duration":  0,
-			"created":   time.Now().Format(time.RFC3339),
-			"changed":   time.Now().Format(time.RFC3339),
+	now := time.Now().UTC().Format(time.RFC3339)
+	p.writeResponse(w,r,map[string]interface{}{
+		"playlist":map[string]interface{}{
+			"id":playlist.ID, "name":playlist.Name, "owner":u.Username,
+			"public":false, "songCount":count, "duration":duration,
+			"created":now, "changed":now,
 		},
 	})
 }
 
 func (p *SubsonicPlugin) handleUpdatePlaylist(w http.ResponseWriter, r *http.Request) {
 	u, ok := r.Context().Value(userContextKey).(*models.User)
-	if !ok || u == nil {
-		p.writeError(w, r, 0, "Not authenticated")
+	if !ok || u == nil { p.writeError(w,r,0,"Not authenticated"); return }
+	if err := r.ParseForm(); err != nil { p.writeError(w,r,10,"Invalid request parameters"); return }
+
+	playlistID := strings.TrimSpace(r.FormValue("playlistId"))
+	if playlistID == "" { p.writeError(w,r,10,"Required parameter is missing: playlistId"); return }
+
+	var name *string
+	if values, exists := r.Form["name"]; exists {
+		v := ""
+		if len(values) > 0 { v = values[len(values)-1] }
+		name = &v
+	}
+	add := append([]string(nil),r.Form["songIdToAdd"]...)
+	remove := make([]int,0,len(r.Form["songIndexToRemove"]))
+	for _, raw := range r.Form["songIndexToRemove"] {
+		idx, err := strconv.Atoi(raw)
+		if err != nil || idx < 0 {
+			p.writeError(w,r,10,"Invalid songIndexToRemove")
+			return
+		}
+		remove = append(remove,idx)
+	}
+	if err := p.repo.UpdatePlaylist(r.Context(),u.ID,playlistID,name,add,remove); err != nil {
+		p.writeError(w,r,70,err.Error())
 		return
 	}
-
-	playlistId := r.FormValue("playlistId")
-	if playlistId == "" {
-		p.writeError(w, r, 10, "Required parameter is missing: playlistId")
-		return
-	}
-
-	name := r.FormValue("name")
-	if name != "" {
-		// Update name not directly supported by repo yet?
-		// We would do p.repo.UpdatePlaylistName
-	}
-
-	r.ParseForm()
-	// Add songs
-	if songIdsToAdd, ok := r.Form["songIdToAdd"]; ok {
-		for _, songId := range songIdsToAdd {
-			p.repo.AddTrackToPlaylist(r.Context(), u.ID, playlistId, songId)
-		}
-	}
-
-	// Remove songs
-	if songIndexesToRemove, ok := r.Form["songIndexToRemove"]; ok {
-		// repo.RemoveTrackFromPlaylist takes trackId, but Subsonic gives songIndexToRemove.
-		// For a barebones implementation, we might need to fetch the playlist tracks,
-		// find the track ID at that index, and delete it.
-		tracks, err := p.repo.GetPlaylistTracks(r.Context(), u.ID, playlistId)
-		if err == nil {
-			for _, idxStr := range songIndexesToRemove {
-				// Convert to int
-				var idx int
-				if _, err := fmt.Sscanf(idxStr, "%d", &idx); err == nil {
-					if idx >= 0 && idx < len(tracks) {
-						p.repo.RemoveTrackFromPlaylist(r.Context(), u.ID, playlistId, tracks[idx].ID)
-					}
-				}
-			}
-		}
-	}
-
-	p.writeResponse(w, r, map[string]interface{}{})
+	p.writeResponse(w,r,map[string]interface{}{})
 }
 
 func (p *SubsonicPlugin) handleDeletePlaylist(w http.ResponseWriter, r *http.Request) {
 	u, ok := r.Context().Value(userContextKey).(*models.User)
-	if !ok || u == nil {
-		p.writeError(w, r, 0, "Not authenticated")
-		return
-	}
-
+	if !ok || u == nil { p.writeError(w,r,0,"Not authenticated"); return }
 	id := r.FormValue("id")
-	if id == "" {
-		p.writeError(w, r, 10, "Required parameter is missing: id")
+	if id == "" { p.writeError(w,r,10,"Required parameter is missing: id"); return }
+	if err := p.repo.DeletePlaylist(r.Context(),u.ID,id); err != nil {
+		p.writeError(w,r,70,err.Error())
 		return
 	}
-
-	err := p.repo.DeletePlaylist(r.Context(), u.ID, id)
-	if err != nil {
-		p.writeError(w, r, 0, "Failed to delete playlist")
-		return
-	}
-
-	p.writeResponse(w, r, map[string]interface{}{})
+	p.writeResponse(w,r,map[string]interface{}{})
 }

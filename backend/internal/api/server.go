@@ -73,7 +73,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/api/plugins/") {
 		handler := s.requireAuth(s.mux.ServeHTTP)
 		switch r.URL.Path {
-		case "/api/plugins/autotagger/run", "/api/plugins/artistmerger/run", "/api/plugins/albummerger/run", "/api/plugins/deduper/run":
+		case "/api/plugins/autotagger/run",
+				"/api/plugins/artistmerger/run", "/api/plugins/artistmerger/preview",
+				"/api/plugins/albummerger/run", "/api/plugins/albummerger/preview",
+				"/api/plugins/deduper/run", "/api/plugins/deduper/preview":
 			handler = s.requireAdmin(s.mux.ServeHTTP)
 		}
 		handler(w, r)
@@ -86,6 +89,9 @@ func (s *Server) routes() {
 	// Authentication
 	s.mux.HandleFunc("POST /api/auth/register", s.handleRegister())
 	s.mux.HandleFunc("POST /api/auth/login", s.handleLogin())
+	s.mux.HandleFunc("POST /api/auth/logout", s.requireAuth(s.handleLogout()))
+	s.mux.HandleFunc("POST /api/auth/change-password", s.requireAuth(s.handleChangePassword()))
+	s.mux.HandleFunc("POST /api/media-ticket", s.requireAuth(s.handleMediaTicket()))
 
 	s.mux.HandleFunc("GET /api/auth/me", s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(r.Context().Value(contextKey("user")))

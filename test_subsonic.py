@@ -1,212 +1,256 @@
 #!/usr/bin/env python3
-import requests
+"""Small manual Subsonic/OpenSubsonic smoke client for a running Supernova server.
+
+This script is deliberately not a replacement for the Go protocol regression suite.
+It is useful for an operator or reviewer who wants to exercise a deployed instance.
+"""
+
+import argparse
 import json
+import os
+import sys
 import urllib.parse
 
+import requests
+
+
+DEFAULT_BASE_URL = os.environ.get("SUPERNOVA_SUBSONIC_URL", "http://localhost:8080/rest")
+DEFAULT_TIMEOUT = float(os.environ.get("SUPERNOVA_SUBSONIC_TIMEOUT", "15"))
+
+
 class SubsonicClient:
-    def __init__(self, base_url="http://ubuntu-server:5174/rest", username="admin", password="password"):
-        self.base_url = base_url
+    def __init__(self, base_url, username, password, timeout=DEFAULT_TIMEOUT):
+        self.base_url = base_url.rstrip("/")
         self.username = username
         self.password = password
+        self.timeout = timeout
         self.version = "1.16.1"
-        self.client = "test_script"
+        self.client = "supernova_smoke"
         self.format = "json"
-        
-        # Test basic connection
-        print(f"Initialized Subsonic Client targeting {self.base_url}")
-        
-    def _make_request(self, endpoint, params=None):
-        if params is None:
-            params = {}
-            
-        # Add auth and formatting params
-        params['u'] = self.username
-        params['p'] = self.password
-        params['v'] = self.version
-        params['c'] = self.client
-        params['f'] = self.format
-        
+
+    def _auth_params(self):
+        return {
+            "u": self.username,
+            "p": self.password,
+            "v": self.version,
+            "c": self.client,
+            "f": self.format,
+        }
+
+    @staticmethod
+    def _masked(params):
+        masked = dict(params)
+        if "p" in masked:
+            masked["p"] = "***"
+        return masked
+
+    def request(self, endpoint, params=None, method="GET"):
+        payload = self._auth_params()
+        if params:
+            payload.update(params)
+
         url = f"{self.base_url}/{endpoint}"
-        print(f"-> GET {url} | params: {self._mask_password(params)}")
-        
+        print(f"-> {method} {url} | params: {self._masked(payload)}")
+
         try:
-            response = requests.get(url, params=params, timeout=15)
+            if method == "POST":
+                response = requests.post(url, data=payload, timeout=self.timeout)
+            else:
+                response = requests.get(url, params=payload, timeout=self.timeout)
             response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"Error making request: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                print(f"Response: {e.response.text}")
-            return None
-            
-    def _mask_password(self, params):
-        p_copy = params.copy()
-        if 'p' in p_copy:
-            p_copy['p'] = '***'
-        return p_copy
+            data = response.json()
+        except requests.Timeout as exc:
+            raise RuntimeError(f"{endpoint} timed out after {self.timeout:g}s") from exc
+        except requests.RequestException as exc:
+            detail = ""
+            if exc.response is not None:
+                detail = f": {exc.response.text[:500]}"
+            raise RuntimeError(f"{endpoint} request failed{detail}") from exc
+        except ValueError as exc:
+            raise RuntimeError(f"{endpoint} returned invalid JSON") from exc
+
+        envelope = data.get("subsonic-response") if isinstance(data, dict) else None
+        if isinstance(envelope, dict) and envelope.get("status") == "failed":
+            error = envelope.get("error") or {}
+            raise RuntimeError(
+                f"{endpoint} protocol error {error.get('code', '?')}: "
+                f"{error.get('message', 'unknown error')}"
+            )
+        return data
 
     def ping(self):
-        return self._make_request("ping")
-        
+        return self.request("ping")
+
     def get_indexes(self):
-        return self._make_request("getIndexes")
-        
+        return self.request("getIndexes")
+
     def get_artists(self):
-        return self._make_request("getArtists")
-        
+        return self.request("getArtists")
+
     def get_artist(self, artist_id):
-        return self._make_request("getArtist", {"id": artist_id})
-        
-    def get_music_directory(self, folder_id):
-        return self._make_request("getMusicDirectory", {"id": folder_id})
-        
+        return self.request("getArtist", {"id": artist_id})
+
+    def get_music_directory(self, directory_id):
+        return self.request("getMusicDirectory", {"id": directory_id})
+
     def get_album(self, album_id):
-        return self._make_request("getAlbum", {"id": album_id})
-        
-    def get_album_list(self, list_type="newest", size=10):
-        return self._make_request("getAlbumList", {"type": list_type, "size": size})
-        
-    def get_album_list2(self, list_type="newest", size=10):
-        return self._make_request("getAlbumList2", {"type": list_type, "size": size})
-        
+        return self.request("getAlbum", {"id": album_id})
+
+    def get_album_list(self, list_type="newest", size=10, offset=0, version2=False):
+        endpoint = "getAlbumList2" if version2 else "getAlbumList"
+        return self.request(endpoint, {
+            "type": list_type,
+            "size": str(size),
+            "offset": str(offset),
+        })
+
+    def search(self, query, artist_count=20, album_count=20, song_count=20):
+        return self.request("search3", {
+            "query": query,
+            "artistCount": str(artist_count),
+            "albumCount": str(album_count),
+            "songCount": str(song_count),
+        })
+
     def get_playlists(self):
-        return self._make_request("getPlaylists")
-        
+        return self.request("getPlaylists")
+
     def get_playlist(self, playlist_id):
-        return self._make_request("getPlaylist", {"id": playlist_id})
-        
-    def get_starred(self):
-        return self._make_request("getStarred")
-        
-    def star(self, track_ids=None, album_ids=None, artist_ids=None):
-        params = {}
-        if track_ids: params["id"] = track_ids
-        if album_ids: params["albumId"] = album_ids
-        if artist_ids: params["artistId"] = artist_ids
-        return self._make_request("star", params)
-        
-    def unstar(self, track_ids=None, album_ids=None, artist_ids=None):
-        params = {}
-        if track_ids: params["id"] = track_ids
-        if album_ids: params["albumId"] = album_ids
-        if artist_ids: params["artistId"] = artist_ids
-        return self._make_request("unstar", params)
+        return self.request("getPlaylist", {"id": playlist_id})
 
     def create_playlist(self, name, song_ids=None):
         params = {"name": name}
         if song_ids:
             params["songId"] = song_ids
-        return self._make_request("createPlaylist", params)
-        
-    def update_playlist(self, playlist_id, name=None, comment=None, public=None, song_ids_to_add=None, song_indexes_to_remove=None):
+        return self.request("createPlaylist", params, method="POST")
+
+    def update_playlist(self, playlist_id, name=None, add=None, remove_indexes=None):
         params = {"playlistId": playlist_id}
-        if name is not None: params["name"] = name
-        if comment is not None: params["comment"] = comment
-        if public is not None: params["public"] = "true" if public else "false"
-        if song_ids_to_add: params["songIdToAdd"] = song_ids_to_add
-        if song_indexes_to_remove: params["songIndexToRemove"] = song_indexes_to_remove
-        return self._make_request("updatePlaylist", params)
-        
+        if name is not None:
+            params["name"] = name
+        if add:
+            params["songIdToAdd"] = add
+        if remove_indexes:
+            params["songIndexToRemove"] = [str(i) for i in remove_indexes]
+        return self.request("updatePlaylist", params, method="POST")
+
     def delete_playlist(self, playlist_id):
-        return self._make_request("deletePlaylist", {"id": playlist_id})
+        return self.request("deletePlaylist", {"id": playlist_id}, method="POST")
 
-    def get_cover_art_url(self, id):
-        params = {
-            'u': self.username,
-            'p': self.password,
-            'v': self.version,
-            'c': self.client,
-            'id': id
-        }
-        qs = urllib.parse.urlencode(params)
-        return f"{self.base_url}/getCoverArt?{qs}"
-        
-    def get_stream_url(self, id):
-        params = {
-            'u': self.username,
-            'p': self.password,
-            'v': self.version,
-            'c': self.client,
-            'id': id
-        }
-        qs = urllib.parse.urlencode(params)
-        return f"{self.base_url}/stream?{qs}"
+    def get_starred(self):
+        return self.request("getStarred")
 
-def run_tests():
-    # Setup client - replace with your actual username/password
-    # Supernova uses local db accounts. Let's assume standard auth for tests.
-    client = SubsonicClient(username="admin", password="password")
-    
-    print("\n--- Testing Ping ---")
-    res = client.ping()
-    print(json.dumps(res, indent=2))
-    
-    print("\n--- Testing getArtists ---")
-    res = client.get_artists() # Whoops, python uses snake case for my defs
-    
-    # We will just write the structure, user can run it interactively.
+    def star(self, track_ids=None, album_ids=None, artist_ids=None):
+        params = {}
+        if track_ids:
+            params["id"] = track_ids
+        if album_ids:
+            params["albumId"] = album_ids
+        if artist_ids:
+            params["artistId"] = artist_ids
+        return self.request("star", params, method="POST")
+
+    def unstar(self, track_ids=None, album_ids=None, artist_ids=None):
+        params = {}
+        if track_ids:
+            params["id"] = track_ids
+        if album_ids:
+            params["albumId"] = album_ids
+        if artist_ids:
+            params["artistId"] = artist_ids
+        return self.request("unstar", params, method="POST")
+
+    def media_url(self, endpoint, item_id, **extra):
+        params = self._auth_params()
+        params.pop("f", None)
+        params["id"] = item_id
+        for key, value in extra.items():
+            if value is not None:
+                params[key] = str(value)
+        return f"{self.base_url}/{endpoint}?{urllib.parse.urlencode(params)}"
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
+    parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
+    parser.add_argument("username")
+    parser.add_argument("password")
+    parser.add_argument("endpoint")
+    parser.add_argument("args", nargs="*")
+    return parser
+
+
+def require_arg(args, index, label):
+    try:
+        return args[index]
+    except IndexError as exc:
+        raise SystemExit(f"missing required argument: {label}") from exc
+
+
+def main():
+    ns = build_parser().parse_args()
+    client = SubsonicClient(ns.base_url, ns.username, ns.password, ns.timeout)
+    ep, args = ns.endpoint, ns.args
+
+    if ep == "ping":
+        result = client.ping()
+    elif ep == "getIndexes":
+        result = client.get_indexes()
+    elif ep == "getArtists":
+        result = client.get_artists()
+    elif ep == "getArtist":
+        result = client.get_artist(require_arg(args, 0, "artist id"))
+    elif ep == "getMusicDirectory":
+        result = client.get_music_directory(require_arg(args, 0, "directory id"))
+    elif ep == "getAlbum":
+        result = client.get_album(require_arg(args, 0, "album id"))
+    elif ep in ("getAlbumList", "getAlbumList2"):
+        list_type = args[0] if args else "newest"
+        size = int(args[1]) if len(args) > 1 else 10
+        offset = int(args[2]) if len(args) > 2 else 0
+        result = client.get_album_list(list_type, size, offset, ep.endswith("2"))
+    elif ep == "search3":
+        result = client.search(require_arg(args, 0, "query"))
+    elif ep == "getPlaylists":
+        result = client.get_playlists()
+    elif ep == "getPlaylist":
+        result = client.get_playlist(require_arg(args, 0, "playlist id"))
+    elif ep == "createPlaylist":
+        result = client.create_playlist(
+            require_arg(args, 0, "playlist name"),
+            args[1:] or None,
+        )
+    elif ep == "updatePlaylist":
+        result = client.update_playlist(
+            require_arg(args, 0, "playlist id"),
+            args[1] if len(args) > 1 else None,
+        )
+    elif ep == "deletePlaylist":
+        result = client.delete_playlist(require_arg(args, 0, "playlist id"))
+    elif ep == "getStarred":
+        result = client.get_starred()
+    elif ep == "star":
+        result = client.star(track_ids=args)
+    elif ep == "unstar":
+        result = client.unstar(track_ids=args)
+    elif ep == "getCoverArt":
+        print(client.media_url("getCoverArt", require_arg(args, 0, "id")))
+        return
+    elif ep == "stream":
+        item_id = require_arg(args, 0, "id")
+        fmt = args[1] if len(args) > 1 else None
+        print(client.media_url("stream", item_id, format=fmt))
+        return
+    else:
+        raise SystemExit(f"unknown endpoint: {ep}")
+
+    print(json.dumps(result, indent=2))
+
 
 if __name__ == "__main__":
-    import sys
-    # A simple CLI wrapper to test individual endpoints
-    
-    if len(sys.argv) < 4:
-        print("Usage: python test_subsonic.py <username> <password> <endpoint> [args...]")
-        print("Example: python test_subsonic.py admin mypass ping")
-        print("Example: python test_subsonic.py admin mypass getArtist 123")
-        sys.exit(1)
-        
-    username = sys.argv[1]
-    password = sys.argv[2]
-    endpoint = sys.argv[3]
-    args = sys.argv[4:]
-    
-    client = SubsonicClient(base_url="http://ubuntu-server:5174/rest", username=username, password=password)
-    
-    if endpoint == "ping":
-        res = client.ping()
-    elif endpoint == "getIndexes":
-        res = client.get_indexes()
-    elif endpoint == "getArtists":
-        res = client.get_artists()
-    elif endpoint == "getArtist":
-        res = client.get_artist(args[0])
-    elif endpoint == "getMusicDirectory":
-        res = client.get_music_directory(args[0])
-    elif endpoint == "getAlbum":
-        res = client.get_album(args[0])
-    elif endpoint == "getAlbumList":
-        type_str = args[0] if len(args) > 0 else "newest"
-        res = client.get_album_list(list_type=type_str)
-    elif endpoint == "getAlbumList2":
-        type_str = args[0] if len(args) > 0 else "newest"
-        res = client.get_album_list2(list_type=type_str)
-    elif endpoint == "getPlaylists":
-        res = client.get_playlists()
-    elif endpoint == "getPlaylist":
-        res = client.get_playlist(args[0])
-    elif endpoint == "createPlaylist":
-        res = client.create_playlist(name=args[0], song_ids=args[1:] if len(args) > 1 else None)
-    elif endpoint == "updatePlaylist":
-        res = client.update_playlist(playlist_id=args[0], name=args[1] if len(args) > 1 else None)
-    elif endpoint == "deletePlaylist":
-        res = client.delete_playlist(args[0])
-    elif endpoint == "getStarred":
-        res = client.get_starred()
-    elif endpoint == "star":
-        res = client.star(track_ids=args)
-    elif endpoint == "unstar":
-        res = client.unstar(track_ids=args)
-    elif endpoint == "getCoverArt":
-        print(f"Cover Art URL: {client.get_cover_art_url(args[0])}")
-        res = None
-    elif endpoint == "stream":
-        print(f"Stream URL: {client.get_stream_url(args[0])}")
-        res = None
-    else:
-        print(f"Unknown endpoint: {endpoint}")
-        res = None
-        
-    if res:
-        print("\nResponse:")
-        print(json.dumps(res, indent=2))
+    try:
+        main()
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(2)

@@ -1,0 +1,15 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+server
+supernova
+supernova-backend
+coverage.out

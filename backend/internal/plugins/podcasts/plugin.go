@@ -19,6 +19,7 @@ import (
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/models"
 	"github.com/soltros/Supernova/internal/plugins"
+	"github.com/soltros/Supernova/internal/resourcebudget"
 )
 
 type PodcastsPlugin struct {
@@ -46,7 +47,7 @@ func (p *PodcastsPlugin) Description() string {
 func (p *PodcastsPlugin) Init(config plugins.PluginConfig) error {
 	p.config = config
 	p.repo = config.Repo
-	p.client = &http.Client{Timeout: 10 * time.Second}
+	p.client = resourcebudget.NewHTTPClient(10 * time.Second)
 	return nil
 }
 
@@ -66,7 +67,7 @@ func (p *PodcastsPlugin) SetupRoutes(mux *http.ServeMux) {
 }
 
 func (p *PodcastsPlugin) authenticate(r *http.Request) (string, error) {
-	user, err := authn.Authenticate(r, p.repo, false)
+	user, _, err := authn.Authenticate(r, p.repo, false)
 	if err != nil {
 		return "", err
 	}
@@ -81,7 +82,7 @@ func (p *PodcastsPlugin) doPodcastIndexRequest(endpoint string, queryValues stri
 		return nil, fmt.Errorf("Podcast Index API keys are not configured in the .env file")
 	}
 
-	req, err := http.NewRequest("GET", "https://api.podcastindex.org/api/1.0"+endpoint+"?"+queryValues, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "https://api.podcastindex.org/api/1.0"+endpoint+"?"+queryValues, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +116,11 @@ func (p *PodcastsPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
 			return
 		}
-		http.Error(w, "Failed to contact Podcast Index", http.StatusInternalServerError)
+		if resourcebudget.IsSaturated(err) {
+			http.Error(w, "Podcast Index request budget is busy; retry shortly", http.StatusServiceUnavailable)
+		} else {
+			http.Error(w, "Failed to contact Podcast Index", http.StatusBadGateway)
+		}
 		return
 	}
 	defer resp.Body.Close()

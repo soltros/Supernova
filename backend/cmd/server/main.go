@@ -16,6 +16,7 @@ import (
 	"github.com/soltros/Supernova/internal/authn"
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/external"
+	"github.com/soltros/Supernova/internal/jobs"
 	"github.com/soltros/Supernova/internal/plugins"
 	_ "github.com/soltros/Supernova/internal/plugins/albummerger"
 	_ "github.com/soltros/Supernova/internal/plugins/artistmerger"
@@ -77,14 +78,15 @@ func main() {
 
 	mbClient := external.NewMusicBrainzClient("SupernovaMediaServer", "2026.07.17", "soltros@proton.me")
 
-	// 5. Initialize the Background Enricher
-	enricher := scanner.NewEnricher(repo, mbClient, lastfmClient)
+	// 5. Initialize application lifecycle and supervised background jobs.
 	appCtx, cancelApp := context.WithCancel(context.Background())
+	jobSupervisor := jobs.New(appCtx)
+	enricher := scanner.NewEnricher(repo, mbClient, lastfmClient)
 	enricher.Start(appCtx)
 
 	// 6. Initialize the File Scanner
 	log.Printf("Initializing media scanner for path: %s", mediaPath)
-	mediaScanner, err := scanner.New(appCtx, mediaPath, repo, enricher)
+	mediaScanner, err := scanner.New(appCtx, mediaPath, repo, enricher, jobSupervisor)
 	if err != nil {
 		log.Fatalf("Failed to initialize media scanner: %v", err)
 	}
@@ -104,6 +106,7 @@ func main() {
 	pluginManager := plugins.InitManager()
 	pluginManager.Start(plugins.PluginConfig{
 		Repo: repo,
+		Jobs: jobSupervisor,
 	})
 
 	apiServer := api.NewServer(repo, lastfmClient, enricher, mediaScanner, pluginManager)
@@ -133,18 +136,21 @@ func main() {
 
 	log.Println("Shutting down Supernova server gracefully...")
 
-	// Signal background workers to terminate
-	cancelApp()
-
-	// Close the media scanner watcher
-	if mediaScanner != nil {
-		mediaScanner.Close()
-	}
-	// Create a deadline to wait for currently active requests
 	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelShutdown()
 
+	// Stop accepting new HTTP work before closing the application context.
 	if err := srv.Shutdown(ctxShutdown); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
+		log.Printf("HTTP shutdown deadline reached: %v", err)
+	}
+	cancelApp()
+
+	if mediaScanner != nil {
+		if err := mediaScanner.Close(); err != nil {
+			log.Printf("scanner shutdown: %v", err)
+		}
+	}
+	if err := jobSupervisor.Shutdown(ctxShutdown); err != nil {
+		log.Printf("background job shutdown deadline reached: %v", err)
 	}
 }

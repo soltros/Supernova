@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/soltros/Supernova/internal/models"
 )
@@ -106,4 +107,52 @@ func (r *Repository) SetSubsonicPassword(ctx context.Context, username, encrypte
 	query := `UPDATE users SET subsonic_password = ? WHERE username = ?`
 	_, err := r.db.ExecContext(ctx, query, encryptedPassword, username)
 	return err
+}
+
+
+func (r *Repository) RegistrationAllowed(ctx context.Context, invite, configuredInvite string) error {
+	var count int
+	if err := r.db.QueryRowContext(ctx,`SELECT COUNT(*) FROM users`).Scan(&count);err!=nil{return err}
+	if count==0{return nil}
+	actual,expected:=sha256.Sum256([]byte(invite)),sha256.Sum256([]byte(configuredInvite))
+	if configuredInvite=="" || subtle.ConstantTimeCompare(actual[:],expected[:])!=1{return ErrInviteRequired}
+	return nil
+}
+
+func (r *Repository) CreateSession(ctx context.Context,userID string,expires time.Time)(string,error){
+	id:=generateUUID()
+	_,err:=r.db.ExecContext(ctx,`INSERT INTO sessions(id,user_id,expires_at) VALUES(?,?,?)`,id,userID,expires.UTC())
+	if err!=nil{return "",err}
+	return id,nil
+}
+
+func (r *Repository) SessionActive(ctx context.Context,sessionID,userID string)bool{
+	if sessionID==""||userID==""{return false}
+	var one int
+	err:=r.db.QueryRowContext(ctx,`
+		SELECT 1 FROM sessions WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>CURRENT_TIMESTAMP
+	`,sessionID,userID).Scan(&one)
+	return err==nil
+}
+
+func (r *Repository) RevokeSession(ctx context.Context,sessionID,userID string)error{
+	res,err:=r.db.ExecContext(ctx,`UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=? AND revoked_at IS NULL`,sessionID,userID)
+	if err!=nil{return err}
+	n,err:=res.RowsAffected();if err!=nil{return err}
+	if n==0{return errors.New("session not found")}
+	return nil
+}
+
+func (r *Repository) RevokeOtherSessions(ctx context.Context,userID,keepSession string)error{
+	_,err:=r.db.ExecContext(ctx,`UPDATE sessions SET revoked_at=CURRENT_TIMESTAMP WHERE user_id=? AND id<>? AND revoked_at IS NULL`,userID,keepSession)
+	return err
+}
+
+func (r *Repository) UpdatePassword(ctx context.Context,userID,passwordHash string)error{
+	r.writeMu.Lock();defer r.writeMu.Unlock()
+	res,err:=r.db.ExecContext(ctx,`UPDATE users SET password_hash=? WHERE id=?`,passwordHash,userID)
+	if err!=nil{return err}
+	n,err:=res.RowsAffected();if err!=nil{return err}
+	if n==0{return errors.New("user not found")}
+	return nil
 }

@@ -3,17 +3,16 @@ package api
 import (
 	"archive/zip"
 	"fmt"
-	"github.com/soltros/Supernova/internal/media"
 	"io"
-	"log"
 	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/soltros/Supernova/internal/media"
 )
 
-// handleDownloadTrack handles GET /api/download/track/{id}
 func (s *Server) handleDownloadTrack() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		trackID := r.PathValue("id")
@@ -21,31 +20,30 @@ func (s *Server) handleDownloadTrack() http.HandlerFunc {
 			http.Error(w, "track ID required", http.StatusBadRequest)
 			return
 		}
-
 		track, err := s.repo.GetTrackByID(r.Context(), trackID)
 		if err != nil {
 			http.Error(w, "track not found", http.StatusNotFound)
 			return
 		}
-
-		resolved, err := media.Resolve(track.FilePath)
+		file, err := media.Open(track.FilePath)
 		if err != nil {
 			http.Error(w, "media file unavailable", http.StatusNotFound)
 			return
 		}
-		track.FilePath = resolved
-		safeTitle := strings.ReplaceAll(track.Title, "\"", "'")
-		safeTitle = strings.ReplaceAll(safeTitle, "\n", " ")
-		safeTitle = strings.ReplaceAll(safeTitle, "\r", "")
-		filename := fmt.Sprintf("%s%s", safeTitle, filepath.Ext(track.FilePath))
-
+		defer file.Close()
+		info, err := file.Stat()
+		if err != nil {
+			http.Error(w, "media file unavailable", http.StatusNotFound)
+			return
+		}
+		safeTitle := strings.NewReplacer("\"", "'", "\n", " ", "\r", "").Replace(track.Title)
+		filename := fmt.Sprintf("%s%s", safeTitle, filepath.Ext(info.Name()))
 		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 		w.Header().Del("Content-Type")
-		http.ServeFile(w, r, track.FilePath)
+		http.ServeContent(w, r, info.Name(), info.ModTime(), file)
 	}
 }
 
-// handleDownloadAlbum handles GET /api/download/album/{id}
 func (s *Server) handleDownloadAlbum() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		albumID := r.PathValue("id")
@@ -53,61 +51,87 @@ func (s *Server) handleDownloadAlbum() http.HandlerFunc {
 			http.Error(w, "album ID required", http.StatusBadRequest)
 			return
 		}
-
 		album, err := s.repo.GetAlbumByID(r.Context(), albumID)
 		if err != nil {
 			http.Error(w, "album not found", http.StatusNotFound)
 			return
 		}
-
 		tracks, err := s.repo.GetTracks(r.Context(), albumID, "", -1, 0)
 		if err != nil {
 			http.Error(w, "failed to get tracks", http.StatusInternalServerError)
 			return
 		}
 
-		safeTitle := strings.ReplaceAll(album.Title, "\"", "'")
-		safeTitle = strings.ReplaceAll(safeTitle, "\n", " ")
-		safeTitle = strings.ReplaceAll(safeTitle, "\r", "")
+		tmp, err := os.CreateTemp("", "supernova-album-*.zip")
+		if err != nil {
+			http.Error(w, "failed to stage album export", http.StatusInternalServerError)
+			return
+		}
+		tmpName := tmp.Name()
+		defer os.Remove(tmpName)
+		zw := zip.NewWriter(tmp)
+		buildOK := false
+		defer func() {
+			if !buildOK {
+				_ = zw.Close()
+				_ = tmp.Close()
+			}
+		}()
 
-		// Pre-check files exist
-		for i := range tracks {
-			resolved, err := media.Resolve(tracks[i].FilePath)
+		for _, track := range tracks {
+			if err := r.Context().Err(); err != nil {
+				http.Error(w, "request cancelled", http.StatusRequestTimeout)
+				return
+			}
+			src, err := media.Open(track.FilePath)
 			if err != nil {
 				http.Error(w, "one or more track files are missing from disk", http.StatusInternalServerError)
 				return
 			}
-			tracks[i].FilePath = resolved
-		}
-
-		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": safeTitle + ".zip"}))
-		w.Header().Set("Content-Type", "application/zip")
-
-		zipWriter := zip.NewWriter(w)
-		defer zipWriter.Close()
-
-		for _, track := range tracks {
-			file, err := os.Open(track.FilePath)
-			if err != nil {
-				continue
-			}
-
 			ext := filepath.Ext(track.FilePath)
-			safeTrackTitle := strings.NewReplacer("/", "-", "\\", "-", "\r", "", "\n", " ").Replace(track.Title)
-			fileName := fmt.Sprintf("%02d-%02d - %s-%s%s", track.DiscNumber, track.TrackNumber, safeTrackTitle, track.ID, ext)
-
-			f, err := zipWriter.Create(fileName)
+			title := strings.NewReplacer("/", "-", "\\", "-", "\r", "", "\n", " ").Replace(track.Title)
+			entryName := fmt.Sprintf("%02d-%02d - %s-%s%s", track.DiscNumber, track.TrackNumber, title, track.ID, ext)
+			dst, err := zw.Create(entryName)
 			if err != nil {
-				file.Close()
-				continue
+				_ = src.Close()
+				http.Error(w, "failed to build album archive", http.StatusInternalServerError)
+				return
 			}
-
-			_, copyErr := io.Copy(f, file)
-			file.Close()
-			if copyErr != nil {
-				log.Printf("Album download interrupted: %v", copyErr)
+			_, copyErr := io.Copy(dst, src)
+			closeErr := src.Close()
+			if copyErr != nil || closeErr != nil {
+				http.Error(w, "failed to read album media", http.StatusInternalServerError)
 				return
 			}
 		}
+		if err := zw.Close(); err != nil {
+			http.Error(w, "failed to finalize album archive", http.StatusInternalServerError)
+			return
+		}
+		if err := tmp.Sync(); err != nil {
+			http.Error(w, "failed to finalize album archive", http.StatusInternalServerError)
+			return
+		}
+		if err := tmp.Close(); err != nil {
+			http.Error(w, "failed to finalize album archive", http.StatusInternalServerError)
+			return
+		}
+		buildOK = true
+
+		staged, err := os.Open(tmpName)
+		if err != nil {
+			http.Error(w, "failed to reopen album archive", http.StatusInternalServerError)
+			return
+		}
+		defer staged.Close()
+		info, err := staged.Stat()
+		if err != nil {
+			http.Error(w, "failed to inspect album archive", http.StatusInternalServerError)
+			return
+		}
+		safeTitle := strings.NewReplacer("\"", "'", "\n", " ", "\r", "").Replace(album.Title)
+		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": safeTitle + ".zip"}))
+		w.Header().Set("Content-Type", "application/zip")
+		http.ServeContent(w, r, safeTitle+".zip", info.ModTime(), staged)
 	}
 }

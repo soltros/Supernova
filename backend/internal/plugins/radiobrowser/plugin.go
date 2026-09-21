@@ -10,6 +10,7 @@ import (
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/models"
 	"github.com/soltros/Supernova/internal/plugins"
+	"github.com/soltros/Supernova/internal/resourcebudget"
 )
 
 type RadioPlugin struct {
@@ -38,9 +39,7 @@ func (p *RadioPlugin) Description() string {
 
 func (p *RadioPlugin) Init(config plugins.PluginConfig) error {
 	p.repo = config.Repo
-	p.client = &http.Client{
-		Timeout: 10 * time.Second,
-	}
+	p.client = resourcebudget.NewHTTPClient(10 * time.Second)
 	return nil
 }
 
@@ -59,7 +58,7 @@ func (p *RadioPlugin) SetupRoutes(mux *http.ServeMux) {
 }
 
 func (p *RadioPlugin) authenticate(r *http.Request) (string, error) {
-	user, err := authn.Authenticate(r, p.repo, false)
+	user, _, err := authn.Authenticate(r, p.repo, false)
 	if err != nil {
 		return "", err
 	}
@@ -77,7 +76,7 @@ func (p *RadioPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	// Make request to a random Radio-Browser instance using the round-robin DNS
 	apiURL := "https://all.api.radio-browser.info/json/stations/search"
-	req, err := http.NewRequest("GET", apiURL, nil)
+	req, err := http.NewRequestWithContext(r.Context(), "GET", apiURL, nil)
 	if err != nil {
 		http.Error(w, "failed to create request", http.StatusInternalServerError)
 		return
@@ -111,7 +110,11 @@ func (p *RadioPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		http.Error(w, "upstream api failed", http.StatusBadGateway)
+		if resourcebudget.IsSaturated(err) {
+			http.Error(w, "external request budget is busy; retry shortly", http.StatusServiceUnavailable)
+		} else {
+			http.Error(w, "upstream api failed", http.StatusBadGateway)
+		}
 		return
 	}
 	defer resp.Body.Close()

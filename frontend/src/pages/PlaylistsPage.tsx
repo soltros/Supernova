@@ -15,6 +15,7 @@ export const PlaylistsPage: React.FC = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const playlistRequestRef = useRef(0);
   const { playContext } = usePlayer();
   const location = useLocation();
 
@@ -42,18 +43,23 @@ export const PlaylistsPage: React.FC = () => {
     try {
       await createPlaylist(newPlaylistName.trim());
       setNewPlaylistName('');
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to create playlist.', 'error');
     }
   };
 
   const handleSelectPlaylist = async (p: Playlist) => {
+    const request = ++playlistRequestRef.current;
     setSelectedPlaylist(p);
+    setTracks([]);
     try {
       const t = await apiService.fetchPlaylistTracks(p.id);
+      if (request !== playlistRequestRef.current) return;
       setTracks(t || []);
     } catch (err) {
+      if (request !== playlistRequestRef.current) return;
       console.error(err);
+      addToast('Failed to load playlist tracks.', 'error');
     }
   };
 
@@ -64,8 +70,8 @@ export const PlaylistsPage: React.FC = () => {
         setSelectedPlaylist(null);
         setTracks([]);
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to delete playlist.', 'error');
     }
   };
 
@@ -82,8 +88,8 @@ export const PlaylistsPage: React.FC = () => {
   const handleExport = async () => {
     try {
       await apiService.exportPlaylists();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to export playlists.', 'error');
     }
   };
 
@@ -199,12 +205,13 @@ export const PlaylistsPage: React.FC = () => {
                   <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                     <span style={{ color: 'var(--text-secondary)', width: '24px', fontWeight: 600 }}>{index + 1}</span>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span 
-                        style={{ color: 'white', fontWeight: 600, cursor: 'pointer' }}
+                      <button
+                        type="button"
+                        style={{ color: 'white', fontWeight: 600, cursor: 'pointer', padding: 0, textAlign: 'left' }}
                         onClick={() => playContext(tracks, index, { id: selectedPlaylist.id, title: selectedPlaylist.name, artist_id: '', release_year: 0, cover_art_path: '' } as Album)}
                       >
                         {track.title}
-                      </span>
+                      </button>
                       {track.artist_id && (
                         <Link 
                           to={`/artist/${track.artist_id}`}
@@ -224,6 +231,7 @@ export const PlaylistsPage: React.FC = () => {
                     onMouseEnter={(e) => e.currentTarget.style.color = '#ff4444'}
                     onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
                     title="Remove from playlist"
+                    aria-label={`Remove ${track.title} from playlist`}
                   >
                     <Trash2 size={16} />
                   </button>

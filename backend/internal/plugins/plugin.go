@@ -1,12 +1,15 @@
 package plugins
 
 import (
-	"github.com/soltros/Supernova/internal/database"
 	"net/http"
+
+	"github.com/soltros/Supernova/internal/database"
+	"github.com/soltros/Supernova/internal/jobs"
 )
 
 type PluginConfig struct {
 	Repo *database.Repository
+	Jobs *jobs.Supervisor
 }
 
 // Plugin defines the standard interface for all Supernova plugins

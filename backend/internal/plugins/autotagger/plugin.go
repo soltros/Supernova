@@ -2,33 +2,30 @@ package autotagger
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 
 	"github.com/soltros/Supernova/internal/database"
+	"github.com/soltros/Supernova/internal/jobs"
 	"github.com/soltros/Supernova/internal/models"
 	"github.com/soltros/Supernova/internal/plugins"
 )
 
 type AutoTaggerPlugin struct {
-	repo    *database.Repository
-	running atomic.Bool
+	repo *database.Repository
+	jobs *jobs.Supervisor
 }
 
 func init() {
 	plugins.Register(&AutoTaggerPlugin{})
 }
 
-func (p *AutoTaggerPlugin) ID() string {
-	return "autotagger"
-}
+func (p *AutoTaggerPlugin) ID() string { return "autotagger" }
 
-func (p *AutoTaggerPlugin) Name() string {
-	return "Auto-Tagger"
-}
+func (p *AutoTaggerPlugin) Name() string { return "Auto-Tagger" }
 
 func (p *AutoTaggerPlugin) Description() string {
 	return "Automatically infers and fixes track metadata in the Supernova database by analyzing file paths."
@@ -36,6 +33,7 @@ func (p *AutoTaggerPlugin) Description() string {
 
 func (p *AutoTaggerPlugin) Init(config plugins.PluginConfig) error {
 	p.repo = config.Repo
+	p.jobs = config.Jobs
 	return nil
 }
 
@@ -44,23 +42,19 @@ func (p *AutoTaggerPlugin) SetupRoutes(mux *http.ServeMux) {
 }
 
 func (p *AutoTaggerPlugin) handleRunTagger(w http.ResponseWriter, r *http.Request) {
-	if !p.running.CompareAndSwap(false, true) {
-		http.Error(w, "job already running", http.StatusConflict)
+	if p.jobs == nil || !p.jobs.GoMutation("autotagger", p.runTaggingJob) {
+		http.Error(w, "another library mutation job is already running", http.StatusConflict)
 		return
 	}
-	go func() { defer p.running.Store(false); p.runTaggingJob() }()
 	w.WriteHeader(http.StatusAccepted)
-	w.Write([]byte(`{"status": "auto-tagger job started in background"}`))
+	_, _ = w.Write([]byte(`{"status":"auto-tagger job started in background"}`))
 }
 
-func (p *AutoTaggerPlugin) runTaggingJob() {
+func (p *AutoTaggerPlugin) runTaggingJob(ctx context.Context) error {
 	log.Println("[AutoTagger] Starting background tagging job...")
-	ctx := context.Background()
-	db := p.repo.DB()
-
-	// Query tracks with "Unknown Artist", "Unknown Album", or titles like "Track %"
-	rows, err := db.QueryContext(ctx, `
-		SELECT t.file_path, t.id, t.duration_ms, t.format, t.bitrate, a.cover_art_path 
+	rows, err := p.repo.DB().QueryContext(ctx, `
+		SELECT t.file_path, t.id, COALESCE(t.duration_ms,0), COALESCE(t.format,''),
+		       COALESCE(t.bitrate,0), COALESCE(a.cover_art_path,'')
 		FROM tracks t
 		LEFT JOIN albums a ON t.album_id = a.id
 		LEFT JOIN track_artists ta ON t.id = ta.track_id
@@ -69,65 +63,70 @@ func (p *AutoTaggerPlugin) runTaggingJob() {
 		GROUP BY t.id
 	`)
 	if err != nil {
-		log.Printf("[AutoTagger] Failed to query tracks: %v\n", err)
-		return
+		return fmt.Errorf("query tracks: %w", err)
 	}
 	defer rows.Close()
 
 	var tracksToUpdate []models.TrackMetadata
 	for rows.Next() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		var path, id, format, coverArt string
 		var durationMs, bitrate int
 		if err := rows.Scan(&path, &id, &durationMs, &format, &bitrate, &coverArt); err != nil {
+			return fmt.Errorf("scan track candidate: %w", err)
+		}
+
+		parts := strings.Split(filepath.ToSlash(path), "/")
+		if len(parts) < 3 {
 			continue
 		}
+		filename := parts[len(parts)-1]
+		albumDir := parts[len(parts)-2]
+		artistDir := parts[len(parts)-3]
+		ext := filepath.Ext(filename)
+		baseName := strings.TrimSuffix(filename, ext)
 
-		// Try to parse file path: e.g. /music/Artist/Album/01 - Title.mp3
-		parts := strings.Split(filepath.ToSlash(path), "/")
-		if len(parts) >= 3 {
-			filename := parts[len(parts)-1]
-			albumDir := parts[len(parts)-2]
-			artistDir := parts[len(parts)-3]
-
-			// Strip extension
-			ext := filepath.Ext(filename)
-			baseName := strings.TrimSuffix(filename, ext)
-
-			// Remove leading track numbers (e.g., "01 - Song" -> "Song", "1. Song" -> "Song")
-			title := baseName
-			for i, char := range title {
-				if char < '0' || char > '9' {
-					title = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(title[i:]), "-"))
-					break
-				}
-			}
-			if title == "" {
-				title = baseName
-			}
-
-			if artistDir != "music" && albumDir != "music" && artistDir != "" {
-				tracksToUpdate = append(tracksToUpdate, models.TrackMetadata{
-					Title:        title,
-					Album:        albumDir,
-					Artist:       artistDir,
-					AlbumArtist:  artistDir,
-					DurationMs:   durationMs,
-					Format:       format,
-					Bitrate:      bitrate,
-					FilePath:     path,
-					CoverArtPath: coverArt,
-				})
+		title := baseName
+		for i, char := range title {
+			if char < '0' || char > '9' {
+				title = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(title[i:]), "-"))
+				break
 			}
 		}
+		if title == "" {
+			title = baseName
+		}
+		if artistDir == "music" || albumDir == "music" || artistDir == "" {
+			continue
+		}
+		tracksToUpdate = append(tracksToUpdate, models.TrackMetadata{
+			Title:        title,
+			Album:        albumDir,
+			Artist:       artistDir,
+			AlbumArtist:  artistDir,
+			DurationMs:   durationMs,
+			Format:       format,
+			Bitrate:      bitrate,
+			FilePath:     path,
+			CoverArtPath: coverArt,
+		})
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate track candidates: %w", err)
+	}
 
 	count := 0
-	for _, meta := range tracksToUpdate {
-		if err := p.repo.UpsertTrack(ctx, &meta); err == nil {
-			count++
+	for i := range tracksToUpdate {
+		if err := ctx.Err(); err != nil {
+			return err
 		}
+		if err := p.repo.UpsertTrack(ctx, &tracksToUpdate[i]); err != nil {
+			return fmt.Errorf("update %s: %w", tracksToUpdate[i].FilePath, err)
+		}
+		count++
 	}
-
-	log.Printf("[AutoTagger] Background tagging job completed. Fixed %d tracks.\n", count)
+	log.Printf("[AutoTagger] Background tagging job completed. Fixed %d tracks.", count)
+	return nil
 }

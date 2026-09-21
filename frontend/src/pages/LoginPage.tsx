@@ -76,12 +76,13 @@ export const LoginPage: React.FC = () => {
 
         <p style={{ color: 'var(--text-secondary)', textAlign: 'center', marginTop: '32px', fontSize: '15px' }}>
           {isRegistering ? 'Already have an account? ' : "Don't have an account? "}
-          <span 
+          <button
+            type="button"
             onClick={() => setIsRegistering(!isRegistering)}
-            style={{ color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 700, textDecoration: 'none' }}
+            style={{ color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 700, textDecoration: 'none', padding: 0, fontSize: 'inherit' }}
           >
             {isRegistering ? 'Log in' : 'Sign up'}
-          </span>
+          </button>
         </p>
       </div>
     </div>
