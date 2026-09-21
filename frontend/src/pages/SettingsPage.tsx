@@ -24,12 +24,12 @@ const SettingsPage: React.FC = () => {
           window.history.replaceState({}, document.title, '/settings');
         }
       })
-      .catch(console.error);
+      .catch(err => addToast(err?.message || 'Failed to connect Last.fm.', 'error'));
     }
 
     apiService.getPlugins()
       .then(data => setPlugins(data))
-      .catch(err => console.error('Failed to load plugins', err));
+      .catch(err => addToast(err?.message || 'Failed to load plugins.', 'error'));
       
     // Poll scan progress
     const checkProgress = () => {
@@ -62,6 +62,16 @@ const SettingsPage: React.FC = () => {
     
     addToast('Cache cleared successfully! Reloading...', 'success');
     window.location.reload();
+  };
+
+  const previewMaintenance = async (pluginId: 'artistmerger' | 'albummerger' | 'deduper', label: string) => {
+    try {
+      const result = await apiService.previewPluginJob(pluginId);
+      const count = Array.isArray(result.candidates) ? result.candidates.length : 0;
+      addToast(`${label}: ${count} candidate group${count === 1 ? '' : 's'} found. No changes were made.`, 'info');
+    } catch (err: any) {
+      addToast(err?.message || `Failed to preview ${label.toLowerCase()}.`, 'error');
+    }
   };
 
   const [isResetting, setIsResetting] = useState(false);
@@ -133,7 +143,9 @@ const SettingsPage: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
               <button 
                 onClick={() => {
-                  apiService.scanLibrary().catch(console.error);
+                  apiService.scanLibrary()
+                    .then(() => addToast('Library scan started.', 'success'))
+                    .catch(err => addToast(err?.message || 'Could not start library scan.', 'error'));
                 }}
                 disabled={!user?.is_admin || scanStatus.status === 'scanning'}
                 style={{ background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.2)', color: 'var(--accent-primary)', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, transition: 'var(--transition-fast)', opacity: scanStatus.status === 'scanning' ? 0.5 : 1 }}
@@ -155,33 +167,33 @@ const SettingsPage: React.FC = () => {
               {user?.is_admin && plugins.some(p => p.id === 'artistmerger' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    apiService.runPluginJob('artistmerger').then(() => addToast("Artist merger job started in the background. Check backend logs for progress.", "success")).catch(() => addToast('Could not start the job.', 'error'));
+                    void previewMaintenance('artistmerger', 'Artist merge preview');
                   }}
                   style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)', color: '#f59e0b', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
                 >
-                  Merge Similar Artists
+                  Preview Similar Artists
                 </button>
               )}
 
               {user?.is_admin && plugins.some(p => p.id === 'deduper' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    apiService.runPluginJob('deduper').then(() => addToast("Hide Duplicates job started in the background. Check backend logs for progress.", "success")).catch(() => addToast('Could not start the job.', 'error'));
+                    void previewMaintenance('deduper', 'Duplicate track preview');
                   }}
                   style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#ef4444', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
                 >
-                  Hide Duplicates
+                  Preview Duplicates
                 </button>
               )}
 
               {user?.is_admin && plugins.some(p => p.id === 'albummerger' && p.enabled) && (
                 <button 
                   onClick={() => {
-                    apiService.runPluginJob('albummerger').then(() => addToast("Album merger job started in the background. Check backend logs for progress.", "success")).catch(() => addToast('Could not start the job.', 'error'));
+                    void previewMaintenance('albummerger', 'Album merge preview');
                   }}
                   style={{ background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', color: '#3b82f6', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
                 >
-                  Merge Similar Albums
+                  Preview Similar Albums
                 </button>
               )}
 
@@ -227,14 +239,12 @@ const SettingsPage: React.FC = () => {
                     const cb = window.location.origin + "/settings";
                     apiService.getLastFmAuthUrl(cb)
                       .then(data => {
-                        if (data.url) {
-                          const desktop = (window as any).supernovaDesktop;
-                          if (desktop?.openLastFmAuth) {
-                            return desktop.openLastFmAuth(data.url);
-                          }
-                          window.location.href = data.url;
-                        }
-                      });
+                        if (!data.url) throw new Error('Last.fm did not return an authorization URL.');
+                        const desktop = (window as any).supernovaDesktop;
+                        if (desktop?.openLastFmAuth) return desktop.openLastFmAuth(data.url);
+                        window.location.href = data.url;
+                      })
+                      .catch(err => addToast(err?.message || 'Failed to start Last.fm authorization.', 'error'));
                   }}
                   style={{ background: '#ba0000', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', transition: 'var(--transition-fast)' }}
                   onMouseEnter={(e) => e.currentTarget.style.background = '#d00000'}
