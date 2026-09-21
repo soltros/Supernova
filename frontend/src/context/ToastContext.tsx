@@ -85,7 +85,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             {toast.type === 'error' && <AlertCircle color="#ef4444" size={20} />}
             {toast.type === 'info' && <Info color="var(--accent-primary)" size={20} />}
             <span style={{ flex: 1, fontSize: '14px', lineHeight: '1.4' }}>{toast.message}</span>
-            <button onClick={() => removeToast(toast.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+            <button aria-label="Dismiss notification" onClick={() => removeToast(toast.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
               <X size={16} />
             </button>
           </div>
