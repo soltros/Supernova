@@ -8,8 +8,10 @@ import threading
 import os
 import signal
 
-# Automatically detect local binary vs system path binary
-SN_CMD = "./sn" if os.path.exists("./sn") else "sn"
+# Prefer the CLI shipped next to this GUI, independent of the caller's CWD.
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BUNDLED_SN = os.path.join(SCRIPT_DIR, "sn")
+SN_CMD = BUNDLED_SN if os.path.isfile(BUNDLED_SN) else (shutil.which("sn") or "sn")
 
 # --- SUPERNOVA COLOR PALETTE ---
 BG_MAIN = "#120e15"
@@ -204,6 +206,8 @@ class SupernovaGUI:
             return {"error": err_msg}
 
     def load_data(self, endpoint):
+        self.request_generation += 1
+        generation = self.request_generation
         self.status_var.set(f"Loading {endpoint}...")
         self.root.update_idletasks()
 
@@ -212,43 +216,65 @@ class SupernovaGUI:
 
         def fetch():
             data = self.run_cli([endpoint])
-            self.root.after(0, self._populate_view, endpoint, data)
+            self.root.after(0, self._populate_view, generation, endpoint, data)
 
         threading.Thread(target=fetch, daemon=True).start()
 
-    def _populate_view(self, endpoint, data):
+    def _normalize_rows(self, endpoint, data):
+        if endpoint == "hearts-details":
+            if not isinstance(data, dict):
+                return None
+            rows = []
+            for key, entity_type in (
+                ("tracks", "track"),
+                ("albums", "album"),
+                ("artists", "artist"),
+                ("playlists", "playlist"),
+            ):
+                values = data.get(key, [])
+                if not isinstance(values, list):
+                    return None
+                for value in values:
+                    if isinstance(value, dict):
+                        rows.append((entity_type, value))
+            return rows
+
+        if isinstance(data, dict) and "items" in data and isinstance(data["items"], list):
+            data = data["items"]
+        if not isinstance(data, list):
+            return None
+
+        entity_type = {
+            "tracks": "track",
+            "artists": "artist",
+            "albums": "album",
+            "playlists": "playlist",
+        }.get(endpoint, endpoint)
+        return [(entity_type, item) for item in data if isinstance(item, dict)]
+
+    def _populate_view(self, generation, endpoint, data):
+        if generation != self.request_generation:
+            return
         if isinstance(data, dict) and "error" in data:
             self.status_var.set(data["error"])
             return
 
-        if not isinstance(data, list):
-            if isinstance(data, dict) and "items" in data:
-                data = data["items"]
-            else:
-                self.status_var.set(f"Failed to parse {endpoint} data.")
-                return
+        rows = self._normalize_rows(endpoint, data)
+        if rows is None:
+            self.status_var.set(f"Failed to parse {endpoint} data.")
+            return
 
-        for item in data:
-            # Unpack hydrated nested models from hearts/details endpoint
-            if isinstance(item, dict):
-                if "track" in item and isinstance(item["track"], dict):
-                    item = item["track"]
-                elif "album" in item and isinstance(item["album"], dict):
-                    item = item["album"]
-                elif "artist" in item and isinstance(item["artist"], dict):
-                    item = item["artist"]
-
-            if endpoint in ("tracks", "hearts-details"):
-                title = item.get("title", item.get("name", "Unknown"))
-                artist = item.get("artist_name", "")
-                album = item.get("album_title", "")
-                item_id = item.get("id", "")
-                self.data_view.insert("", "end", values=(title, artist, album, item_id))
-            elif endpoint in ("artists", "albums", "playlists"):
-                title = item.get("title", item.get("name", "Unknown"))
-                artist = item.get("artist_name", "")
-                item_id = item.get("id", "")
-                self.data_view.insert("", "end", values=(title, artist, "", item_id))
+        for entity_type, item in rows:
+            title = item.get("title", item.get("name", "Unknown"))
+            artist = item.get("artist_name", "")
+            album = item.get("album_title", "")
+            item_id = item.get("id", "")
+            self.data_view.insert(
+                "",
+                "end",
+                values=(title, artist, album, item_id),
+                tags=(entity_type,),
+            )
 
         self.status_var.set("Ready")
 
@@ -257,8 +283,12 @@ class SupernovaGUI:
         if not selection:
             return
 
-        values = self.data_view.item(selection[0], "values")
+        row = self.data_view.item(selection[0])
+        values = row.get("values", ())
         if not values:
+            return
+        if "track" not in row.get("tags", ()):
+            self.status_var.set("Select a track to start playback.")
             return
 
         track_id = values[3]
@@ -277,7 +307,7 @@ class SupernovaGUI:
             if os.name == 'nt':
                 kwargs['creationflags'] = subprocess.CREATE_NEW_PROCESS_GROUP
             else:
-                kwargs['preexec_fn'] = os.setsid
+                kwargs['start_new_session'] = True
 
             self.current_process = subprocess.Popen(
                 [SN_CMD, "play", str(track_id)],
@@ -291,12 +321,30 @@ class SupernovaGUI:
             print(f"Could not locate the executable: {SN_CMD}")
 
     def stop_playback(self):
-        if self.current_process and self.current_process.poll() is None:
+        process = self.current_process
+        self.current_process = None
+        if not process or process.poll() is not None:
+            return
+
+        try:
             if os.name == 'nt':
-                self.current_process.send_signal(signal.CTRL_BREAK_EVENT)
+                process.send_signal(signal.CTRL_BREAK_EVENT)
             else:
-                os.killpg(os.getpgid(self.current_process.pid), signal.SIGTERM)
-            self.current_process.wait()
+                os.killpg(process.pid, signal.SIGTERM)
+            process.wait(timeout=3)
+        except (subprocess.TimeoutExpired, ProcessLookupError):
+            try:
+                if os.name == 'nt':
+                    process.kill()
+                else:
+                    os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                pass
+        finally:
             self.status_var.set("Playback Stopped")
 
 if __name__ == "__main__":
