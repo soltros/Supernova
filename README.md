@@ -265,3 +265,14 @@ Supernova's plugin system is designed to be highly accessible for developers. To
    import _ "github.com/soltros/Supernova/internal/plugins/yourplugin"
    ```
 4. Rebuild the backend so the blank import is compiled into the server. Compiled plugins are enabled by default unless `SUPERNOVA_PLUGIN_MYPLUGIN=false` is set. Supernova does not currently load arbitrary runtime `.so` plugin files.
+
+
+## Native Flutter Desktop Client
+
+The desktop client in `desktop-app/` is now a native Flutter Linux application. It replaces the previous Electron wrapper and talks directly to the Supernova REST API.
+
+Users enter their Supernova instance URL, sign in or register, and the app stores the session token in the Linux secret service. The client includes library browsing, search, playlists, favorites, podcasts, radio, administrator controls, and native audio playback using scoped media tickets.
+
+Tagged releases build Linux desktop artifacts. The AUR recipe is kept under `aur/`; Nix packaging is maintained in `soltros/soltros_nixpkgs`.
+
+See `desktop-app/README.md` and `API.md` for development and client API details.
