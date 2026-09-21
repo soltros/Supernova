@@ -139,7 +139,7 @@ func (s *Server) handleExportPlaylists() http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Content-Disposition", "attachment; filename=supernova_playlists_backup.json")
-		json.NewEncoder(w).Encode(backups)
+		json.NewEncoder(w).Encode(models.PlaylistBackupEnvelope{Version: 2, Playlists: backups})
 	}
 }
 
@@ -148,19 +148,27 @@ func (s *Server) handleImportPlaylists() http.HandlerFunc {
 		userID := r.Context().Value(userIDKey).(string)
 
 		r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
-		var backups []models.PlaylistBackup
-		if err := json.NewDecoder(r.Body).Decode(&backups); err != nil {
+		var raw json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 			http.Error(w, "invalid backup format", http.StatusBadRequest)
 			return
 		}
-
-		for _, b := range backups {
-			if err := s.repo.ImportPlaylistBackup(r.Context(), userID, b); err != nil {
-				http.Error(w, "failed to import some playlists", http.StatusInternalServerError)
+		var backups []models.PlaylistBackup
+		if len(raw) > 0 && raw[0] == '{' {
+			var envelope models.PlaylistBackupEnvelope
+			if err := json.Unmarshal(raw, &envelope); err != nil || envelope.Version != 2 {
+				http.Error(w, "unsupported playlist backup version", http.StatusBadRequest)
 				return
 			}
+			backups = envelope.Playlists
+		} else if err := json.Unmarshal(raw, &backups); err != nil {
+			http.Error(w, "invalid legacy playlist backup", http.StatusBadRequest)
+			return
 		}
-
-		w.WriteHeader(http.StatusOK)
+		if err := s.repo.ImportPlaylistBackups(r.Context(), userID, backups); err != nil {
+			http.Error(w, "playlist import failed: "+err.Error(), http.StatusConflict)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"version": 2, "imported": len(backups), "skipped": 0})
 	}
 }
