@@ -71,6 +71,7 @@ const PlayerBar: FC = () => {
       {isMobileExpanded && (
         <button 
           className="mobile-collapse-btn"
+          aria-label="Collapse now playing details"
           onClick={(e) => { e.stopPropagation(); setIsMobileExpanded(false); }}
         >
           <ChevronDown size={32} />
@@ -79,8 +80,18 @@ const PlayerBar: FC = () => {
 
       {/* Left Side: Now Playing Metadata */}
       <div 
-        className="now-playing" 
+        className="now-playing"
+        role="button"
+        tabIndex={0}
+        aria-expanded={isMobileExpanded}
+        aria-label="Expand now playing details"
         onClick={() => !isMobileExpanded && setIsMobileExpanded(true)}
+        onKeyDown={(e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && !isMobileExpanded) {
+            e.preventDefault();
+            setIsMobileExpanded(true);
+          }
+        }}
       >
         <div className="album-art-container" style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
           {currentTrack?.album_id || currentAlbum ? (
@@ -130,7 +141,8 @@ const PlayerBar: FC = () => {
       {/* Mobile Mini Play Button (visible only in compact view) */}
       <div className="mobile-mini-controls" onClick={(e) => e.stopPropagation()}>
         <button 
-          className={`control-btn play-btn ${isPlaying ? 'playing' : ''}`} 
+          className={`control-btn play-btn ${isPlaying ? 'playing' : ''}`}
+          aria-label={isPlaying ? 'Pause' : 'Play'}
           onClick={togglePlay}
           style={{ width: '40px', height: '40px', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: 'transparent', color: 'var(--text-primary)' }}
         >
@@ -144,9 +156,10 @@ const PlayerBar: FC = () => {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="player-controls">
-          <button className="control-btn" onClick={playPrev}><SkipBack size={20} fill="currentColor" /></button>
+          <button className="control-btn" aria-label="Previous track" onClick={playPrev}><SkipBack size={20} fill="currentColor" /></button>
           <button 
-            className={`control-btn play-btn ${isPlaying ? 'playing' : ''}`} 
+            className={`control-btn play-btn ${isPlaying ? 'playing' : ''}`}
+            aria-label={isPlaying ? 'Pause' : 'Play'}
             onClick={togglePlay}
           >
             {isPlaying ? (
@@ -155,7 +168,7 @@ const PlayerBar: FC = () => {
               <Play size={24} fill="currentColor" style={{ marginLeft: '4px' }} />
             )}
           </button>
-          <button className="control-btn" onClick={playNext}><SkipForward size={20} fill="currentColor" /></button>
+          <button className="control-btn" aria-label="Next track" onClick={playNext}><SkipForward size={20} fill="currentColor" /></button>
         </div>
         
         {/* Integrated Progress Bar */}
@@ -164,7 +177,19 @@ const PlayerBar: FC = () => {
             {formatTime(currentTime)}
           </span>
           <div 
-            className="progress-bar-container" 
+            className="progress-bar-container"
+            role="slider"
+            tabIndex={0}
+            aria-label="Playback position"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(progress)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight') { e.preventDefault(); seekTo(Math.min(100, progress + 5)); }
+              if (e.key === 'ArrowLeft') { e.preventDefault(); seekTo(Math.max(0, progress - 5)); }
+              if (e.key === 'Home') { e.preventDefault(); seekTo(0); }
+              if (e.key === 'End') { e.preventDefault(); seekTo(100); }
+            }}
             style={{ flex: 1, height: '6px', background: 'var(--bg-secondary)', borderRadius: '3px', cursor: 'pointer', overflow: 'hidden', position: 'relative' }}
             onClick={handleProgressClick}
           >
@@ -189,6 +214,8 @@ const PlayerBar: FC = () => {
           className="control-btn" 
           onClick={() => setShowLyrics(!showLyrics)}
           title="Lyrics"
+          aria-label={showLyrics ? 'Hide lyrics' : 'Show lyrics'}
+          aria-pressed={showLyrics}
           style={{ padding: '8px', opacity: showLyrics ? 1 : 0.7 }}
         >
           <Mic2 size={20} color={showLyrics ? "var(--accent-primary)" : "currentColor"} />
@@ -205,13 +232,14 @@ const PlayerBar: FC = () => {
             }
           }}
           title="Full Screen"
+          aria-label="Open full-screen player"
           style={{ padding: '8px' }}
         >
           <Maximize size={18} />
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => {
+          <button type="button" aria-label={volume === 0 ? 'Unmute' : 'Mute'} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }} onClick={() => {
             if (volume === 0) {
               changeVolume(prevVolume > 0 ? prevVolume : 1);
             } else {
@@ -220,13 +248,14 @@ const PlayerBar: FC = () => {
             }
           }}>
             {volume === 0 ? <VolumeX size={20} /> : <Volume2 size={20} />}
-          </span>
+          </button>
           <input 
             type="range" 
             min="0" 
             max="1" 
             step="0.01" 
-            value={volume} 
+            value={volume}
+            aria-label="Volume"
             onChange={handleVolumeChange}
             style={{
               width: '100px',
