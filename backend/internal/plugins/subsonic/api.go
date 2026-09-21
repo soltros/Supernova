@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/soltros/Supernova/internal/api"
@@ -549,16 +550,50 @@ func (p *SubsonicPlugin) handleGetAlbum(w http.ResponseWriter, r *http.Request) 
 func (p *SubsonicPlugin) handleStream(w http.ResponseWriter, r *http.Request) {
 	id := r.FormValue("id")
 	track, err := p.repo.GetTrackByID(r.Context(), id)
-	if err != nil {
-		http.Error(w, "Not found", 404)
+	if err != nil { http.Error(w, "Not found", 404); return }
+	file, err := media.Open(track.FilePath)
+	if err != nil { http.Error(w, "Access denied", http.StatusForbidden); return }
+	defer file.Close()
+
+	format := strings.ToLower(strings.TrimSpace(r.FormValue("format")))
+	if format == "raw" { format = "" }
+	maxBitRate := 0
+	if raw := r.FormValue("maxBitRate"); raw != "" {
+		maxBitRate, err = strconv.Atoi(raw)
+		if err != nil || maxBitRate <= 0 { p.writeError(w,r,10,"Invalid maxBitRate"); return }
+	}
+	offset := 0
+	if raw := r.FormValue("timeOffset"); raw != "" {
+		seconds, parseErr := strconv.ParseFloat(raw,64)
+		if parseErr != nil || seconds < 0 { p.writeError(w,r,10,"Invalid timeOffset"); return }
+		offset = int(seconds)
+	}
+	if format == "" && maxBitRate == 0 && offset == 0 {
+		info, err := file.Stat()
+		if err != nil { http.Error(w,"Not found",404); return }
+		w.Header().Set("Content-Type",media.ContentType(track.Format))
+		http.ServeContent(w,r,info.Name(),info.ModTime(),file)
 		return
 	}
-	resolved, err := media.Resolve(track.FilePath)
-	if err != nil {
-		http.Error(w, "Access denied", http.StatusForbidden)
+	if format == "" {
+		format = "mp3"
+	}
+	switch format {
+	case "mp3","aac","ogg","opus":
+	default:
+		p.writeError(w,r,10,"Unsupported transcode format")
 		return
 	}
-	http.ServeFile(w, r, resolved)
+	bitrate := maxBitRate
+	if bitrate == 0 { bitrate = 128 }
+	contentType := map[string]string{"mp3":"audio/mpeg","aac":"audio/aac","ogg":"audio/ogg","opus":"audio/ogg; codecs=opus"}[format]
+	if err := media.StreamTranscode(r.Context(),file,media.TranscodeOptions{Format:format,BitrateKbps:bitrate,SeekSeconds:offset},w,func(){
+		w.Header().Set("Content-Type",contentType)
+		w.Header().Set("Accept-Ranges","none")
+		if flusher,ok:=w.(http.Flusher);ok{flusher.Flush()}
+	}); err != nil {
+		_ = err // connection/startup failures are already reflected by the streaming lifecycle
+	}
 }
 
 func (p *SubsonicPlugin) handleDownload(w http.ResponseWriter, r *http.Request) {
