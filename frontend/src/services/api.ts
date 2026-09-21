@@ -35,6 +35,31 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
 
 export const apiService = {
   // Auth
+  logout: async (): Promise<void> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/auth/logout`, { method: 'POST' });
+    if (!response.ok && response.status !== 401) throw new Error('Failed to revoke session');
+  },
+
+  createMediaTicket: async (scope: 'stream' | 'download-track' | 'download-album', resource: string): Promise<string> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/media-ticket`, {
+      method: 'POST',
+      body: JSON.stringify({ scope, resource })
+    });
+    if (!response.ok) throw new Error('Failed to create media ticket');
+    const data = await response.json();
+    return data.ticket;
+  },
+
+  mediaUrl: async (scope: 'stream' | 'download-track' | 'download-album', resource: string): Promise<string> => {
+    const ticket = await apiService.createMediaTicket(scope, resource);
+    const path = scope === 'stream'
+      ? `/api/stream/${resource}`
+      : scope === 'download-track'
+        ? `/api/download/track/${resource}`
+        : `/api/download/album/${resource}`;
+    return `${API_BASE_URL}${path}?ticket=${encodeURIComponent(ticket)}`;
+  },
+
   register: async (username: string, password: string, inviteCode: string = ''): Promise<AuthResponse> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
