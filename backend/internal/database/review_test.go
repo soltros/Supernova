@@ -388,3 +388,73 @@ func TestEnrichmentFailureBackoffPersistsAndClears(t *testing.T) {
 		t.Fatalf("retry state still present: %v", err)
 	}
 }
+
+
+func TestInitUpgradesDatabaseWithoutFileFingerprint(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "pre-fingerprint.db")
+
+	old, err := sql.Open("sqlite3", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = old.Exec(`
+		CREATE TABLE tracks (
+			id TEXT PRIMARY KEY,
+			album_id TEXT NOT NULL,
+			title TEXT NOT NULL,
+			track_number INTEGER,
+			disc_number INTEGER,
+			duration_ms INTEGER,
+			format TEXT,
+			bitrate INTEGER,
+			file_path TEXT UNIQUE NOT NULL,
+			popularity INTEGER DEFAULT 0,
+			file_modified_at INTEGER DEFAULT 0
+		);
+		PRAGMA user_version = 6;
+	`)
+	if err != nil {
+		old.Close()
+		t.Fatal(err)
+	}
+	if err := old.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := Init(path)
+	if err != nil {
+		t.Fatalf("Init failed while upgrading pre-fingerprint database: %v", err)
+	}
+	defer db.Close()
+
+	for _, column := range []string{"file_modified_ns", "file_size", "file_fingerprint"} {
+		var count int
+		if err := db.QueryRow(
+			`SELECT COUNT(*) FROM pragma_table_info('tracks') WHERE name = ?`,
+			column,
+		).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatalf("expected migrated tracks.%s column", column)
+		}
+	}
+
+	var indexCount int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_tracks_fingerprint'`,
+	).Scan(&indexCount); err != nil {
+		t.Fatal(err)
+	}
+	if indexCount != 1 {
+		t.Fatal("expected idx_tracks_fingerprint after v7 migration")
+	}
+
+	var version int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != 10 {
+		t.Fatalf("expected database version 10 after upgrade, got %d", version)
+	}
+}
