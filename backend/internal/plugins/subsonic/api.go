@@ -741,60 +741,23 @@ func (p *SubsonicPlugin) handleGetPlaylist(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func (p *SubsonicPlugin) handleGetAlbumList(w http.ResponseWriter, r *http.Request) {
-	listType := r.FormValue("type")
-
-	var albums []models.Album
-	var err error
-
-	if listType == "starred" {
-		u, ok := r.Context().Value(userContextKey).(*models.User)
-		if ok && u != nil {
-			_, albums, _, _, err = p.repo.GetHeartDetails(r.Context(), u.ID)
-		} else {
-			p.writeError(w, r, 0, "Not authenticated")
-			return
-		}
-	} else {
-		// Placeholder for other types (newest, random, frequent, recent, etc.)
-		albums, err = p.repo.GetAlbums(r.Context(), "", 100, 0)
+func (p *SubsonicPlugin) handleGetAlbumList(w http.ResponseWriter,r *http.Request){
+	u,ok:=r.Context().Value(userContextKey).(*models.User)
+	if !ok||u==nil{p.writeError(w,r,0,"Not authenticated");return}
+	listType:=r.FormValue("type")
+	if listType==""{listType="alphabeticalByName"}
+	size:=10
+	if raw:=r.FormValue("size");raw!=""{n,err:=strconv.Atoi(raw);if err!=nil||n<0||n>500{p.writeError(w,r,10,"Invalid size");return};size=n}
+	offset:=0
+	if raw:=r.FormValue("offset");raw!=""{n,err:=strconv.Atoi(raw);if err!=nil||n<0{p.writeError(w,r,10,"Invalid offset");return};offset=n}
+	albums,err:=p.repo.GetSubsonicAlbumList(r.Context(),u.ID,listType,size,offset)
+	if err!=nil{p.writeError(w,r,10,err.Error());return}
+	out:=make([]map[string]interface{},0,len(albums))
+	for _,album:=range albums{
+		out=append(out,map[string]interface{}{"id":album["id"],"name":album["title"],"title":album["title"],"artist":album["artist_name"],"artistId":album["artist_id"],"coverArt":album["id"],"songCount":album["song_count"],"duration":album["duration"],"year":album["year"]})
 	}
-
-	if err != nil {
-		p.writeError(w, r, 0, "Database error")
-		return
-	}
-
-	var albumList []map[string]interface{}
-	for _, a := range albums {
-		albumList = append(albumList, map[string]interface{}{
-			"id":        a.ID,
-			"name":      a.Title,
-			"title":     a.Title, // some clients use title instead of name
-			"artist":    a.ArtistName,
-			"artistId":  a.ArtistID,
-			"coverArt":  a.ID,
-			"songCount": 1, // Minimum 1 to show as a valid album
-		})
-	}
-
-	if albumList == nil {
-		albumList = make([]map[string]interface{}, 0)
-	}
-
-	// getAlbumList uses albumList, getAlbumList2 uses albumList2.
-	// Since we handle both with this one function, we can check path
-	isList2 := strings.Contains(r.URL.Path, "getAlbumList2")
-	key := "albumList"
-	if isList2 {
-		key = "albumList2"
-	}
-
-	p.writeResponse(w, r, map[string]interface{}{
-		key: map[string]interface{}{
-			"album": albumList,
-		},
-	})
+	key:="albumList";if strings.Contains(r.URL.Path,"getAlbumList2"){key="albumList2"}
+	p.writeResponse(w,r,map[string]interface{}{key:map[string]interface{}{"album":out}})
 }
 
 func (p *SubsonicPlugin) handleGetCoverArt(w http.ResponseWriter, r *http.Request) {
