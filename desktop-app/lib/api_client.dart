@@ -53,7 +53,7 @@ class ApiClient {
     request.headers.addAll({
       'Accept': 'application/json',
       if (body != null) 'Content-Type': 'application/json',
-      if (auth && token != null && token!.isNotEmpty) 'Authorization': 'Bearer $token',
+      if (auth && token?.isNotEmpty == true) 'Authorization': 'Bearer $token',
     });
     if (body != null) request.body = jsonEncode(body);
     try {

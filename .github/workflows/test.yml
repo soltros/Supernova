@@ -57,12 +57,11 @@ jobs:
           flutter-version: 3.47.2
           cache: true
       - name: Ensure generated Linux plugin files exist
-        run: flutter create --platforms=linux --project-name supernova_desktop --org com.soltros .
+        run: |
+          flutter create --platforms=linux --project-name supernova_desktop --org com.soltros .
+          rm -f test/widget_test.dart
         working-directory: desktop-app
       - run: flutter pub get
-        working-directory: desktop-app
-      - name: Show resolved Flutter lockfile
-        run: cat pubspec.lock
         working-directory: desktop-app
       - run: flutter analyze
         working-directory: desktop-app

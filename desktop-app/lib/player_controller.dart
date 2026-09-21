@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:media_kit/media_kit.dart';
+import 'package:media_kit/media_kit.dart' show Media, Player;
 
 import 'api_client.dart';
 import 'models.dart';

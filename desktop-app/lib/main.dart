@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:media_kit/media_kit.dart';
+import 'package:media_kit/media_kit.dart' show MediaKit;
 import 'package:window_manager/window_manager.dart';
 
 import 'api_client.dart';
@@ -1183,7 +1183,8 @@ class TrackList extends StatelessWidget {
             title: Text(tracks[index].title),
             subtitle: Text(
               [tracks[index].artistName, tracks[index].albumTitle]
-                  .where((value) => value != null && value!.isNotEmpty)
+                  .whereType<String>()
+                  .where((value) => value.isNotEmpty)
                   .join(' • '),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
