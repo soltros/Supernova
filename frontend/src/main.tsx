@@ -6,7 +6,20 @@ import App from './App.tsx';
 if ('serviceWorker' in navigator) {
   // Register the Service Worker and force it to ignore HTTP caching
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(err => {
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(registration => {
+      const announce = () => {
+        if (registration.waiting) {
+          window.dispatchEvent(new CustomEvent('supernova:update-ready', { detail: registration }));
+        }
+      };
+      announce();
+      registration.addEventListener('updatefound', () => {
+        const worker = registration.installing;
+        worker?.addEventListener('statechange', () => {
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) announce();
+        });
+      });
+    }).catch(err => {
       console.log('ServiceWorker registration failed: ', err);
     });
   });
