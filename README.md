@@ -4,7 +4,7 @@
 
 # Supernova Music
 
-Supernova is a self-hosted, lightning-fast audiophile music server designed for massive local music libraries. It acts as an open-source, high-fidelity alternative to streaming platforms, focusing on raw performance, direct streaming, and uncompromising offline playback.
+Supernova is a self-hosted music server for large local libraries. It focuses on direct playback, responsive library browsing, user-owned data, and a web/PWA client. The PWA can cache the application shell for startup while offline; music, API data, and authenticated media are intentionally network-only.
 
 Built with a highly-concurrent Go backend and a Progressive Web App (PWA) React frontend.
 
@@ -17,8 +17,8 @@ Built with a highly-concurrent Go backend and a Progressive Web App (PWA) React 
 - **Scrub-Proof Scrobbling:** An internal playback engine calculates true listen thresholds, accurately logging your playback history independently of external services.
 - **Hearts & Playlists System:** Full relational schema to favorite tracks, albums, and artists. Supports custom user playlists, ordering, and robust JSON export/import data portability.
 - **Glassmorphism UI:** A stunning, highly dynamic React frontend built strictly around glassmorphism. It features blurred contextual backgrounds, smooth micro-animations, and viewport-aware right-click context menus rather than cheap native dialogs.
-- **Progressive Web App (PWA):** Installs directly to your Desktop, iOS, or Android homescreen as a standalone native-feeling application.
-- **Extensible Plugin Architecture:** An `interface`-based registry system allowing modular features like Internet Radio, synchronized lyrics, and third-party scrobblers to be added and enabled seamlessly.
+- **Progressive Web App (PWA):** Installs to supported desktop and mobile browsers. The service worker caches the UI shell/static assets only; it does not provide offline music downloads or cache authenticated media/API responses.
+- **Extensible Plugin Architecture:** An `interface`-based compile-time Go registry for modular features such as Internet Radio, synchronized lyrics, podcasts, Last.fm, and Subsonic compatibility. Compiled plugins can be enabled or disabled with environment variables.
 - **Comprehensive Wiki:** Full documentation covering the database architecture, design philosophy, API, and plugin internals is available on our [GitHub Wiki](https://github.com/soltros/Supernova/wiki).
 
 ## Getting Started
@@ -43,7 +43,7 @@ go run cmd/server/main.go
 The frontend is a Vite-powered React Single Page Application (SPA).
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 *The frontend binds to `http://localhost:5173`.*
@@ -53,7 +53,7 @@ npm run dev
 Supernova exposes a strictly typed RESTful JSON API. If you wish to build a native mobile app, a terminal UI, or an integration on top of Supernova, refer to the routing specifications below.
 
 ### Authentication
-Supernova uses JWT (JSON Web Tokens) for authentication. Most routes (except library discovery) require an `Authorization` header.
+Supernova uses signed JWT session tokens backed by server-side session records. Most authenticated API routes use an `Authorization` header; logout revokes the current session and password changes revoke other sessions. Browser media playback/downloads use short-lived, resource-scoped media tickets instead of placing the full account bearer token in a URL.
 ```http
 Authorization: Bearer <your_jwt_token>
 ```
@@ -68,19 +68,23 @@ Authorization: Bearer <your_jwt_token>
 - `GET /api/tracks` - Returns tracks, optionally filtered by `?album_id=` or `?artist_id=`. Note: When querying by `artist_id`, Supernova automatically sorts the tracks by global popularity.
 
 #### Streaming & Media
-- `GET /api/stream/{id}` - The core audio streaming endpoint. Supports HTTP Range Requests for seeking and buffering. Can be injected directly into `<audio src="...">` tags.
-- `GET /api/download/track/{id}` - Forces a raw file download of the requested track.
-- `GET /api/download/album/{id}` - Dynamically streams and compresses an entire album into a `.zip` archive on the fly.
+- `GET /api/stream/{id}` - Raw streaming supports HTTP Range requests. Authenticated clients may use a Bearer header; browser media elements should first request a scoped `stream` ticket from `POST /api/media-ticket`.
+- `GET /api/download/track/{id}` - Downloads the requested track after authenticated/rooted media validation.
+- `GET /api/download/album/{id}` - Builds and validates the album ZIP in a temporary server-side file before committing the download response, preventing a late read error from masquerading as a successful partial archive.
+- `POST /api/media-ticket` - Issues a short-lived ticket scoped to one stream, track download, or album download resource.
 - `GET /api/art/album/{id}` - Serves extracted and highly-optimized embedded cover art.
 
 #### Authentication
 - `POST /api/auth/register` - Registers a new user. Accepts JSON `{ "username", "password", "invite_code" }`. The first account becomes administrator; later accounts require the owner-configured invite.
-- `POST /api/auth/login` - Authenticates a user and returns the JWT token.
+- `POST /api/auth/login` - Authenticates a user and creates a revocable session-backed JWT.
+- `POST /api/auth/logout` - Revokes the current session.
+- `POST /api/auth/change-password` - Changes the password after verifying the current password and revokes other sessions.
 
 #### User Data (Requires Auth)
 - `GET /api/dashboard` - Returns personalized layout data (recently added albums, recently played tracks, and favorite tracks).
 - `GET /api/hearts` / `POST /api/hearts` / `DELETE /api/hearts` - Manage user favorites. Accepts `{ "entity_type", "entity_id" }`. Supported entities: `track`, `album`, `artist`, `playlist`, `radio`, `podcast`.
-- `GET /api/hearts/details` - Returns hydrated track/album models for all of a user's hearted items.
+- `GET /api/hearts/details` - Returns hydrated tracks, albums, artists, playlists, radio stations, and podcasts for the authenticated user's favorites.
+- `GET /api/hearts/export` / `POST /api/hearts/import` - Versioned JSON backup/restore. V2 prefers stable fingerprints/MusicBrainz identifiers and retains external favorite metadata; legacy array imports remain accepted.
 
 #### Playlists (Requires Auth)
 - `GET /api/playlists` - List user playlists.
@@ -89,7 +93,7 @@ Authorization: Bearer <your_jwt_token>
 - `GET /api/playlists/{id}/tracks` - Retrieve tracks for a specific playlist.
 - `POST /api/playlists/{id}/tracks` - Add a track to a playlist.
 - `DELETE /api/playlists/{id}/tracks/{trackId}` - Remove a track.
-- `GET /api/playlists/export` / `POST /api/playlists/import` - JSON portability endpoints.
+- `GET /api/playlists/export` / `POST /api/playlists/import` - Versioned JSON portability endpoints. V2 records content fingerprints plus legacy paths and restores an entire import set atomically; unresolved or ambiguous tracks fail explicitly rather than being silently skipped.
 
 #### Internal Scrobbling (Requires Auth)
 - `POST /api/scrobbles` - Log a completed listen. Accepts `{ "track_id" }`.
@@ -170,12 +174,12 @@ go run cmd/server/main.go
 ```
 
 ### 1. Subsonic Translation Layer (`/rest/*`)
-The Subsonic Translation plugin bridges the gap between Supernova's modern architecture and the massive, established ecosystem of Subsonic clients. By translating API calls in real-time, it enables full compatibility with dozens of third-party apps without needing a dedicated Supernova mobile app.
-**Featureset:**
-- **Universal Compatibility:** Connect standard apps like Symfonium, DSub, Play:Sub, Ultrasonic, and AVSub directly to your Supernova server.
-- **On-the-fly Translation:** Intercepts OpenSubsonic XML/JSON payloads, maps them to Supernova's UUID relational database, and returns perfectly formatted OpenSubsonic responses.
-- **Complete Auth Support:** Automatically handles Token, Cleartext, and API Key authentication.
-- **Deep Integration:** Supports library browsing, directory traversal, full-text search, and direct media streaming.
+The Subsonic Translation plugin implements a compatibility subset of the Subsonic/OpenSubsonic REST API for third-party clients. Compatibility varies by client and endpoint, so it should not be treated as a claim of complete OpenSubsonic conformance.
+**Implemented areas include:**
+- Username/password authentication, including `enc:` hexadecimal passwords, and the standard token+salt flow (`t = md5(password + salt)`) after the user has logged in through Supernova once.
+- XML and JSON responses for the implemented endpoints.
+- Library browsing, directory traversal, paged search, album lists, playlists, favorites/starred data, scrobbling, raw streaming/downloads, cover art, and bounded on-the-fly transcoding for supported formats.
+- Playlist creation/update operations preserve ordering and repeated songs and apply writes transactionally.
 
 ### 2. Last.fm Scrobbler (`/api/plugins/lastfm/*`)
 For users deeply invested in tracking their listening habits, the Last.fm plugin provides seamless, background integration with the Last.fm ecosystem.
@@ -183,7 +187,7 @@ For users deeply invested in tracking their listening habits, the Last.fm plugin
 - **OAuth Integration:** Securely link your Last.fm account directly through the Supernova settings.
 - **Dual-Scrobbling:** Works in tandem with Supernova's internal Scrub-Proof Scrobbling engine to log plays both locally and to Last.fm simultaneously.
 - **"Now Playing" Support:** Instantly updates your Last.fm status to show the track you are currently listening to.
-- **Real-time API Sync:** Strictly adheres to Last.fm's Scrobbling 2.0 API guidelines for zero dropped scrobbles.
+- **API Integration:** Sends now-playing and scrobble requests through the Last.fm integration. External-service/network failures can still occur and are surfaced or retried where the relevant workflow supports it.
 
 ### 3. LRCLib Synchronized Lyrics (`/api/plugins/lrclib/*`)
 Enhance your listening experience with real-time, karaoke-style synchronized lyrics powered by the open-source LRCLib database.
@@ -208,20 +212,13 @@ A fully safe, non-destructive metadata enricher that fixes your library without 
 - **Database-Only Execution:** Ensures your pristine local file tags are never overwritten or corrupted.
 
 ### 6. Album Merger (`/api/plugins/albummerger/*`)
-A critical library tool that consolidates split albums caused by minor variations in metadata tags (like mismatched release years).
-**Featureset:**
-- **Canonical Merging:** Groups albums with identical titles by the same artist and merges them into a single canonical record.
-- **Relational Re-routing:** Uses strict SQL transactions to safely migrate all tracks and user favorites over to the canonical album before deleting the duplicates.
+The current implementation exposes an administrator-only **read-only preview** of possible album groups. Destructive apply is intentionally disabled until Supernova has a reviewed recovery-first workflow with backup/journal/undo semantics.
 
 ### 7. Artist Merger (`/api/plugins/artistmerger/*`)
-A powerful library cleaner that groups similar artists to eliminate frustrating duplicates from bad metadata.
-**Featureset:**
-- **String Normalization:** Intelligently strips out punctuation, spaces, and prefixes (like "The " or "A ") to find matches.
-- **Canonical Merging:** Automatically detects pairs like "Beatles" and "The Beatles" or "AC DC" and "AC/DC", picking the best formatted name as the canonical artist.
-- **Relational Re-routing:** Safely migrates all albums, tracks, and favorites pointing to the duplicates over to the canonical artist before deleting the orphaned records.
+The current implementation exposes an administrator-only **read-only preview** of normalized-name candidate groups. A preview is not merge authorization; destructive apply remains disabled pending the same recovery/undo design.
 
-### 8. Deduper ("Hide Duplicates") (`/api/plugins/deduper/*`)
-An automatic library cleaner that identifies duplicate tracks (same title, same album) and gracefully masks the lower quality (lower bitrate) version from your database, keeping your library pristine without deleting user files.
+### 8. Deduper (`/api/plugins/deduper/*`)
+The current implementation exposes an administrator-only **read-only preview** of duplicate-track candidates and affected user relationships. Destructive hiding/deletion is disabled pending the reviewed recovery-first workflow.
 
 ### 9. Podcasts (`/api/plugins/podcasts/*`)
 A powerful podcast client integrated directly into Supernova, powered by the open PodcastIndex directory.
@@ -263,4 +260,4 @@ Supernova's plugin system is designed to be highly accessible for developers. To
    ```go
    import _ "github.com/soltros/Supernova/internal/plugins/yourplugin"
    ```
-4. Enable it by setting the environment variable `SUPERNOVA_PLUGIN_MYPLUGIN=true`.
+4. Rebuild the backend so the blank import is compiled into the server. Compiled plugins are enabled by default unless `SUPERNOVA_PLUGIN_MYPLUGIN=false` is set. Supernova does not currently load arbitrary runtime `.so` plugin files.
