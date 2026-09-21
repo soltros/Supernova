@@ -268,3 +268,67 @@ func TestV5PlaylistMigrationPreservesOrder(t *testing.T) {
 	for rows.Next(){ var track,entry string; if err:=rows.Scan(&track,&entry);err!=nil{t.Fatal(err)}; if entry==""{t.Fatal("missing entry id")}; ids=append(ids,track) }
 	if fmt.Sprint(ids)!="[b a]" { t.Fatalf("order changed: %v",ids) }
 }
+
+
+func TestPlaylistBackupV2UsesFingerprintAndWholeSetRollback(t *testing.T) {
+	r := testRepository(t)
+	ctx := context.Background()
+	user, _ := r.CreateUser(ctx, "backup-owner", "hash")
+	if err := r.UpsertTrack(ctx, &models.TrackMetadata{
+		Title:"Song", Album:"Album", Artist:"Artist", FilePath:"/music/original.mp3",
+		FileFingerprint:"fp-song", FileModifiedNs:1, FileSize:100,
+	}); err != nil { t.Fatal(err) }
+	tracks, _ := r.GetTracks(ctx,"","",10,0)
+	p, err := r.CreatePlaylistWithTracks(ctx,user.ID,"Portable",[]string{tracks[0].ID})
+	if err != nil { t.Fatal(err) }
+	backups, err := r.ExportPlaylists(ctx,user.ID)
+	if err != nil || len(backups)!=1 || len(backups[0].TrackRefs)!=1 || backups[0].TrackRefs[0].Fingerprint!="fp-song" {
+		t.Fatalf("v2 export: %+v %v",backups,err)
+	}
+	originalCreated := backups[0].CreatedAt
+	if err:=r.DeletePlaylist(ctx,user.ID,p.ID);err!=nil{t.Fatal(err)}
+	if _,err:=r.db.Exec(`UPDATE tracks SET file_path='/music/moved.mp3' WHERE id=?`,tracks[0].ID);err!=nil{t.Fatal(err)}
+	if err:=r.ImportPlaylistBackups(ctx,user.ID,backups);err!=nil{t.Fatal(err)}
+	lists,err:=r.GetPlaylists(ctx,user.ID)
+	if err!=nil || len(lists)!=1 || lists[0].CreatedAt!=originalCreated { t.Fatalf("restored: %+v %v",lists,err) }
+	restored,err:=r.GetPlaylistTracks(ctx,user.ID,lists[0].ID)
+	if err!=nil || len(restored)!=1 || restored[0].ID!=tracks[0].ID { t.Fatalf("track restore: %+v %v",restored,err) }
+
+	if err:=r.DeletePlaylist(ctx,user.ID,lists[0].ID);err!=nil{t.Fatal(err)}
+	bad:=[]models.PlaylistBackup{
+		{Name:"First",TrackRefs:[]models.PlaylistTrackBackup{{Fingerprint:"fp-song"}}},
+		{Name:"Broken",TrackRefs:[]models.PlaylistTrackBackup{{FilePath:"/missing.mp3"}}},
+	}
+	if err:=r.ImportPlaylistBackups(ctx,user.ID,bad);err==nil{t.Fatal("expected missing track error")}
+	lists,_=r.GetPlaylists(ctx,user.ID)
+	if len(lists)!=0{t.Fatalf("whole-set rollback failed: %+v",lists)}
+}
+
+func TestFavoriteBackupV2RestoresFingerprintMetadataAndTimestamp(t *testing.T) {
+	r:=testRepository(t)
+	ctx:=context.Background()
+	user,_:=r.CreateUser(ctx,"heart-backup","hash")
+	if err:=r.UpsertTrack(ctx,&models.TrackMetadata{Title:"Song",Album:"Album",Artist:"Artist",FilePath:"/music/a.mp3",FileFingerprint:"fp-heart",FileModifiedNs:1,FileSize:10});err!=nil{t.Fatal(err)}
+	tracks,_:=r.GetTracks(ctx,"","",10,0)
+	if err:=r.HeartEntity(ctx,user.ID,"track",tracks[0].ID);err!=nil{t.Fatal(err)}
+	if err:=r.HeartEntityWithMetadata(ctx,user.ID,"radio","station-1",[]byte(`{"stationuuid":"station-1","name":"Station"}`));err!=nil{t.Fatal(err)}
+	backups,err:=r.ExportHeartsV2(ctx,user.ID)
+	if err!=nil{t.Fatal(err)}
+	var trackBackup,radioBackup *models.HeartBackup
+	for i:=range backups{
+		switch backups[i].EntityType{case "track":trackBackup=&backups[i];case "radio":radioBackup=&backups[i]}
+	}
+	if trackBackup==nil || trackBackup.ReferenceType!="fingerprint" || trackBackup.Reference!="fp-heart"{t.Fatalf("track backup: %+v",trackBackup)}
+	if radioBackup==nil || len(radioBackup.Metadata)==0{t.Fatalf("radio backup: %+v",radioBackup)}
+	created:=trackBackup.CreatedAt
+	if _,err:=r.db.Exec(`DELETE FROM hearts WHERE user_id=?`,user.ID);err!=nil{t.Fatal(err)}
+	if _,err:=r.db.Exec(`UPDATE tracks SET file_path='/music/moved-a.mp3' WHERE id=?`,tracks[0].ID);err!=nil{t.Fatal(err)}
+	if err:=r.ImportHeartBackupsV2(ctx,user.ID,backups);err!=nil{t.Fatal(err)}
+	hearts,err:=r.GetAllHearts(ctx,user.ID)
+	if err!=nil || len(hearts)!=2{t.Fatalf("hearts: %+v %v",hearts,err)}
+	var restoredCreated string
+	if err:=r.db.QueryRow(`SELECT created_at FROM hearts WHERE user_id=? AND entity_type='track'`,user.ID).Scan(&restoredCreated);err!=nil{t.Fatal(err)}
+	if restoredCreated!=created{t.Fatalf("timestamp changed: %q != %q",restoredCreated,created)}
+	radio,_,err:=r.GetExternalHeartMetadata(ctx,user.ID)
+	if err!=nil || len(radio)!=1 || !strings.Contains(string(radio[0]),"Station"){t.Fatalf("radio metadata: %s %v",radio,err)}
+}
