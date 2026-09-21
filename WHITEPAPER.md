@@ -31,6 +31,7 @@ This document distinguishes **implemented behavior**, **review-gated behavior**,
 - The first registered account becomes administrator.
 - Subsequent registration requires the configured invite code; leaving it blank closes later registration.
 - Authentication uses signed JWTs backed by persisted, revocable sessions.
+- Reversible Subsonic compatibility credentials use a separate `SUBSONIC_CREDENTIAL_KEY`; legacy JWT-secret-encrypted values are accepted only as an upgrade path.
 - Logout revokes the current session. Password changes revoke other sessions.
 - Browser media elements use short-lived, resource-scoped media tickets instead of full bearer tokens in media URLs.
 - Playlists support stable ordered entries, including repeated tracks.
@@ -150,8 +151,8 @@ These ideas may be useful roadmap items, but documentation should not present th
 Before upgrading a real library:
 
 - keep a verified database recovery copy;
-- preserve the existing JWT secret when compatibility with encrypted Subsonic credentials matters;
-- configure a strong JWT secret and the desired registration invite policy;
+- configure a strong JWT secret and a separate Subsonic credential key; keep the previous JWT secret available during migration until legacy compatibility credentials have been refreshed by normal web logins;
+- configure the desired registration invite policy;
 - install FFmpeg including FFprobe;
 - persist database and art-cache storage;
 - test migrations against a copied database first;

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"github.com/soltros/Supernova/internal/media"
 	"net/http"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -60,18 +59,17 @@ func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 
-			// We retrieve the symmetric JWT_SECRET to decrypt the password
-			secret := os.Getenv("JWT_SECRET")
-			if len(secret) < 32 {
-				p.writeError(w, r, 40, "Server configuration error.")
-				return
-			}
-
-			// Decrypt using the crypto utility
-			plain, err := api.DecryptPassword(encPass, []byte(secret))
+			plain, legacy, err := api.DecryptSubsonicPassword(encPass)
 			if err != nil {
 				p.writeError(w, r, 40, "Wrong username or password.")
 				return
+			}
+			// Opportunistically migrate credentials written before the dedicated
+			// SUBSONIC_CREDENTIAL_KEY existed.
+			if legacy {
+				if migrated, encErr := api.EncryptSubsonicPassword(plain); encErr == nil {
+					_ = p.repo.SetSubsonicPassword(r.Context(), u, migrated)
+				}
 			}
 
 			expectedToken := fmt.Sprintf("%x", md5.Sum([]byte(plain+s)))

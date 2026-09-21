@@ -77,7 +77,7 @@ func (s *Server) handleRegister()http.HandlerFunc{return func(w http.ResponseWri
 	if err!=nil{http.Error(w,"failed to hash password",500);return}
 	user,err:=s.repo.RegisterUser(r.Context(),req.Username,string(hash),req.InviteCode,os.Getenv("REGISTRATION_INVITE_CODE"))
 	if err!=nil{authAttemptLimiter.failed(key);if errors.Is(err,database.ErrInviteRequired){http.Error(w,err.Error(),403)}else{http.Error(w,"username already exists",409)};return}
-	if enc,err:=EncryptPassword(req.Password,getJWTSecret());err==nil{_ = s.repo.SetSubsonicPassword(r.Context(),user.Username,enc)}
+	if enc,err:=EncryptSubsonicPassword(req.Password);err==nil{_ = s.repo.SetSubsonicPassword(r.Context(),user.Username,enc)}
 	token,_,err:=s.issueSessionToken(r.Context(),user.ID)
 	if err!=nil{http.Error(w,"failed to generate token",500);return}
 	authAttemptLimiter.success(key)
@@ -95,7 +95,7 @@ func (s *Server) handleLogin()http.HandlerFunc{return func(w http.ResponseWriter
 	if user==nil || bcrypt.CompareHashAndPassword([]byte(hash),[]byte(req.Password))!=nil{
 		authAttemptLimiter.failed(key);http.Error(w,"invalid username or password",401);return
 	}
-	if enc,err:=EncryptPassword(req.Password,getJWTSecret());err==nil{_ = s.repo.SetSubsonicPassword(r.Context(),user.Username,enc)}
+	if enc,err:=EncryptSubsonicPassword(req.Password);err==nil{_ = s.repo.SetSubsonicPassword(r.Context(),user.Username,enc)}
 	token,_,err:=s.issueSessionToken(r.Context(),user.ID)
 	if err!=nil{http.Error(w,"failed to generate token",500);return}
 	authAttemptLimiter.success(key)
@@ -136,7 +136,7 @@ func (s *Server) handleChangePassword()http.HandlerFunc{return func(w http.Respo
 	if bcrypt.CompareHashAndPassword([]byte(hash),[]byte(req.Current))!=nil{http.Error(w,"current password is incorrect",401);return}
 	newHash,err:=bcrypt.GenerateFromPassword([]byte(req.New),bcrypt.DefaultCost);if err!=nil{http.Error(w,"failed to hash password",500);return}
 	if err:=s.repo.UpdatePassword(r.Context(),user.ID,string(newHash));err!=nil{http.Error(w,"failed to update password",500);return}
-	if enc,err:=EncryptPassword(req.New,getJWTSecret());err==nil{_ = s.repo.SetSubsonicPassword(r.Context(),user.Username,enc)}
+	if enc,err:=EncryptSubsonicPassword(req.New);err==nil{_ = s.repo.SetSubsonicPassword(r.Context(),user.Username,enc)}
 	if err:=s.repo.RevokeOtherSessions(r.Context(),user.ID,sessionID);err!=nil{http.Error(w,"failed to revoke other sessions",500);return}
 	w.WriteHeader(http.StatusNoContent)
 }}

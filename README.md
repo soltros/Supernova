@@ -110,7 +110,7 @@ Copy the example file and fill in your values:
 cp .env.example .env
 ```
 
-Then edit `.env`. At minimum you **must** set `JWT_SECRET`. Set `REGISTRATION_INVITE_CODE` to allow invited registrations after the first account; leaving it blank closes registration after initial setup. Rotate it by changing the value and recreating the backend container.
+Then edit `.env`. At minimum you **must** set `JWT_SECRET`. Set a separate `SUBSONIC_CREDENTIAL_KEY` if you want Subsonic token+salt authentication to survive JWT signing-key rotation. Set `REGISTRATION_INVITE_CODE` to allow invited registrations after the first account; leaving it blank closes registration after initial setup. Rotate the invite by changing the value and recreating the backend container.
 
 ```bash
 # Generate a cryptographically secure secret (run this in your terminal):
@@ -118,6 +118,9 @@ openssl rand -hex 32
 
 # Paste the output as the value for JWT_SECRET in your .env file:
 JWT_SECRET=paste_the_64_character_hex_output_here
+
+# Generate a second independent value for reversible Subsonic credentials:
+SUBSONIC_CREDENTIAL_KEY=paste_a_different_64_character_hex_output_here
 ```
 
 > [!IMPORTANT]
@@ -162,6 +165,7 @@ SUPERNOVA_PLUGIN_AUTOTAGGER=false
 ```bash
 # Required — generate with: openssl rand -hex 32
 export JWT_SECRET=your_secret_here
+export SUBSONIC_CREDENTIAL_KEY=a_different_secret_here
 
 # Optional — for Last.fm scrobbling
 export LASTFM_API_KEY=your_api_key_here
@@ -176,7 +180,7 @@ go run cmd/server/main.go
 ### 1. Subsonic Translation Layer (`/rest/*`)
 The Subsonic Translation plugin implements a compatibility subset of the Subsonic/OpenSubsonic REST API for third-party clients. Compatibility varies by client and endpoint, so it should not be treated as a claim of complete OpenSubsonic conformance.
 **Implemented areas include:**
-- Username/password authentication, including `enc:` hexadecimal passwords, and the standard token+salt flow (`t = md5(password + salt)`) after the user has logged in through Supernova once.
+- Username/password authentication, including `enc:` hexadecimal passwords. The standard token+salt flow (`t = md5(password + salt)`) is available after a web login when `SUBSONIC_CREDENTIAL_KEY` is configured. Legacy JWT-secret-encrypted credentials remain readable during migration and are re-encrypted with the dedicated key when possible.
 - XML and JSON responses for the implemented endpoints.
 - Library browsing, directory traversal, paged search, album lists, playlists, favorites/starred data, scrobbling, raw streaming/downloads, cover art, and bounded on-the-fly transcoding for supported formats.
 - Playlist creation/update operations preserve ordering and repeated songs and apply writes transactionally.
