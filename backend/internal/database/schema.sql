@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS tracks (
     file_path TEXT UNIQUE NOT NULL,
     popularity INTEGER DEFAULT 0,
     file_modified_at INTEGER DEFAULT 0,
+    file_modified_ns INTEGER DEFAULT 0,
+    file_size INTEGER DEFAULT 0,
+    file_fingerprint TEXT DEFAULT '',
     FOREIGN KEY (album_id) REFERENCES albums (id) ON DELETE CASCADE
 );
 
@@ -98,6 +101,7 @@ CREATE TABLE IF NOT EXISTS album_artists (
 -- Indexes to massively speed up library scanning and API queries
 CREATE INDEX IF NOT EXISTS idx_tracks_album_id ON tracks(album_id);
 CREATE INDEX IF NOT EXISTS idx_tracks_file_path ON tracks(file_path);
+CREATE INDEX IF NOT EXISTS idx_tracks_fingerprint ON tracks(file_fingerprint);
 CREATE INDEX IF NOT EXISTS idx_artists_name ON artists(name);
 CREATE INDEX IF NOT EXISTS idx_albums_title ON albums(title);
 
