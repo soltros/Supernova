@@ -14,4 +14,15 @@ function sameOrigin(value, instance) {
   try { return new URL(value).origin === new URL(instance).origin && /^https?:$/.test(new URL(value).protocol); }
   catch { return false; }
 }
-module.exports = { normalizeInstanceUrl, sameOrigin };
+function isLastFmAuthUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' &&
+      !url.username && !url.password &&
+      (url.hostname === 'www.last.fm' || url.hostname === 'last.fm') &&
+      (url.pathname === '/api/auth' || url.pathname === '/api/auth/');
+  } catch {
+    return false;
+  }
+}
+module.exports = { normalizeInstanceUrl, sameOrigin, isLastFmAuthUrl };
