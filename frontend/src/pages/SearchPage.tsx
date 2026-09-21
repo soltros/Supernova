@@ -106,7 +106,15 @@ const SearchPage: FC = () => {
                       <div 
                         key={track.id}
                         className={`track-row ${isCurrentTrack ? 'playing' : ''}`}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => playContext(tracks, index, { id: 'search', title: `Search: ${query}`, release_year: 0, cover_art_path: '', artist_id: '', artist_name: '' } as Album)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            playContext(tracks, index, { id: 'search', title: `Search: ${query}`, release_year: 0, cover_art_path: '', artist_id: '', artist_name: '' } as Album);
+                          }
+                        }}
                       >
                         <div className="track-number">
                           {isCurrentTrack && isPlaying ? (
