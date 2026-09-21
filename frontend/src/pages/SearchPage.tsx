@@ -16,6 +16,7 @@ const SearchPage: FC = () => {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const { playContext, currentTrack, isPlaying } = usePlayer();
 
@@ -26,6 +27,7 @@ const SearchPage: FC = () => {
 
     const fetchResults = async () => {
       setLoading(true);
+      setError(null);
       setArtists([]);
       setAlbums([]);
       setTracks([]);
@@ -38,6 +40,7 @@ const SearchPage: FC = () => {
       } catch (error) {
         if (!isMounted) return;
         console.error('Search failed:', error);
+        setError(error instanceof Error ? error.message : 'Search failed. Please try again.');
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -64,7 +67,11 @@ const SearchPage: FC = () => {
         <h1 className="page-title">Search Results for "{query}"</h1>
 
         {loading ? (
-          <div className="loading-spinner" />
+          <div className="loading-spinner" aria-label="Loading search results" />
+        ) : error ? (
+          <div className="empty-state" role="alert">
+            <p>{error}</p>
+          </div>
         ) : (
           <div className="dashboard-content">
             {artists.length > 0 && (
