@@ -181,9 +181,25 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const audio = audioRef.current;
     if (!audio) return;
     const request = ++playbackRequestRef.current;
-    // Pause the outgoing source while its identity is still current.
     audio.pause();
     activeTrackRef.current = track;
+
+    let resolvedAlbum = album;
+    if (!track.stream_url && track.album_id && album.id !== track.album_id) {
+      try {
+        resolvedAlbum = await apiService.fetchAlbumById(track.album_id);
+      } catch {
+        resolvedAlbum = {
+          ...album,
+          id: track.album_id,
+          title: track.album_title || album.title || 'Unknown Album',
+          artist_id: track.artist_id || album.artist_id,
+          artist_name: track.artist_name || album.artist_name
+        };
+      }
+      if (request !== playbackRequestRef.current) return;
+    }
+    albumRef.current = resolvedAlbum;
     if (track.stream_url) {
       queueRef.current = [track]; queueIndexRef.current = 0; albumRef.current = album;
       setQueue([track]); setQueueIndex(0);
@@ -191,7 +207,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     hasScrobbledRef.current = false;
     accumulatedPlayTimeRef.current = 0;
     lastTimeRef.current = 0;
-    setCurrentTrack(track); setCurrentAlbum(album);
+    setCurrentTrack(track); setCurrentAlbum(resolvedAlbum);
     setDuration(track.duration_ms / 1000);
     if (track.stream_url) {
       audio.src = track.stream_url;
@@ -221,17 +237,17 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
     // Update Lock Screen Metadata (Media Session API)
     if ('mediaSession' in navigator) {
-      const artUrl = album.cover_art_url 
-        ? album.cover_art_url 
-        : `${API_BASE_URL || window.location.origin}/api/art/album/${track.album_id || album.id}`;
+      const artUrl = resolvedAlbum.cover_art_url
+        ? resolvedAlbum.cover_art_url
+        : `${API_BASE_URL || window.location.origin}/api/art/album/${track.album_id || resolvedAlbum.id}`;
         
       // Ensure absolute URL (if cover_art_url is a relative path somehow)
       const absoluteArtUrl = artUrl.startsWith('http') ? artUrl : `${window.location.origin}${artUrl.startsWith('/') ? '' : '/'}${artUrl}`;
 
       navigator.mediaSession.metadata = new MediaMetadata({
         title: track.title,
-        artist: track.artist_name || album.title, // Prioritize track artist name
-        album: album.title,
+        artist: track.artist_name || resolvedAlbum.artist_name || 'Unknown Artist',
+        album: resolvedAlbum.title,
         artwork: [
           { src: absoluteArtUrl, sizes: '500x500', type: 'image/jpeg' }
         ]
@@ -253,7 +269,15 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   const insertNext = useCallback((track: Track) => {
     if (queueRef.current.length === 0) {
-      if (currentAlbum) playContext([track], 0, currentAlbum);
+      const fallback = currentAlbum || {
+        id: track.album_id || 'queue',
+        title: track.album_title || 'Queue',
+        release_year: 0,
+        cover_art_path: '',
+        artist_id: track.artist_id,
+        artist_name: track.artist_name
+      } as Album;
+      void playContext([track], 0, fallback);
       return;
     }
     const newQueue = [...queueRef.current];
@@ -264,7 +288,15 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   const enqueue = useCallback((track: Track) => {
     if (queueRef.current.length === 0) {
-      if (currentAlbum) playContext([track], 0, currentAlbum);
+      const fallback = currentAlbum || {
+        id: track.album_id || 'queue',
+        title: track.album_title || 'Queue',
+        release_year: 0,
+        cover_art_path: '',
+        artist_id: track.artist_id,
+        artist_name: track.artist_name
+      } as Album;
+      void playContext([track], 0, fallback);
       return;
     }
     const newQueue = [...queueRef.current, track];
