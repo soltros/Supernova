@@ -277,6 +277,17 @@ func Init(dbPath string) (*DB, error) {
 		}
 		version = 8
 	}
+
+	if version < 9 {
+		log.Println("Migrating database to version 9 (external favorite metadata)...")
+		if _, err := db.Exec("ALTER TABLE hearts ADD COLUMN metadata_json TEXT;"); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+			return nil, fmt.Errorf("migration to v9 failed: %w", err)
+		}
+		if _, err := db.Exec("PRAGMA user_version = 9"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 9: %w", err)
+		}
+		version = 9
+	}
 	success = true
 	return &DB{db}, nil
 }
