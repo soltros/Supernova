@@ -228,6 +228,10 @@ const SettingsPage: React.FC = () => {
                     apiService.getLastFmAuthUrl(cb)
                       .then(data => {
                         if (data.url) {
+                          const desktop = (window as any).supernovaDesktop;
+                          if (desktop?.openLastFmAuth) {
+                            return desktop.openLastFmAuth(data.url);
+                          }
                           window.location.href = data.url;
                         }
                       });
