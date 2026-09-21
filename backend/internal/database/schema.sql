@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS hearts (
     entity_type TEXT NOT NULL,
     entity_id TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    metadata_json TEXT,
     UNIQUE(user_id, entity_type, entity_id),
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
