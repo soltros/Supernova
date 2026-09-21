@@ -1,6 +1,7 @@
 package deduper
 
 import (
+	"encoding/json"
 	"context"
 	"log"
 	"net/http"
@@ -39,24 +40,37 @@ func (p *DeduperPlugin) Init(config plugins.PluginConfig) error {
 }
 
 func (p *DeduperPlugin) SetupRoutes(mux *http.ServeMux) {
-	// ServeMux patterns are path-only; route by method inside the handler.
-	mux.HandleFunc("/api/plugins/deduper/run", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		p.handleRunDeduper(w, r)
-	})
+	mux.HandleFunc("/api/plugins/deduper/run", p.handleRunDeduper)
+	mux.HandleFunc("/api/plugins/deduper/preview", p.handlePreview)
 }
 
 func (p *DeduperPlugin) handleRunDeduper(w http.ResponseWriter, r *http.Request) {
-	if !p.running.CompareAndSwap(false, true) {
-		http.Error(w, "job already running", http.StatusConflict)
-		return
-	}
-	go func() { defer p.running.Store(false); p.runDeduperJob() }()
-	w.WriteHeader(http.StatusAccepted)
-	w.Write([]byte(`{"status": "deduper job started in background"}`))
+	if r.Method != http.MethodPost { http.Error(w,"method not allowed",http.StatusMethodNotAllowed); return }
+	http.Error(w,"destructive deduplication is disabled until a reviewed recovery/undo plan is approved; inspect /api/plugins/deduper/preview",http.StatusConflict)
+}
+
+func (p *DeduperPlugin) handlePreview(w http.ResponseWriter,r *http.Request){
+	if r.Method!=http.MethodGet{http.Error(w,"method not allowed",http.StatusMethodNotAllowed);return}
+	rows,err:=p.repo.DB().QueryContext(r.Context(),`
+		SELECT t.id,t.title,t.album_id,a.title,COALESCE(ar.id,''),COALESCE(ar.name,''),
+		       COALESCE(t.disc_number,0),COALESCE(t.duration_ms,0),COALESCE(t.format,''),
+		       COALESCE(t.bitrate,0),t.file_path,COALESCE(t.file_fingerprint,''),
+		       (SELECT COUNT(*) FROM playlist_tracks pt WHERE pt.track_id=t.id),
+		       (SELECT COUNT(*) FROM hearts h WHERE h.entity_type='track' AND h.entity_id=t.id),
+		       (SELECT COUNT(*) FROM scrobbles s WHERE s.track_id=t.id)
+		FROM tracks t JOIN albums a ON a.id=t.album_id
+		LEFT JOIN track_artists ta ON ta.track_id=t.id
+		LEFT JOIN artists ar ON ar.id=ta.artist_id
+		ORDER BY ar.name,a.title,t.disc_number,t.track_number,t.title,t.id
+	`)
+	if err!=nil{http.Error(w,"preview query failed",500);return}
+	defer rows.Close()
+	type item struct{ID,Title,AlbumID,Album,ArtistID,Artist,Format,FilePath,Fingerprint string;Disc,Duration,Bitrate,PlaylistEntries,Hearts,Scrobbles int}
+	groups:=map[string][]item{}
+	for rows.Next(){var x item;if err:=rows.Scan(&x.ID,&x.Title,&x.AlbumID,&x.Album,&x.ArtistID,&x.Artist,&x.Disc,&x.Duration,&x.Format,&x.Bitrate,&x.FilePath,&x.Fingerprint,&x.PlaylistEntries,&x.Hearts,&x.Scrobbles);err!=nil{http.Error(w,"preview scan failed",500);return};key:=strings.ToLower(strings.TrimSpace(x.ArtistID+"|"+x.AlbumID+"|"+x.Title));groups[key]=append(groups[key],x)}
+	out:=make([][]item,0)
+	for _,g:=range groups{if len(g)>1{out=append(out,g)}}
+	w.Header().Set("Content-Type","application/json");_ = json.NewEncoder(w).Encode(map[string]any{"mode":"read-only","candidates":out})
 }
 
 func (p *DeduperPlugin) runDeduperJob() {
