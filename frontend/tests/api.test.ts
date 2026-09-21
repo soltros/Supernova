@@ -5,7 +5,7 @@ beforeEach(() => localStorage.clear());
 afterEach(() => vi.unstubAllGlobals());
 it('surfaces denied maintenance and Last.fm requests', async () => {
  vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('Denied',{status:403})));
- await expect(apiService.runPluginJob('deduper')).rejects.toThrow('Failed to start');
+ await expect(apiService.runPluginJob('deduper')).rejects.toThrow('Denied');
  await expect(apiService.getLastFmAuthUrl('https://test')).rejects.toThrow('authorization');
  await expect(apiService.exchangeLastFmToken('token')).rejects.toThrow('exchange');
 });
