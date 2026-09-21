@@ -587,12 +587,14 @@ func (p *SubsonicPlugin) handleStream(w http.ResponseWriter, r *http.Request) {
 	bitrate := maxBitRate
 	if bitrate == 0 { bitrate = 128 }
 	contentType := map[string]string{"mp3":"audio/mpeg","aac":"audio/aac","ogg":"audio/ogg","opus":"audio/ogg; codecs=opus"}[format]
+	committed:=false
 	if err := media.StreamTranscode(r.Context(),file,media.TranscodeOptions{Format:format,BitrateKbps:bitrate,SeekSeconds:offset},w,func(){
 		w.Header().Set("Content-Type",contentType)
 		w.Header().Set("Accept-Ranges","none")
+		committed=true
 		if flusher,ok:=w.(http.Flusher);ok{flusher.Flush()}
 	}); err != nil {
-		_ = err // connection/startup failures are already reflected by the streaming lifecycle
+		if !committed{http.Error(w,"Transcoding unavailable",http.StatusServiceUnavailable)}
 	}
 }
 
