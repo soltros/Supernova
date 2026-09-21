@@ -41,7 +41,7 @@ const AlbumPage: FC = () => {
     let isMounted = true;
     Promise.all([
       apiService.fetchAlbumById(id),
-      apiService.fetchTracks(id, 100, 0)
+      apiService.fetchAllTracks(id)
     ])
     .then(([albumData, tracksData]) => {
       if (!isMounted) return;
