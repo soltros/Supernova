@@ -236,6 +236,26 @@ func Init(dbPath string) (*DB, error) {
 		}
 		version = 6
 	}
+
+	if version < 7 {
+		log.Println("Migrating database to version 7 (stable file identity)...")
+		for _, stmt := range []string{
+			"ALTER TABLE tracks ADD COLUMN file_modified_ns INTEGER DEFAULT 0;",
+			"ALTER TABLE tracks ADD COLUMN file_size INTEGER DEFAULT 0;",
+			"ALTER TABLE tracks ADD COLUMN file_fingerprint TEXT DEFAULT '';",
+		} {
+			if _, err := db.Exec(stmt); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+				return nil, fmt.Errorf("migration to v7 failed: %w", err)
+			}
+		}
+		if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_tracks_fingerprint ON tracks(file_fingerprint)"); err != nil {
+			return nil, fmt.Errorf("migration to v7 index failed: %w", err)
+		}
+		if _, err := db.Exec("PRAGMA user_version = 7"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 7: %w", err)
+		}
+		version = 7
+	}
 	success = true
 	return &DB{db}, nil
 }
