@@ -117,13 +117,14 @@ CREATE TABLE IF NOT EXISTS playlists (
 );
 
 CREATE TABLE IF NOT EXISTS playlist_tracks (
+    entry_id TEXT PRIMARY KEY,
     playlist_id TEXT NOT NULL,
     track_id TEXT NOT NULL,
     position INTEGER NOT NULL,
     added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (playlist_id, track_id),
     FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
-    FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE
+    FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE,
+    UNIQUE(playlist_id, position)
 );
 
 CREATE INDEX IF NOT EXISTS idx_playlists_user_id ON playlists(user_id);
