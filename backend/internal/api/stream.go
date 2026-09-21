@@ -30,11 +30,16 @@ func (s *Server) handleStreamTrack()http.HandlerFunc{return func(w http.Response
 	if raw:=r.URL.Query().Get("time");raw!=""{if n,err:=strconv.Atoi(raw);err==nil&&n>=0{seek=n}else{http.Error(w,"invalid time offset",400);return}}
 	contentType:=map[string]string{"mp3":"audio/mpeg","aac":"audio/aac","ogg":"audio/ogg","opus":"audio/ogg; codecs=opus"}[format]
 	if contentType==""{http.Error(w,"unsupported transcode format",400);return}
+	committed:=false
 	err=media.StreamTranscode(r.Context(),file,media.TranscodeOptions{Format:format,BitrateKbps:bitrate,SeekSeconds:seek},w,func(){
 		w.Header().Set("Content-Type",contentType)
 		w.Header().Set("Cache-Control","no-cache, no-store, must-revalidate")
 		w.Header().Set("Accept-Ranges","none")
+		committed=true
 		if f,ok:=w.(http.Flusher);ok{f.Flush()}
 	})
-	if err!=nil{log.Printf("transcode %s failed: %v",trackID,err)}
+	if err!=nil{
+		log.Printf("transcode %s failed: %v",trackID,err)
+		if !committed{http.Error(w,"transcoding unavailable",http.StatusServiceUnavailable)}
+	}
 }}
