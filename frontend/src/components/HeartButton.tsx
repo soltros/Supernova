@@ -35,6 +35,8 @@ const HeartButton: FC<Props> = ({ entityType, entityId, size = 18, metadata }) =
         justifyContent: 'center'
       }}
       title={active ? "Unheart" : "Heart"}
+      aria-label={active ? `Remove ${entityType} from favorites` : `Add ${entityType} to favorites`}
+      aria-pressed={active}
       onMouseEnter={(e) => {
         e.currentTarget.style.color = '#ff3b30';
         e.currentTarget.style.transform = 'scale(1.2)';
