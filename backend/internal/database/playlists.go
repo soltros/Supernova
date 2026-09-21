@@ -281,39 +281,82 @@ func (r *Repository) ExportPlaylists(ctx context.Context, userID string) ([]mode
 	if err != nil { return nil, err }
 	backups := []models.PlaylistBackup{}
 	for _, p := range playlists {
-		rows, err := r.db.QueryContext(ctx, `
-			SELECT t.file_path FROM playlist_tracks pt JOIN tracks t ON t.id=pt.track_id
+		rows, err := r.db.QueryContext(ctx, \`
+			SELECT t.file_path, COALESCE(t.file_fingerprint,'')
+			FROM playlist_tracks pt JOIN tracks t ON t.id=pt.track_id
 			WHERE pt.playlist_id=? ORDER BY pt.position ASC, pt.entry_id ASC
-		`, p.ID)
+		\`, p.ID)
 		if err != nil { return nil, err }
 		var paths []string
+		var refs []models.PlaylistTrackBackup
 		for rows.Next() {
-			var path string
-			if err := rows.Scan(&path); err != nil { rows.Close(); return nil, err }
+			var path, fingerprint string
+			if err := rows.Scan(&path, &fingerprint); err != nil { rows.Close(); return nil, err }
 			paths = append(paths, path)
+			refs = append(refs, models.PlaylistTrackBackup{FilePath:path, Fingerprint:fingerprint})
 		}
 		if err := rows.Close(); err != nil { return nil, err }
-		backups = append(backups, models.PlaylistBackup{Name:p.Name, CreatedAt:p.CreatedAt, Tracks:paths})
+		if err := rows.Err(); err != nil { return nil, err }
+		backups = append(backups, models.PlaylistBackup{Name:p.Name, CreatedAt:p.CreatedAt, Tracks:paths, TrackRefs:refs})
 	}
 	return backups, nil
 }
 
-func (r *Repository) ImportPlaylistBackup(ctx context.Context, userID string, backup models.PlaylistBackup) error {
+func resolveBackupTrackTx(ctx context.Context, tx *sql.Tx, ref models.PlaylistTrackBackup) (string, error) {
+	if ref.Fingerprint != "" {
+		rows, err := tx.QueryContext(ctx, \`SELECT id FROM tracks WHERE file_fingerprint=? ORDER BY id LIMIT 2\`, ref.Fingerprint)
+		if err != nil { return "", err }
+		defer rows.Close()
+		var ids []string
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil { return "", err }
+			ids = append(ids,id)
+		}
+		if err := rows.Err(); err != nil { return "", err }
+		if len(ids) == 1 { return ids[0], nil }
+		if len(ids) > 1 { return "", fmt.Errorf("ambiguous track fingerprint %s", ref.Fingerprint) }
+	}
+	if ref.FilePath != "" {
+		var id string
+		if err := tx.QueryRowContext(ctx,\`SELECT id FROM tracks WHERE file_path=?\`,ref.FilePath).Scan(&id); err != nil {
+			if errors.Is(err,sql.ErrNoRows){return "",fmt.Errorf("track not found: %s",ref.FilePath)}
+			return "",err
+		}
+		return id,nil
+	}
+	return "",errors.New("backup track has no usable reference")
+}
+
+func (r *Repository) ImportPlaylistBackups(ctx context.Context, userID string, backups []models.PlaylistBackup) error {
 	r.writeMu.Lock()
 	defer r.writeMu.Unlock()
 	tx, err := r.db.BeginTx(ctx,nil)
 	if err != nil { return err }
 	defer tx.Rollback()
-	id := generateUUID()
-	if _, err := tx.ExecContext(ctx,`INSERT INTO playlists(id,user_id,name) VALUES(?,?,?)`,id,userID,backup.Name); err != nil { return err }
-	position := 0
-	for _, path := range backup.Tracks {
-		var trackID string
-		err := tx.QueryRowContext(ctx,`SELECT id FROM tracks WHERE file_path=?`,path).Scan(&trackID)
-		if errors.Is(err,sql.ErrNoRows) { continue }
-		if err != nil { return err }
-		if _, err := tx.ExecContext(ctx,`INSERT INTO playlist_tracks(entry_id,playlist_id,track_id,position) VALUES(?,?,?,?)`,generateUUID(),id,trackID,position); err != nil { return err }
-		position++
+
+	for _, backup := range backups {
+		if strings.TrimSpace(backup.Name)=="" { return errors.New("playlist backup has empty name") }
+		id := generateUUID()
+		if backup.CreatedAt != "" {
+			if _,err=tx.ExecContext(ctx,\`INSERT INTO playlists(id,user_id,name,created_at) VALUES(?,?,?,?)\`,id,userID,backup.Name,backup.CreatedAt);err!=nil{return err}
+		} else {
+			if _,err=tx.ExecContext(ctx,\`INSERT INTO playlists(id,user_id,name) VALUES(?,?,?)\`,id,userID,backup.Name);err!=nil{return err}
+		}
+		refs:=backup.TrackRefs
+		if len(refs)==0 {
+			refs=make([]models.PlaylistTrackBackup,0,len(backup.Tracks))
+			for _,path:=range backup.Tracks{refs=append(refs,models.PlaylistTrackBackup{FilePath:path})}
+		}
+		for position,ref:=range refs{
+			trackID,resolveErr:=resolveBackupTrackTx(ctx,tx,ref)
+			if resolveErr!=nil{return fmt.Errorf("playlist %q entry %d: %w",backup.Name,position,resolveErr)}
+			if _,err=tx.ExecContext(ctx,\`INSERT INTO playlist_tracks(entry_id,playlist_id,track_id,position) VALUES(?,?,?,?)\`,generateUUID(),id,trackID,position);err!=nil{return err}
+		}
 	}
 	return tx.Commit()
+}
+
+func (r *Repository) ImportPlaylistBackup(ctx context.Context, userID string, backup models.PlaylistBackup) error {
+	return r.ImportPlaylistBackups(ctx,userID,[]models.PlaylistBackup{backup})
 }
