@@ -177,17 +177,16 @@ export const apiService = {
     return response.json();
   },
 
-  fetchHeartDetails: async (): Promise<{ tracks: Track[], albums: Album[], artists: Artist[], playlists: Playlist[] }> => {
+  fetchHeartDetails: async (): Promise<{ tracks: Track[], albums: Album[], artists: Artist[], playlists: Playlist[], radio: any[], podcasts: any[] }> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts/details`);
     if (!response.ok) throw new Error('Failed to fetch heart details');
     return response.json();
   },
 
-  addHeart: async (entityType: string, entityId: string): Promise<void> => {
+  addHeart: async (entityType: string, entityId: string, metadata?: any): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/hearts`, {
       method: 'POST',
-      
-      body: JSON.stringify({ entity_type: entityType, entity_id: entityId })
+      body: JSON.stringify({ entity_type: entityType, entity_id: entityId, metadata })
     });
     if (!response.ok) throw new Error('Failed to add heart');
   },
