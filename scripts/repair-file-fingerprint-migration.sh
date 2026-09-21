@@ -96,8 +96,15 @@ fi
 DB_PATH=$(readlink -f "$DB_PATH")
 DB_DIR=$(dirname "$DB_PATH")
 
-if [[ ! -f "$DB_PATH" ]]; then
-  echo "error: database not found: $DB_PATH" >&2
+FS=()
+if [[ ! -r "$DB_PATH" || ! -w "$DB_PATH" || ! -w "$DB_DIR" ]]; then
+  if command -v sudo >/dev/null 2>&1 && sudo test -f "$DB_PATH"; then
+    FS=(sudo)
+  fi
+fi
+
+if ! "${FS[@]}" test -f "$DB_PATH"; then
+  echo "error: database not found or inaccessible: $DB_PATH" >&2
   exit 1
 fi
 
@@ -107,18 +114,18 @@ BACKUP_DIR="$DB_DIR/repair-backup-$timestamp"
 echo "==> Database: $DB_PATH"
 echo "==> Backup:   $BACKUP_DIR"
 
-mkdir -p "$BACKUP_DIR"
-cp -a "$DB_PATH" "$BACKUP_DIR/"
+"${FS[@]}" mkdir -p "$BACKUP_DIR"
+"${FS[@]}" cp -a "$DB_PATH" "$BACKUP_DIR/"
 
 for sidecar in "$DB_PATH-wal" "$DB_PATH-shm"; do
-  if [[ -f "$sidecar" ]]; then
-    cp -a "$sidecar" "$BACKUP_DIR/"
+  if "${FS[@]}" test -f "$sidecar"; then
+    "${FS[@]}" cp -a "$sidecar" "$BACKUP_DIR/"
   fi
 done
 
 echo "==> Repairing v7 file-identity schema"
 
-python3 - "$DB_PATH" <<'PY'
+"${FS[@]}" python3 - "$DB_PATH" <<'PY'
 import sqlite3
 import sys
 
