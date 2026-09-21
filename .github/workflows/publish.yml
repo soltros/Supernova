@@ -53,6 +53,7 @@ jobs:
           images: ghcr.io/${{ env.REPOSITORY_NAME }}-${{ matrix.image_suffix }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,prefix=sha-
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
