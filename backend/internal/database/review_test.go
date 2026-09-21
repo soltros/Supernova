@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"strings"
 )
 
 func testRepository(t *testing.T) *Repository {
@@ -177,4 +178,93 @@ func TestPlaylistImportRollsBackOnInsertFailure(t *testing.T) {
 	if err != nil || len(lists) != 0 {
 		t.Fatalf("partial playlist remains: %+v %v", lists, err)
 	}
+}
+
+
+func TestPlaylistAllowsRepeatedTracksAndIndexUpdates(t *testing.T) {
+	r := testRepository(t)
+	ctx := context.Background()
+	u, err := r.CreateUser(ctx, "playlist-owner", "hash")
+	if err != nil { t.Fatal(err) }
+	for i, path := range []string{"/music/a.mp3", "/music/b.mp3"} {
+		if err := r.UpsertTrack(ctx, &models.TrackMetadata{Title: fmt.Sprintf("Track %d", i), Album:"Album", Artist:"Artist", FilePath:path}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tracks, err := r.GetTracks(ctx,"","",10,0)
+	if err != nil || len(tracks) != 2 { t.Fatalf("tracks: %+v %v", tracks, err) }
+	a, b := tracks[0].ID, tracks[1].ID
+	p, err := r.CreatePlaylistWithTracks(ctx,u.ID,"Repeated",[]string{a,b,a})
+	if err != nil { t.Fatal(err) }
+	got, err := r.GetPlaylistTracks(ctx,u.ID,p.ID)
+	if err != nil { t.Fatal(err) }
+	if len(got) != 3 || got[0].ID != a || got[1].ID != b || got[2].ID != a {
+		t.Fatalf("duplicate ordering lost: %+v", got)
+	}
+	name := "Renamed"
+	if err := r.UpdatePlaylist(ctx,u.ID,p.ID,&name,[]string{b},[]int{1}); err != nil { t.Fatal(err) }
+	got, err = r.GetPlaylistTracks(ctx,u.ID,p.ID)
+	if err != nil { t.Fatal(err) }
+	if len(got) != 3 || got[0].ID != a || got[1].ID != a || got[2].ID != b {
+		t.Fatalf("index update wrong: %+v", got)
+	}
+	before := append([]models.Track(nil), got...)
+	if err := r.UpdatePlaylist(ctx,u.ID,p.ID,nil,nil,[]int{99}); err == nil {
+		t.Fatal("invalid removal index unexpectedly succeeded")
+	}
+	got, _ = r.GetPlaylistTracks(ctx,u.ID,p.ID)
+	if len(got) != len(before) {
+		t.Fatalf("invalid update mutated playlist: before=%d after=%d",len(before),len(got))
+	}
+	lists, err := r.GetPlaylists(ctx,u.ID)
+	if err != nil || len(lists) != 1 || lists[0].Name != "Renamed" {
+		t.Fatalf("rename not persisted: %+v %v",lists,err)
+	}
+}
+
+func TestV5PlaylistMigrationPreservesOrder(t *testing.T) {
+	path := filepath.Join(t.TempDir(),"v5.db")
+	old, err := sql.Open("sqlite3","file:"+path)
+	if err != nil { t.Fatal(err) }
+	oldSchema := strings.Replace(schemaSQL,
+		`CREATE TABLE IF NOT EXISTS playlist_tracks (
+    entry_id TEXT PRIMARY KEY,
+    playlist_id TEXT NOT NULL,
+    track_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+    FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE,
+    UNIQUE(playlist_id, position)
+);`,
+		`CREATE TABLE IF NOT EXISTS playlist_tracks (
+    playlist_id TEXT NOT NULL,
+    track_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (playlist_id, track_id),
+    FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+    FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE
+);`,1)
+	if _,err=old.Exec(oldSchema+`
+		ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0;
+		INSERT INTO users(id,username,password_hash,is_admin) VALUES('u','owner','hash',1);
+		INSERT INTO artists(id,name) VALUES('ar','Artist');
+		INSERT INTO albums(id,title) VALUES('al','Album');
+		INSERT INTO tracks(id,album_id,title,file_path) VALUES('a','al','A','/a'),('b','al','B','/b');
+		INSERT INTO playlists(id,user_id,name) VALUES('p','u','List');
+		INSERT INTO playlist_tracks(playlist_id,track_id,position) VALUES('p','b',0),('p','a',1);
+		PRAGMA user_version=5;`); err != nil { t.Fatal(err) }
+	old.Close()
+	db,err:=Init(path)
+	if err != nil { t.Fatal(err) }
+	defer db.Close()
+	var version int
+	if err:=db.QueryRow("PRAGMA user_version").Scan(&version); err!=nil || version<6 { t.Fatalf("version=%d err=%v",version,err) }
+	rows,err:=db.Query(`SELECT track_id,entry_id FROM playlist_tracks ORDER BY position`)
+	if err!=nil { t.Fatal(err) }
+	defer rows.Close()
+	var ids []string
+	for rows.Next(){ var track,entry string; if err:=rows.Scan(&track,&entry);err!=nil{t.Fatal(err)}; if entry==""{t.Fatal("missing entry id")}; ids=append(ids,track) }
+	if fmt.Sprint(ids)!="[b a]" { t.Fatalf("order changed: %v",ids) }
 }
