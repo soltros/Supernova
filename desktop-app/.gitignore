@@ -1,0 +1,5 @@
+.dart_tool/
+.packages
+.pub/
+build/
+linux/flutter/ephemeral/
