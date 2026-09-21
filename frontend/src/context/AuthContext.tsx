@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { User, AuthResponse } from '../types';
+import { apiService } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -21,13 +22,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('sn_token'));
 
-  const logout = useCallback(() => {
+  const clearLocalSession = useCallback(() => {
     setUser(null);
     setToken(null);
     localStorage.removeItem('sn_user');
     localStorage.removeItem('sn_token');
     localStorage.removeItem('lastfm_session');
   }, []);
+
+  const logout = useCallback(() => {
+    apiService.logout().catch(() => {}).finally(clearLocalSession);
+  }, [clearLocalSession]);
 
   useEffect(() => {
     const handleAuthError = () => logout();
@@ -43,13 +48,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetch(`${base}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async response => {
         if (cancelled) return;
-        if (response.status === 401) { logout(); return; }
+        if (response.status === 401) { clearLocalSession(); return; }
         if (!response.ok) return;
         const account = await response.json();
         if (!cancelled) { setUser(account); localStorage.setItem('sn_user', JSON.stringify(account)); }
       }).catch(() => {});
     return () => { cancelled = true; };
-  }, [token, logout]);
+  }, [token, clearLocalSession]);
 
   const login = (data: AuthResponse) => {
     setUser(data.user);
