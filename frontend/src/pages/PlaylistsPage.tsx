@@ -15,6 +15,7 @@ export const PlaylistsPage: React.FC = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const playlistRequestRef = useRef(0);
   const { playContext } = usePlayer();
   const location = useLocation();
 
@@ -48,12 +49,17 @@ export const PlaylistsPage: React.FC = () => {
   };
 
   const handleSelectPlaylist = async (p: Playlist) => {
+    const request = ++playlistRequestRef.current;
     setSelectedPlaylist(p);
+    setTracks([]);
     try {
       const t = await apiService.fetchPlaylistTracks(p.id);
+      if (request !== playlistRequestRef.current) return;
       setTracks(t || []);
     } catch (err) {
+      if (request !== playlistRequestRef.current) return;
       console.error(err);
+      addToast('Failed to load playlist tracks.', 'error');
     }
   };
 
