@@ -281,11 +281,11 @@ func (r *Repository) ExportPlaylists(ctx context.Context, userID string) ([]mode
 	if err != nil { return nil, err }
 	backups := []models.PlaylistBackup{}
 	for _, p := range playlists {
-		rows, err := r.db.QueryContext(ctx, \`
+		rows, err := r.db.QueryContext(ctx, `
 			SELECT t.file_path, COALESCE(t.file_fingerprint,'')
 			FROM playlist_tracks pt JOIN tracks t ON t.id=pt.track_id
 			WHERE pt.playlist_id=? ORDER BY pt.position ASC, pt.entry_id ASC
-		\`, p.ID)
+		`, p.ID)
 		if err != nil { return nil, err }
 		var paths []string
 		var refs []models.PlaylistTrackBackup
@@ -304,7 +304,7 @@ func (r *Repository) ExportPlaylists(ctx context.Context, userID string) ([]mode
 
 func resolveBackupTrackTx(ctx context.Context, tx *sql.Tx, ref models.PlaylistTrackBackup) (string, error) {
 	if ref.Fingerprint != "" {
-		rows, err := tx.QueryContext(ctx, \`SELECT id FROM tracks WHERE file_fingerprint=? ORDER BY id LIMIT 2\`, ref.Fingerprint)
+		rows, err := tx.QueryContext(ctx, `SELECT id FROM tracks WHERE file_fingerprint=? ORDER BY id LIMIT 2`, ref.Fingerprint)
 		if err != nil { return "", err }
 		defer rows.Close()
 		var ids []string
@@ -319,7 +319,7 @@ func resolveBackupTrackTx(ctx context.Context, tx *sql.Tx, ref models.PlaylistTr
 	}
 	if ref.FilePath != "" {
 		var id string
-		if err := tx.QueryRowContext(ctx,\`SELECT id FROM tracks WHERE file_path=?\`,ref.FilePath).Scan(&id); err != nil {
+		if err := tx.QueryRowContext(ctx,`SELECT id FROM tracks WHERE file_path=?`,ref.FilePath).Scan(&id); err != nil {
 			if errors.Is(err,sql.ErrNoRows){return "",fmt.Errorf("track not found: %s",ref.FilePath)}
 			return "",err
 		}
@@ -339,9 +339,9 @@ func (r *Repository) ImportPlaylistBackups(ctx context.Context, userID string, b
 		if strings.TrimSpace(backup.Name)=="" { return errors.New("playlist backup has empty name") }
 		id := generateUUID()
 		if backup.CreatedAt != "" {
-			if _,err=tx.ExecContext(ctx,\`INSERT INTO playlists(id,user_id,name,created_at) VALUES(?,?,?,?)\`,id,userID,backup.Name,backup.CreatedAt);err!=nil{return err}
+			if _,err=tx.ExecContext(ctx,`INSERT INTO playlists(id,user_id,name,created_at) VALUES(?,?,?,?)`,id,userID,backup.Name,backup.CreatedAt);err!=nil{return err}
 		} else {
-			if _,err=tx.ExecContext(ctx,\`INSERT INTO playlists(id,user_id,name) VALUES(?,?,?)\`,id,userID,backup.Name);err!=nil{return err}
+			if _,err=tx.ExecContext(ctx,`INSERT INTO playlists(id,user_id,name) VALUES(?,?,?)`,id,userID,backup.Name);err!=nil{return err}
 		}
 		refs:=backup.TrackRefs
 		if len(refs)==0 {
@@ -351,7 +351,7 @@ func (r *Repository) ImportPlaylistBackups(ctx context.Context, userID string, b
 		for position,ref:=range refs{
 			trackID,resolveErr:=resolveBackupTrackTx(ctx,tx,ref)
 			if resolveErr!=nil{return fmt.Errorf("playlist %q entry %d: %w",backup.Name,position,resolveErr)}
-			if _,err=tx.ExecContext(ctx,\`INSERT INTO playlist_tracks(entry_id,playlist_id,track_id,position) VALUES(?,?,?,?)\`,generateUUID(),id,trackID,position);err!=nil{return err}
+			if _,err=tx.ExecContext(ctx,`INSERT INTO playlist_tracks(entry_id,playlist_id,track_id,position) VALUES(?,?,?,?)`,generateUUID(),id,trackID,position);err!=nil{return err}
 		}
 	}
 	return tx.Commit()
