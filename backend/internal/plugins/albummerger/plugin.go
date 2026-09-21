@@ -1,6 +1,7 @@
 package albummerger
 
 import (
+	"encoding/json"
 	"context"
 	"log"
 	"net/http"
@@ -40,20 +41,33 @@ func (p *AlbumMergerPlugin) Init(config plugins.PluginConfig) error {
 
 func (p *AlbumMergerPlugin) SetupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/plugins/albummerger/run", p.handleRunMerger)
+	mux.HandleFunc("/api/plugins/albummerger/preview", p.handlePreview)
 }
 
-func (p *AlbumMergerPlugin) handleRunMerger(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !p.running.CompareAndSwap(false, true) {
-		http.Error(w, "job already running", http.StatusConflict)
-		return
-	}
-	go func() { defer p.running.Store(false); p.runMergeJob() }()
-	w.WriteHeader(http.StatusAccepted)
-	w.Write([]byte(`{"status": "album-merger job started in background"}`))
+func (p *AlbumMergerPlugin) handleRunMerger(w http.ResponseWriter,r *http.Request){
+	if r.Method!=http.MethodPost{http.Error(w,"method not allowed",http.StatusMethodNotAllowed);return}
+	http.Error(w,"destructive album merging is disabled until a reviewed recovery/undo plan is approved; inspect /api/plugins/albummerger/preview",http.StatusConflict)
+}
+
+func (p *AlbumMergerPlugin) handlePreview(w http.ResponseWriter,r *http.Request){
+	if r.Method!=http.MethodGet{http.Error(w,"method not allowed",http.StatusMethodNotAllowed);return}
+	rows,err:=p.repo.DB().QueryContext(r.Context(),`
+		SELECT a.id,a.title,COALESCE(a.release_year,0),COALESCE(a.musicbrainz_id,''),
+		       COALESCE(aa.artist_id,''),COALESCE(ar.name,''),
+		       (SELECT COUNT(*) FROM tracks t WHERE t.album_id=a.id),
+		       (SELECT COUNT(*) FROM hearts h WHERE h.entity_type='album' AND h.entity_id=a.id)
+		FROM albums a
+		LEFT JOIN album_artists aa ON aa.album_id=a.id AND aa.role='primary'
+		LEFT JOIN artists ar ON ar.id=aa.artist_id
+		ORDER BY ar.name,a.title,a.id
+	`)
+	if err!=nil{http.Error(w,"preview query failed",500);return}
+	defer rows.Close()
+	type item struct{ID,Title,MBID,ArtistID,Artist string;Year,Tracks,Hearts int}
+	groups:=map[string][]item{}
+	for rows.Next(){var x item;if err:=rows.Scan(&x.ID,&x.Title,&x.Year,&x.MBID,&x.ArtistID,&x.Artist,&x.Tracks,&x.Hearts);err!=nil{http.Error(w,"preview scan failed",500);return};key:=normalizeName(x.Title)+"|"+x.ArtistID;groups[key]=append(groups[key],x)}
+	out:=make([][]item,0);for _,g:=range groups{if len(g)>1{out=append(out,g)}}
+	w.Header().Set("Content-Type","application/json");_ = json.NewEncoder(w).Encode(map[string]any{"mode":"read-only","warning":"edition/remaster/clean/explicit distinctions are not approved for automatic merge","candidates":out})
 }
 
 // normalizeName strips punctuation, lowercases, and removes common variations
