@@ -42,6 +42,8 @@ const HeartsPage: FC = () => {
         setAlbums(data.albums || []);
         setArtists(data.artists || []);
         setPlaylists(data.playlists || []);
+        setRadioStations(data.radio || []);
+        setPodcasts(data.podcasts || []);
         setLoading(false);
       })
       .catch(err => {
@@ -50,22 +52,6 @@ const HeartsPage: FC = () => {
         setLoading(false);
       });
     return () => { isMounted = false; };
-  }, [heartedIds]);
-
-  useEffect(() => {
-    try {
-      const storedRadio = JSON.parse(localStorage.getItem('heartedRadioStations') || '[]');
-      const fallbackRadio = JSON.parse(localStorage.getItem('recentRadioStations') || '[]');
-      const mergedRadio = [...storedRadio, ...fallbackRadio];
-      const uniqueRadio = mergedRadio.filter((v, i, a) => a.findIndex(t => (t.stationuuid === v.stationuuid)) === i);
-      setRadioStations(uniqueRadio.filter((s: any) => heartedIds.has(s.stationuuid)));
-
-      const storedPodcasts = JSON.parse(localStorage.getItem('heartedPodcasts') || '[]');
-      const fallbackPodcasts = JSON.parse(localStorage.getItem('recentPodcasts') || '[]');
-      const mergedPodcasts = [...storedPodcasts, ...fallbackPodcasts];
-      const uniquePodcasts = mergedPodcasts.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
-      setPodcasts(uniquePodcasts.filter((p: any) => heartedIds.has(p.id?.toString())));
-    } catch (e) {}
   }, [heartedIds]);
 
   const handleExport = () => {
