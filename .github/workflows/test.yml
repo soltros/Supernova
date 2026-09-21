@@ -29,6 +29,8 @@ jobs:
         working-directory: backend
       - run: go test ./... && go vet ./...
         working-directory: supernova-cli
+      - name: Validate manual Subsonic smoke client
+        run: python3 -m py_compile test_subsonic.py
   clients:
     runs-on: ubuntu-latest
     steps:
