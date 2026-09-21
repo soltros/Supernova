@@ -90,9 +90,9 @@ Full scans and mutation jobs now run through a shared supervisor instead of each
 
 That means fewer overlapping database-changing jobs, proper cancellation, and cleaner shutdown behavior.
 
-### Desktop app security cleanup
+### Desktop app replaced with Flutter
 
-The Electron app got a security pass.
+The old Electron wrapper has been retired. Supernova now has a native Flutter Linux client that talks directly to the REST API instead of embedding the web frontend.
 
 Navigation is restricted to the configured Supernova server, arbitrary popups and permissions are blocked, IPC is restricted to trusted frames, the renderer stays sandboxed, and Last.fm login happens through a dedicated OAuth window with a validated callback.
 

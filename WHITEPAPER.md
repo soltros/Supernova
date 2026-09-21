@@ -2,7 +2,7 @@
 
 ## 1. Vision and scope
 
-Supernova is a self-hosted music server for local libraries. Its current implementation combines a Go backend, SQLite, FFmpeg/FFprobe, a React/Vite web client, an Electron desktop wrapper, and a compile-time Go plugin registry.
+Supernova is a self-hosted music server for local libraries. Its current implementation combines a Go backend, SQLite, FFmpeg/FFprobe, a React/Vite web client, a native Flutter Linux desktop client, and a compile-time Go plugin registry.
 
 This document distinguishes **implemented behavior**, **review-gated behavior**, and **planned work**. It is not a promise that every Subsonic/OpenSubsonic client, platform package, or future feature is already supported.
 
@@ -48,7 +48,7 @@ This document distinguishes **implemented behavior**, **review-gated behavior**,
 
 ### Desktop and command-line clients
 
-- The Electron desktop wrapper validates configured HTTP(S) origins, restricts navigation/IPC, denies unapproved new windows and permissions, and isolates the Last.fm OAuth flow.
+- The Flutter desktop wrapper validates configured HTTP(S) origins, restricts navigation/IPC, denies unapproved new windows and permissions, and isolates the Last.fm OAuth flow.
 - The Go CLI uses atomic download publication and does not overwrite an existing destination implicitly.
 - The Python GUI normalizes grouped favorite responses, distinguishes entity types, guards stale requests, discovers the bundled CLI relative to its own location, and uses bounded child-process cleanup.
 
