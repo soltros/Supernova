@@ -1,5 +1,7 @@
 package models
 
+import "encoding/json"
+
 // TrackMetadata holds the standardized metadata extracted from any audio file.
 // This serves as the middle-layer between the raw file and the database schema.
 type TrackMetadata struct {
@@ -62,10 +64,11 @@ type Track struct {
 
 // Heart represents a user's favorite track, album, or artist
 type Heart struct {
-	ID         string `json:"id"`
-	EntityType string `json:"entity_type"`
-	EntityID   string `json:"entity_id"`
-	CreatedAt  string `json:"created_at"`
+	ID         string          `json:"id"`
+	EntityType string          `json:"entity_type"`
+	EntityID   string          `json:"entity_id"`
+	CreatedAt  string          `json:"created_at"`
+	Metadata   json.RawMessage `json:"metadata,omitempty"`
 }
 
 type PodcastSubscription struct {
@@ -98,9 +101,10 @@ type RadioSubscription struct {
 
 // HeartBackup securely exports hearts by absolute file_path instead of volatile UUIDs
 type HeartBackup struct {
-	EntityType string `json:"entity_type"`
-	Reference  string `json:"reference"`
-	CreatedAt  string `json:"created_at"`
+	EntityType string          `json:"entity_type"`
+	Reference  string          `json:"reference"`
+	CreatedAt  string          `json:"created_at"`
+	Metadata   json.RawMessage `json:"metadata,omitempty"`
 }
 
 // User represents an authenticated account
