@@ -193,6 +193,49 @@ func Init(dbPath string) (*DB, error) {
 			return nil, err
 		}
 	}
+
+	if version < 6 {
+		log.Println("Migrating database to version 6 (ordered playlist entries)...")
+		var hasEntryID int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('playlist_tracks') WHERE name = 'entry_id'`).Scan(&hasEntryID); err != nil {
+			return nil, fmt.Errorf("migration to v6 inspection failed: %w", err)
+		}
+		if hasEntryID == 0 {
+			tx, err := db.Begin()
+			if err != nil {
+				return nil, fmt.Errorf("migration to v6 begin failed: %w", err)
+			}
+			if _, err := tx.Exec(`
+				CREATE TABLE playlist_tracks_v6 (
+					entry_id TEXT PRIMARY KEY,
+					playlist_id TEXT NOT NULL,
+					track_id TEXT NOT NULL,
+					position INTEGER NOT NULL,
+					added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+					FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+					FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE,
+					UNIQUE(playlist_id, position)
+				);
+				INSERT INTO playlist_tracks_v6(entry_id, playlist_id, track_id, position, added_at)
+				SELECT lower(hex(randomblob(16))), playlist_id, track_id, position, added_at
+				FROM playlist_tracks
+				ORDER BY playlist_id, position;
+				DROP TABLE playlist_tracks;
+				ALTER TABLE playlist_tracks_v6 RENAME TO playlist_tracks;
+				CREATE INDEX idx_playlist_tracks_playlist_id_pos ON playlist_tracks(playlist_id, position);
+			`); err != nil {
+				tx.Rollback()
+				return nil, fmt.Errorf("migration to v6 failed: %w", err)
+			}
+			if err := tx.Commit(); err != nil {
+				return nil, fmt.Errorf("migration to v6 commit failed: %w", err)
+			}
+		}
+		if _, err := db.Exec("PRAGMA user_version = 6"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 6: %w", err)
+		}
+		version = 6
+	}
 	success = true
 	return &DB{db}, nil
 }
