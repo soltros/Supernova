@@ -20,7 +20,7 @@ type TranscodeOptions struct {
 var transcodeSlots=make(chan struct{},4)
 var transcodeBufferPool=sync.Pool{New:func()any{return make([]byte,32*1024)}}
 
-func validateTranscode(opts *TranscodeOptions)(codec,muxer string,error){
+func validateTranscode(opts *TranscodeOptions)(codec string,muxer string,err error){
 	switch opts.Format {
 	case "mp3":codec,muxer="libmp3lame","mp3"
 	case "aac":codec,muxer="aac","adts"
