@@ -101,10 +101,16 @@ type RadioSubscription struct {
 
 // HeartBackup securely exports hearts by absolute file_path instead of volatile UUIDs
 type HeartBackup struct {
-	EntityType string          `json:"entity_type"`
-	Reference  string          `json:"reference"`
-	CreatedAt  string          `json:"created_at"`
-	Metadata   json.RawMessage `json:"metadata,omitempty"`
+	EntityType    string          `json:"entity_type"`
+	Reference     string          `json:"reference"`
+	ReferenceType string          `json:"reference_type,omitempty"`
+	CreatedAt     string          `json:"created_at"`
+	Metadata      json.RawMessage `json:"metadata,omitempty"`
+}
+
+type HeartBackupEnvelope struct {
+	Version int           `json:"version"`
+	Hearts  []HeartBackup `json:"hearts"`
 }
 
 // User represents an authenticated account
@@ -124,8 +130,19 @@ type Playlist struct {
 }
 
 // PlaylistBackup is used for exporting playlists robustly, matching tracks by file_path
+type PlaylistTrackBackup struct {
+	FilePath    string `json:"file_path,omitempty"`
+	Fingerprint string `json:"fingerprint,omitempty"`
+}
+
 type PlaylistBackup struct {
-	Name      string   `json:"name"`
-	CreatedAt string   `json:"created_at"`
-	Tracks    []string `json:"tracks"` // file paths
+	Name      string                `json:"name"`
+	CreatedAt string                `json:"created_at"`
+	Tracks    []string              `json:"tracks,omitempty"` // legacy file paths
+	TrackRefs []PlaylistTrackBackup `json:"track_refs,omitempty"`
+}
+
+type PlaylistBackupEnvelope struct {
+	Version   int              `json:"version"`
+	Playlists []PlaylistBackup `json:"playlists"`
 }
