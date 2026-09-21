@@ -59,7 +59,7 @@ func (p *RadioPlugin) SetupRoutes(mux *http.ServeMux) {
 }
 
 func (p *RadioPlugin) authenticate(r *http.Request) (string, error) {
-	user, err := authn.Authenticate(r, p.repo, false)
+	user, _, err := authn.Authenticate(r, p.repo, false)
 	if err != nil {
 		return "", err
 	}
