@@ -152,8 +152,8 @@ const PodcastsPage: React.FC = () => {
       const feedId = podcast.feed_id || podcast.id?.toString();
       await apiService.subscribeToPodcast(feedId, podcast.url, podcast.title, podcast.image);
       loadSubscriptions();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to subscribe to podcast.', 'error');
     }
   };
 
@@ -162,8 +162,8 @@ const PodcastsPage: React.FC = () => {
     try {
       await apiService.unsubscribeFromPodcast(feedId);
       loadSubscriptions();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to unsubscribe from podcast.', 'error');
     }
   };
 
@@ -223,7 +223,7 @@ const PodcastsPage: React.FC = () => {
               <label htmlFor="opml-upload" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-glass)', border: '1px solid var(--border-glass-bright)', cursor: 'pointer', padding: '10px 16px', borderRadius: '12px', color: 'var(--text-primary)', fontWeight: 600, transition: 'var(--transition-fast)' }} onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-glass-hover)'} onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-glass)'}>
                 <Upload size={18} /> Import OPML
               </label>
-              <button onClick={() => apiService.exportOPML()} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--accent-gradient)', padding: '10px 16px', borderRadius: '12px', border: 'none', color: 'white', fontWeight: 600, cursor: 'pointer', boxShadow: 'var(--accent-glow)' }}>
+              <button onClick={() => apiService.exportOPML().catch((err: any) => addToast(err?.message || 'Failed to export OPML.', 'error'))} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--accent-gradient)', padding: '10px 16px', borderRadius: '12px', border: 'none', color: 'white', fontWeight: 600, cursor: 'pointer', boxShadow: 'var(--accent-glow)' }}>
                 <Download size={18} /> Export OPML
               </button>
             </div>
@@ -297,7 +297,11 @@ const PodcastsPage: React.FC = () => {
               </div>
             ) : (
               subscriptions.map(podcast => (
-                <div key={`sub-${podcast.feed_id}`} className="album-card" onClick={() => loadEpisodes(podcast)} style={{ cursor: 'pointer' }}>
+                <div key={`sub-${podcast.feed_id}`} className="album-card" role="button" tabIndex={0}
+                  aria-label={`Open ${podcast.title}`}
+                  onClick={() => loadEpisodes(podcast)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadEpisodes(podcast); } }}
+                  style={{ cursor: 'pointer' }}>
                   <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
                     {podcast.image_url ? (
                       <img src={podcast.image_url} alt={podcast.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -324,7 +328,11 @@ const PodcastsPage: React.FC = () => {
         {!selectedPodcast && !loading && activeTab === 'search' && podcasts.length > 0 && (
           <div className="album-grid">
             {podcasts.map(podcast => (
-              <div key={`search-${podcast.id}`} className="album-card" onClick={() => loadEpisodes(podcast)} style={{ cursor: 'pointer' }}>
+              <div key={`search-${podcast.id}`} className="album-card" role="button" tabIndex={0}
+                aria-label={`Open ${podcast.title}`}
+                onClick={() => loadEpisodes(podcast)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadEpisodes(podcast); } }}
+                style={{ cursor: 'pointer' }}>
                 <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
                   {podcast.image ? (
                     <img src={podcast.image} alt={podcast.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -399,13 +407,15 @@ const PodcastsPage: React.FC = () => {
                     style={{ display: 'flex', alignItems: 'flex-start', padding: '16px', gap: '16px' }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, overflow: 'hidden' }}>
-                      <div 
+                      <button
+                        type="button"
                         className="play-btn-overlay"
+                        aria-label={`Play ${episode.title}`}
                         onClick={() => playEpisode(episode)}
                         style={{ cursor: 'pointer', padding: '12px', background: 'var(--bg-glass)', borderRadius: '50%', flexShrink: 0 }}
                       >
                         <Play size={20} fill="var(--text-primary)" color="var(--text-primary)" />
-                      </div>
+                      </button>
                       
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
