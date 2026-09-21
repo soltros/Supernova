@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Supernova
+GenericName=Music Player
+Comment=Native desktop client for your Supernova music server
+Exec=supernova-desktop
+Icon=com.soltros.Supernova
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Player;Music;
+Keywords=music;streaming;self-hosted;supernova;
+StartupWMClass=supernova-desktop
