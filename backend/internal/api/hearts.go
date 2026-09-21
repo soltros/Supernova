@@ -17,7 +17,7 @@ func (s *Server) handleGetHearts() http.HandlerFunc {
 			http.Error(w, "failed to get hearts", http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(models.HeartBackupEnvelope{Version: 2, Hearts: hearts})
+		json.NewEncoder(w).Encode(hearts)
 	}
 }
 
@@ -125,7 +125,7 @@ func (s *Server) handleExportHearts() http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Content-Disposition", "attachment; filename=supernova_hearts_backup.json")
-		json.NewEncoder(w).Encode(hearts)
+		json.NewEncoder(w).Encode(models.HeartBackupEnvelope{Version: 2, Hearts: hearts})
 	}
 }
 
