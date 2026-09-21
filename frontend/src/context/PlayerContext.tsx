@@ -193,9 +193,16 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     lastTimeRef.current = 0;
     setCurrentTrack(track); setCurrentAlbum(album);
     setDuration(track.duration_ms / 1000);
-    const token = localStorage.getItem('sn_token');
-    const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : '';
-    audio.src = track.stream_url || `${API_BASE_URL}/api/stream/${track.id}${tokenQuery}`;
+    if (track.stream_url) {
+      audio.src = track.stream_url;
+    } else {
+      try {
+        audio.src = await apiService.mediaUrl('stream', track.id);
+      } catch {
+        if (request === playbackRequestRef.current) setIsPlaying(false);
+        return;
+      }
+    }
     const resumeAt = (options?.start_position_ms || 0) / 1000;
     if (resumeAt > 0) {
       audio.addEventListener('loadedmetadata', () => {
