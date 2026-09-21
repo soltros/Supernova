@@ -256,6 +256,27 @@ func Init(dbPath string) (*DB, error) {
 		}
 		version = 7
 	}
+
+	if version < 8 {
+		log.Println("Migrating database to version 8 (revocable sessions)...")
+		if _, err := db.Exec(`
+			CREATE TABLE IF NOT EXISTS sessions (
+				id TEXT PRIMARY KEY,
+				user_id TEXT NOT NULL,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				expires_at DATETIME NOT NULL,
+				revoked_at DATETIME,
+				FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+			);
+			CREATE INDEX IF NOT EXISTS idx_sessions_user_active ON sessions(user_id, expires_at, revoked_at);
+		`); err != nil {
+			return nil, fmt.Errorf("migration to v8 failed: %w", err)
+		}
+		if _, err := db.Exec("PRAGMA user_version = 8"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 8: %w", err)
+		}
+		version = 8
+	}
 	success = true
 	return &DB{db}, nil
 }
