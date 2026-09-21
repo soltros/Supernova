@@ -17,7 +17,7 @@ func (s *Server) handleGetHearts() http.HandlerFunc {
 			http.Error(w, "failed to get hearts", http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(hearts)
+		json.NewEncoder(w).Encode(models.HeartBackupEnvelope{Version: 2, Hearts: hearts})
 	}
 }
 
@@ -129,21 +129,33 @@ func (s *Server) handleExportHearts() http.HandlerFunc {
 	}
 }
 
-// handleImportHearts safely restores hearts by matching permanent file paths
+// handleImportHearts safely restores versioned or legacy heart backups.
 func (s *Server) handleImportHearts() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userID := r.Context().Value(userIDKey).(string)
-
 		r.Body = http.MaxBytesReader(w, r.Body, 10*1024*1024)
-		var backups []models.HeartBackup
-		if err := json.NewDecoder(r.Body).Decode(&backups); err != nil {
+
+		var raw json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 			http.Error(w, "invalid backup format", http.StatusBadRequest)
 			return
 		}
-		if err := s.repo.ImportHeartBackupsV2(r.Context(), userID, backups); err != nil {
-			http.Error(w, "failed to import backups", http.StatusInternalServerError)
+		var backups []models.HeartBackup
+		if len(raw) > 0 && raw[0] == '{' {
+			var envelope models.HeartBackupEnvelope
+			if err := json.Unmarshal(raw, &envelope); err != nil || envelope.Version != 2 {
+				http.Error(w, "unsupported favorite backup version", http.StatusBadRequest)
+				return
+			}
+			backups = envelope.Hearts
+		} else if err := json.Unmarshal(raw, &backups); err != nil {
+			http.Error(w, "invalid legacy favorite backup", http.StatusBadRequest)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
+		if err := s.repo.ImportHeartBackupsV2(r.Context(), userID, backups); err != nil {
+			http.Error(w, "favorite import failed: "+err.Error(), http.StatusConflict)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"version": 2, "imported": len(backups), "skipped": 0})
 	}
 }
