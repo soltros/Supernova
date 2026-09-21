@@ -61,6 +61,9 @@ jobs:
         working-directory: desktop-app
       - run: flutter pub get
         working-directory: desktop-app
+      - name: Show resolved Flutter lockfile
+        run: cat pubspec.lock
+        working-directory: desktop-app
       - run: flutter analyze
         working-directory: desktop-app
       - run: flutter test
