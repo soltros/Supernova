@@ -189,7 +189,7 @@ class ApiClient {
       _send('POST', '/api/hearts', body: {
         'entity_type': type,
         'entity_id': id,
-        if (metadata != null) 'metadata': metadata,
+        'metadata': ?metadata,
       });
 
   Future<void> unheart(String type, String id) async =>
