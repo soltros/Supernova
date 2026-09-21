@@ -1,0 +1,103 @@
+name: Build Flutter Desktop
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build and packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev \
+            libsecret-1-dev ruby ruby-dev build-essential
+          sudo gem install fpm --no-document
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.2
+          cache: true
+
+      - name: Ensure generated Linux plugin files exist
+        run: flutter create --platforms=linux --project-name supernova_desktop --org com.soltros .
+        working-directory: desktop-app
+
+      - run: flutter pub get
+        working-directory: desktop-app
+
+      - name: Build tarball, DEB and RPM
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          VERSION="${VERSION#v}"
+          export VERSION
+          chmod +x packaging/build-linux-packages.sh
+          ./packaging/build-linux-packages.sh
+        working-directory: desktop-app
+
+      - name: Build AppImage
+        run: |
+          set -eux
+          cd desktop-app
+          BUNDLE="$PWD/build/linux/x64/release/bundle"
+          APPDIR="$PWD/AppDir"
+          mkdir -p \
+            "$APPDIR/usr/lib/supernova-desktop" \
+            "$APPDIR/usr/bin" \
+            "$APPDIR/usr/share/applications" \
+            "$APPDIR/usr/share/icons/hicolor/512x512/apps"
+
+          cp -a "$BUNDLE/." "$APPDIR/usr/lib/supernova-desktop/"
+          cp packaging/com.soltros.Supernova.desktop "$APPDIR/usr/share/applications/"
+          cp packaging/com.soltros.Supernova.desktop "$APPDIR/com.soltros.Supernova.desktop"
+          cp assets/icon.png "$APPDIR/usr/share/icons/hicolor/512x512/apps/com.soltros.Supernova.png"
+          cp assets/icon.png "$APPDIR/com.soltros.Supernova.png"
+
+          cat > "$APPDIR/AppRun" <<'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/usr/lib/supernova-desktop/supernova-desktop" "$@"
+          EOF
+          chmod +x "$APPDIR/AppRun"
+          ln -s ../lib/supernova-desktop/supernova-desktop "$APPDIR/usr/bin/supernova-desktop"
+
+          curl -L -o appimagetool.AppImage \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool.AppImage
+          ARCH=x86_64 ./appimagetool.AppImage --appimage-extract-and-run \
+            "$APPDIR" "dist/Supernova-${GITHUB_REF_NAME#v}-x86_64.AppImage"
+
+      - name: Generate checksum-pinned AUR PKGBUILD
+        run: |
+          set -eux
+          cd desktop-app
+          VERSION="${GITHUB_REF_NAME#v}"
+          SHA256="$(sha256sum dist/supernova-desktop-linux-x86_64.tar.gz | awk '{print $1}')"
+          sed \
+            -e "s/@VERSION@/$VERSION/g" \
+            -e "s/@SHA256@/$SHA256/g" \
+            ../aur/PKGBUILD.in > dist/PKGBUILD
+
+      - name: Write SHA256SUMS
+        run: |
+          cd desktop-app/dist
+          sha256sum * > SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: supernova-desktop-linux
+          path: desktop-app/dist/*
+
+      - name: Attach desktop artifacts to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: desktop-app/dist/*

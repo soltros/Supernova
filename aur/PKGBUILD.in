@@ -1,0 +1,24 @@
+# Maintainer: Supernova <https://github.com/soltros/Supernova>
+
+pkgname=supernova-desktop-bin
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc="Native Flutter desktop client for the Supernova music server"
+arch=('x86_64')
+url="https://github.com/soltros/Supernova"
+license=('GPL-3.0-only')
+depends=('gtk3' 'libsecret')
+provides=('supernova-desktop')
+conflicts=('supernova-desktop')
+source=("supernova-desktop-linux-x86_64.tar.gz::https://github.com/soltros/Supernova/releases/download/v${pkgver}/supernova-desktop-linux-x86_64.tar.gz")
+sha256sums=('@SHA256@')
+
+package() {
+  install -d "${pkgdir}/opt/supernova-desktop"
+  cp -a "${srcdir}/"{data,lib,supernova-desktop} "${pkgdir}/opt/supernova-desktop/"
+
+  install -d "${pkgdir}/usr/bin"
+  ln -s /opt/supernova-desktop/supernova-desktop "${pkgdir}/usr/bin/supernova-desktop"
+
+  install -Dm644 "${srcdir}/../com.soltros.Supernova.desktop"     "${pkgdir}/usr/share/applications/com.soltros.Supernova.desktop"
+}
