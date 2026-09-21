@@ -236,7 +236,13 @@ export const apiService = {
 
   runPluginJob: async (pluginId: string): Promise<void> => {
     const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/${pluginId}/run`, { method: 'POST' });
-    if (!response.ok) throw new Error('Failed to start maintenance job');
+    if (!response.ok) throw new Error((await response.text()) || 'Failed to start maintenance job');
+  },
+
+  previewPluginJob: async (pluginId: 'artistmerger' | 'albummerger' | 'deduper'): Promise<{ mode: string, warning?: string, candidates: any[] }> => {
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/${pluginId}/preview`);
+    if (!response.ok) throw new Error((await response.text()) || 'Failed to preview maintenance candidates');
+    return response.json();
   },
 
   getLastFmAuthUrl: async (cb: string): Promise<{url: string}> => {
