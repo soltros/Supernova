@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/soltros/Supernova/internal/plugins"
+	"github.com/soltros/Supernova/internal/resourcebudget"
 )
 
 type LRCLibPlugin struct {
@@ -35,9 +36,7 @@ func (p *LRCLibPlugin) Description() string {
 }
 
 func (p *LRCLibPlugin) Init(config plugins.PluginConfig) error {
-	p.client = &http.Client{
-		Timeout: 15 * time.Second,
-	}
+	p.client = resourcebudget.NewHTTPClient(15 * time.Second)
 	return nil
 }
 
@@ -74,7 +73,7 @@ func (p *LRCLibPlugin) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	reqURL := fmt.Sprintf("https://lrclib.net/api/get?%s", query.Encode())
-	req, err := http.NewRequest("GET", reqURL, nil)
+	req, err := http.NewRequestWithContext(r.Context(), "GET", reqURL, nil)
 	if err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
@@ -84,7 +83,11 @@ func (p *LRCLibPlugin) handleGetLyrics(w http.ResponseWriter, r *http.Request) {
 	resp, err := p.client.Do(req)
 	if err != nil {
 		log.Printf("[LRCLib] Request failed: %v\n", err)
-		http.Error(w, "failed to connect to lrclib", http.StatusBadGateway)
+		if resourcebudget.IsSaturated(err) {
+			http.Error(w, "external request budget is busy; retry shortly", http.StatusServiceUnavailable)
+		} else {
+			http.Error(w, "failed to connect to lrclib", http.StatusBadGateway)
+		}
 		return
 	}
 	defer resp.Body.Close()

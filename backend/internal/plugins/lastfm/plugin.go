@@ -9,6 +9,7 @@ import (
 	"github.com/soltros/Supernova/internal/database"
 	"github.com/soltros/Supernova/internal/external"
 	"github.com/soltros/Supernova/internal/plugins"
+	"github.com/soltros/Supernova/internal/resourcebudget"
 )
 
 type LastFmPlugin struct {
@@ -110,7 +111,11 @@ func (p *LastFmPlugin) handleNowPlaying(w http.ResponseWriter, r *http.Request) 
 
 	err := p.client.UpdateNowPlaying(payload.SessionKey, payload.Artist, payload.Track)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if resourcebudget.IsSaturated(err) {
+			http.Error(w, "external request budget is busy; retry shortly", http.StatusServiceUnavailable)
+		} else {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+		}
 		return
 	}
 
@@ -138,7 +143,11 @@ func (p *LastFmPlugin) handleScrobble(w http.ResponseWriter, r *http.Request) {
 
 	err := p.client.Scrobble(payload.SessionKey, payload.Artist, payload.Track, payload.Timestamp)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if resourcebudget.IsSaturated(err) {
+			http.Error(w, "external request budget is busy; retry shortly", http.StatusServiceUnavailable)
+		} else {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+		}
 		return
 	}
 
@@ -163,7 +172,11 @@ func (p *LastFmPlugin) handleGetSession(w http.ResponseWriter, r *http.Request) 
 
 	session, err := p.client.GetSession(payload.Token)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if resourcebudget.IsSaturated(err) {
+			http.Error(w, "external request budget is busy; retry shortly", http.StatusServiceUnavailable)
+		} else {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+		}
 		return
 	}
 

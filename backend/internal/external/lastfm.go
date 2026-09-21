@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/soltros/Supernova/internal/resourcebudget"
 )
 
 const lastFmBaseURL = "https://ws.audioscrobbler.com/2.0/"
@@ -27,9 +29,7 @@ func NewLastFmClient(apiKey, apiSecret string) *LastFmClient {
 	return &LastFmClient{
 		apiKey:    apiKey,
 		apiSecret: apiSecret,
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-		},
+		client: resourcebudget.NewHTTPClient(10 * time.Second),
 	}
 }
 
