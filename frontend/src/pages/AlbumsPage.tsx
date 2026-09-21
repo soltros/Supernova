@@ -7,10 +7,11 @@ import AlbumCard from '../components/AlbumCard';
 const AlbumsPage: React.FC = () => {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    apiService.fetchAlbums(100, 0)
+    apiService.fetchAllAlbums()
       .then(data => {
         if (!isMounted) return;
         setAlbums(data || []);
@@ -19,6 +20,7 @@ const AlbumsPage: React.FC = () => {
       .catch(err => {
         if (!isMounted) return;
         console.error("Failed to fetch albums:", err);
+        setError("Could not load albums. Refresh to retry.");
         setLoading(false);
       });
     return () => { isMounted = false; };
@@ -31,6 +33,8 @@ const AlbumsPage: React.FC = () => {
         
         {loading ? (
           <p style={{ color: 'var(--text-muted)' }}>Loading albums...</p>
+        ) : error ? (
+          <p role="alert" style={{ color: 'var(--text-secondary)' }}>{error}</p>
         ) : albums.length > 0 ? (
           <div className="album-grid">
             {albums.map(album => (
