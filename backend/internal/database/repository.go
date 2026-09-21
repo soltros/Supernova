@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/soltros/Supernova/internal/models"
@@ -32,105 +34,133 @@ func (r *Repository) UpsertTrack(ctx context.Context, meta *models.TrackMetadata
 	r.writeMu.Lock()
 	defer r.writeMu.Unlock()
 
-	// 1. Check if the file is explicitly ignored (e.g., deleted by deduper)
-	var dummy string
-	err := r.db.QueryRowContext(ctx, "SELECT file_path FROM ignored_files WHERE file_path = ?", meta.FilePath).Scan(&dummy)
-	if err == nil {
-		// File is in the ignored list, skip it entirely
-		return nil
+	var ignored string
+	err := r.db.QueryRowContext(ctx, "SELECT file_path FROM ignored_files WHERE file_path = ?", meta.FilePath).Scan(&ignored)
+	if err == nil { return nil }
+	if err != nil && !errors.Is(err, sql.ErrNoRows) { return err }
+
+	var existingID string
+	var existingMod, existingNs, existingSize int64
+	err = r.db.QueryRowContext(ctx, `
+		SELECT id, COALESCE(file_modified_at,0), COALESCE(file_modified_ns,0), COALESCE(file_size,0)
+		FROM tracks WHERE file_path=?
+	`, meta.FilePath).Scan(&existingID,&existingMod,&existingNs,&existingSize)
+	if err != nil && !errors.Is(err,sql.ErrNoRows) { return err }
+
+	// If this path is new, a unique fingerprint whose old path disappeared is a move,
+	// not a new logical track. Move the existing row first so all user references survive.
+	if errors.Is(err,sql.ErrNoRows) && meta.FileFingerprint != "" {
+		rows,qerr:=r.db.QueryContext(ctx,`
+			SELECT id,file_path FROM tracks WHERE file_fingerprint=? ORDER BY id LIMIT 2
+		`,meta.FileFingerprint)
+		if qerr!=nil{return qerr}
+		type candidate struct{id,path string}
+		var candidates []candidate
+		for rows.Next(){var c candidate;if qerr=rows.Scan(&c.id,&c.path);qerr!=nil{rows.Close();return qerr};candidates=append(candidates,c)}
+		if qerr=rows.Close();qerr!=nil{return qerr}
+		if len(candidates)==1 {
+			if _,statErr:=os.Stat(candidates[0].path);errors.Is(statErr,os.ErrNotExist) {
+				if _,qerr=r.db.ExecContext(ctx,`
+					UPDATE tracks SET file_path=?,file_modified_at=?,file_modified_ns=?,file_size=?,file_fingerprint=?
+					WHERE id=?
+				`,meta.FilePath,meta.FileModifiedAt,meta.FileModifiedNs,meta.FileSize,meta.FileFingerprint,candidates[0].id);qerr!=nil{return qerr}
+				existingID=candidates[0].id
+				existingMod=meta.FileModifiedAt
+				existingNs=0 // force metadata refresh after relocation
+				existingSize=0
+				err=nil
+			}
+		}
 	}
 
-	// 2. Check if the file has been modified since it was last scanned.
-	// Only identical positive timestamps preserve manual tag overrides.
-	// This ensures that plugin overrides (e.g. from AutoTagger or AlbumMerger) are not reverted
-	// unless the actual ID3 tags in the physical file are updated.
-	var existingModTime int64
-	err = r.db.QueryRowContext(ctx, "SELECT file_modified_at FROM tracks WHERE file_path = ?", meta.FilePath).Scan(&existingModTime)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	unchanged := err == nil && meta.FileModifiedNs > 0 && existingNs == meta.FileModifiedNs && existingSize == meta.FileSize
+	if unchanged {
+		_, err := r.db.ExecContext(ctx, `
+			UPDATE tracks SET
+				duration_ms=CASE WHEN ?>0 THEN ? ELSE duration_ms END,
+				bitrate=CASE WHEN ?>0 THEN ? ELSE bitrate END,
+				format=CASE WHEN ?!='' THEN ? ELSE format END,
+				file_fingerprint=CASE WHEN ?!='' THEN ? ELSE file_fingerprint END
+			WHERE id=?
+		`,meta.DurationMs,meta.DurationMs,meta.Bitrate,meta.Bitrate,meta.Format,meta.Format,meta.FileFingerprint,meta.FileFingerprint,existingID)
 		return err
 	}
-	if err == nil && meta.FileModifiedAt > 0 && existingModTime == meta.FileModifiedAt {
-		// Refresh technical properties without undoing deliberate tag/merge overrides.
-		_, err := r.db.ExecContext(ctx, `UPDATE tracks SET duration_ms = CASE WHEN ? > 0 THEN ? ELSE duration_ms END, bitrate = CASE WHEN ? > 0 THEN ? ELSE bitrate END, format = CASE WHEN ? != '' THEN ? ELSE format END WHERE file_path = ?`, meta.DurationMs, meta.DurationMs, meta.Bitrate, meta.Bitrate, meta.Format, meta.Format, meta.FilePath)
+	// Older databases/plugins may supply only second-resolution timestamps.
+	if err==nil && meta.FileModifiedNs==0 && meta.FileModifiedAt>0 && existingMod==meta.FileModifiedAt {
+		_,err:=r.db.ExecContext(ctx,`UPDATE tracks SET duration_ms=CASE WHEN ?>0 THEN ? ELSE duration_ms END,bitrate=CASE WHEN ?>0 THEN ? ELSE bitrate END,format=CASE WHEN ?!='' THEN ? ELSE format END WHERE id=?`,
+			meta.DurationMs,meta.DurationMs,meta.Bitrate,meta.Bitrate,meta.Format,meta.Format,existingID)
 		return err
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	// Defer a rollback. If tx.Commit() succeeds later, this becomes a safe no-op.
+	tx,err:=r.db.BeginTx(ctx,nil)
+	if err!=nil{return fmt.Errorf("failed to begin transaction: %w",err)}
 	defer tx.Rollback()
 
-	// 1. Resolve Primary Artist
-	artistName := meta.Artist
-	if artistName == "" {
-		artistName = "Unknown Artist"
-	}
-	artistID, err := r.upsertArtist(tx, artistName, meta.ArtistMBID, "", "")
-	if err != nil {
-		return err
-	}
+	artistName:=meta.Artist
+	if artistName==""{artistName="Unknown Artist"}
+	artistID,err:=r.upsertArtist(tx,artistName,meta.ArtistMBID,"","")
+	if err!=nil{return err}
 
-	// 2. Resolve Album Artist (Fallback to primary artist if empty)
-	albumArtistName := meta.AlbumArtist
-	if albumArtistName == "" {
-		albumArtistName = artistName
-	}
-	albumArtistID, err := r.upsertArtist(tx, albumArtistName, "", "", "")
-	if err != nil {
-		return err
-	}
+	albumArtistName:=meta.AlbumArtist
+	if albumArtistName==""{albumArtistName=artistName}
+	albumArtistID,err:=r.upsertArtist(tx,albumArtistName,"","","")
+	if err!=nil{return err}
 
-	// 3. Resolve Album
-	albumTitle := meta.Album
-	if albumTitle == "" {
-		albumTitle = "Unknown Album"
+	albumTitle:=meta.Album
+	if albumTitle==""{
+		folder:=filepath.Base(filepath.Dir(meta.FilePath))
+		if folder=="" || folder=="." || folder==string(filepath.Separator){folder="Unknown Album"}
+		albumTitle=folder
 	}
-	// BUG-3: Pass albumArtistID so that albums with the same title from different artists are not merged
-	albumID, err := r.upsertAlbum(tx, albumTitle, meta.AlbumMBID, meta.Year, meta.CoverArtPath, albumArtistID)
-	if err != nil {
-		return err
-	}
+	albumID,err:=r.upsertAlbum(tx,albumTitle,meta.AlbumMBID,meta.Year,meta.CoverArtPath,albumArtistID)
+	if err!=nil{return err}
+	if err=r.linkAlbumArtist(tx,albumID,albumArtistID,"primary");err!=nil{return err}
 
-	// 4. Link Album to Album Artist
-	err = r.linkAlbumArtist(tx, albumID, albumArtistID, "primary")
-	if err != nil {
-		return err
-	}
-
-	// 5. Insert the Track itself (Upsert on FilePath conflict)
 	var trackID string
-	err = tx.QueryRowContext(ctx, `
-		INSERT INTO tracks (id, album_id, title, track_number, disc_number, duration_ms, file_path, format, bitrate, file_modified_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	err=tx.QueryRowContext(ctx,`
+		INSERT INTO tracks(id,album_id,title,track_number,disc_number,duration_ms,file_path,format,bitrate,file_modified_at,file_modified_ns,file_size,file_fingerprint)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(file_path) DO UPDATE SET
-			title=excluded.title,
-			album_id=excluded.album_id,
-			track_number=excluded.track_number,
-			disc_number=excluded.disc_number,
-			duration_ms=excluded.duration_ms,
-			bitrate=excluded.bitrate,
+			title=excluded.title,album_id=excluded.album_id,track_number=excluded.track_number,
+			disc_number=excluded.disc_number,duration_ms=excluded.duration_ms,bitrate=excluded.bitrate,
 			format=excluded.format,
-			file_modified_at=CASE WHEN excluded.file_modified_at > 0 THEN excluded.file_modified_at ELSE tracks.file_modified_at END
+			file_modified_at=CASE WHEN excluded.file_modified_at>0 THEN excluded.file_modified_at ELSE tracks.file_modified_at END,
+			file_modified_ns=CASE WHEN excluded.file_modified_ns>0 THEN excluded.file_modified_ns ELSE tracks.file_modified_ns END,
+			file_size=CASE WHEN excluded.file_size>0 THEN excluded.file_size ELSE tracks.file_size END,
+			file_fingerprint=CASE WHEN excluded.file_fingerprint!='' THEN excluded.file_fingerprint ELSE tracks.file_fingerprint END
 		RETURNING id
-	`, generateUUID(), albumID, meta.Title, meta.TrackNumber, meta.DiscNumber, meta.DurationMs, meta.FilePath, meta.Format, meta.Bitrate, meta.FileModifiedAt).Scan(&trackID)
-
-	if err != nil {
-		return fmt.Errorf("failed to insert track: %w", err)
-	}
-
-	// 6. Link Track to Primary Artist
-	if _, err := tx.ExecContext(ctx, "DELETE FROM track_artists WHERE track_id = ?", trackID); err != nil {
-		return err
-	}
-	err = r.linkTrackArtist(tx, trackID, artistID, "primary")
-	if err != nil {
-		return err
-	}
-
-	// If everything succeeded, commit the transaction to disk
+	`,generateUUID(),albumID,meta.Title,meta.TrackNumber,meta.DiscNumber,meta.DurationMs,meta.FilePath,meta.Format,meta.Bitrate,meta.FileModifiedAt,meta.FileModifiedNs,meta.FileSize,meta.FileFingerprint).Scan(&trackID)
+	if err!=nil{return fmt.Errorf("failed to insert track: %w",err)}
+	if _,err=tx.ExecContext(ctx,"DELETE FROM track_artists WHERE track_id=?",trackID);err!=nil{return err}
+	if err=r.linkTrackArtist(tx,trackID,artistID,"primary");err!=nil{return err}
 	return tx.Commit()
+}
+
+func (r *Repository) RemoveTrackByPath(ctx context.Context, path string) error {
+	r.writeMu.Lock()
+	defer r.writeMu.Unlock()
+	_,err:=r.db.ExecContext(ctx,`DELETE FROM tracks WHERE file_path=?`,path)
+	return err
+}
+
+// ReconcileLibraryPaths removes stale rows for files that disappeared while the watcher was offline.
+// Moved files retain their IDs because UpsertTrack relocates unique fingerprints before this runs.
+func (r *Repository) ReconcileLibraryPaths(ctx context.Context, mediaRoot string, seen map[string]struct{}) error {
+	rows,err:=r.db.QueryContext(ctx,`SELECT file_path FROM tracks`)
+	if err!=nil{return err}
+	var stale []string
+	for rows.Next(){
+		var path string
+		if err:=rows.Scan(&path);err!=nil{rows.Close();return err}
+		rel,relErr:=filepath.Rel(mediaRoot,path)
+		if relErr!=nil || rel==".." || filepath.IsAbs(rel) || (len(rel)>3 && rel[:3]==".."+string(filepath.Separator)){continue}
+		if _,ok:=seen[path];!ok{
+			if _,statErr:=os.Stat(path);errors.Is(statErr,os.ErrNotExist){stale=append(stale,path)}
+		}
+	}
+	if err:=rows.Close();err!=nil{return err}
+	for _,path:=range stale{if err:=r.RemoveTrackByPath(ctx,path);err!=nil{return err}}
+	return nil
 }
 
 // upsertArtist looks up an artist by name. If they don't exist, it creates them.
