@@ -10,7 +10,8 @@ vi.mock('../src/services/api', () => ({ apiService: {
   scrobbleTrack: vi.fn().mockResolvedValue(undefined),
   updateNowPlayingToLastFm: vi.fn().mockResolvedValue(undefined),
   scrobbleToLastFm: vi.fn().mockResolvedValue(undefined),
-  mediaUrl: vi.fn((scope: string, resource: string) => Promise.resolve(`/api/stream/${resource}?ticket=test-ticket`))
+  mediaUrl: vi.fn((scope: string, resource: string) => Promise.resolve(`/api/stream/${resource}?ticket=test-ticket`)),
+  fetchAlbumById: vi.fn((id: string) => Promise.resolve({ id, title: `Album ${id}`, release_year: 2026, cover_art_path: '' }))
 } }));
 class FakeAudio extends EventTarget {
   src = ''; volume = 1; currentTime = 0; duration = 120; paused = true; ended = false;
@@ -56,6 +57,26 @@ describe('playback regression coverage', () => {
     act(() => { audio.ended = true; audio.dispatchEvent(new Event('ended')); });
     expect(apiService.savePodcastProgress).toHaveBeenLastCalledWith('ep1', 0, true);
   });
+  it('starts playback when enqueue is used on an empty player', async () => {
+    render(<PlayerProvider><Probe /></PlayerProvider>);
+    await act(async () => { player.enqueue(track); });
+    await act(async () => {});
+    expect(player.queue.map(t => t.id)).toEqual(['song']);
+    expect(player.currentTrack?.id).toBe('song');
+    expect(player.isPlaying).toBe(true);
+  });
+
+  it('resolves album context when advancing through a mixed queue', async () => {
+    render(<PlayerProvider><Probe /></PlayerProvider>);
+    const next = { ...track, id: 'song-2', album_id: 'album-2', album_title: 'Second Album' };
+    await act(async () => { await player.playContext([track, next], 0, album); });
+    await act(async () => { player.playNext(); });
+    await act(async () => {});
+    expect(apiService.fetchAlbumById).toHaveBeenCalledWith('album-2');
+    expect(player.currentTrack?.id).toBe('song-2');
+    expect(player.currentAlbum?.id).toBe('album-2');
+  });
+
   it('allows seek to zero and clamps volume and seek inputs', async () => {
     render(<PlayerProvider><Probe /></PlayerProvider>);
     await act(async () => { player.playContext([track], 0, album); });
