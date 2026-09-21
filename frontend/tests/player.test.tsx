@@ -5,7 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlayerProvider, usePlayer } from '../src/context/PlayerContext';
 import { apiService } from '../src/services/api';
 import type { Album, Track } from '../src/types';
-vi.mock('../src/services/api', () => ({ apiService: { savePodcastProgress: vi.fn().mockResolvedValue(undefined), scrobbleTrack: vi.fn().mockResolvedValue(undefined), updateNowPlayingToLastFm: vi.fn().mockResolvedValue(undefined), scrobbleToLastFm: vi.fn().mockResolvedValue(undefined) } }));
+vi.mock('../src/services/api', () => ({ apiService: {
+  savePodcastProgress: vi.fn().mockResolvedValue(undefined),
+  scrobbleTrack: vi.fn().mockResolvedValue(undefined),
+  updateNowPlayingToLastFm: vi.fn().mockResolvedValue(undefined),
+  scrobbleToLastFm: vi.fn().mockResolvedValue(undefined),
+  mediaUrl: vi.fn((scope: string, resource: string) => Promise.resolve(`/api/stream/${resource}?ticket=test-ticket`))
+} }));
 class FakeAudio extends EventTarget {
   src = ''; volume = 1; currentTime = 0; duration = 120; paused = true; ended = false;
   play = vi.fn(() => { this.paused = false; this.dispatchEvent(new Event('play')); return Promise.resolve(); });
