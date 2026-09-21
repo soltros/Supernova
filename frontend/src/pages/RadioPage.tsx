@@ -3,6 +3,7 @@ import { Play, Search, Radio, Plus, Check } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { apiService } from '../services/api';
 import HeartButton from '../components/HeartButton';
+import { useToast } from '../context/ToastContext';
 
 const RadioPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'subscriptions'|'discover'>('subscriptions');
@@ -16,6 +17,7 @@ const RadioPage: React.FC = () => {
   const [hasMore, setHasMore] = useState(false);
   
   const { internalPlay } = usePlayer();
+  const { addToast } = useToast();
 
   useEffect(() => {
     fetchSubscriptions();
@@ -25,8 +27,8 @@ const RadioPage: React.FC = () => {
     try {
       const subs = await apiService.getRadioSubscriptions();
       setSubscriptions(subs || []);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load radio subscriptions.');
     }
   };
 
@@ -35,8 +37,8 @@ const RadioPage: React.FC = () => {
     try {
       await apiService.subscribeToRadio(station.stationuuid, station.url_resolved || station.url, station.name, station.favicon);
       await fetchSubscriptions();
-    } catch (err) {
-      console.error('Failed to subscribe:', err);
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to subscribe to station.', 'error');
     }
   };
 
@@ -45,8 +47,8 @@ const RadioPage: React.FC = () => {
     try {
       await apiService.unsubscribeFromRadio(stationId);
       await fetchSubscriptions();
-    } catch (err) {
-      console.error('Failed to unsubscribe:', err);
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to unsubscribe from station.', 'error');
     }
   };
 
@@ -91,8 +93,8 @@ const RadioPage: React.FC = () => {
       setStations(prev => [...prev, ...(data || [])]);
       setOffset(newOffset);
       setHasMore((data || []).length === 50);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load more radio stations.');
     } finally {
       setLoading(false);
     }
@@ -240,7 +242,11 @@ const RadioPage: React.FC = () => {
                 const isSubscribed = subscriptions.some(s => s.station_id === station.stationuuid);
 
                 return (
-                  <div key={station.stationuuid} className="album-card" onClick={() => playStation(station, false)} style={{ cursor: 'pointer' }}>
+                  <div key={station.stationuuid} className="album-card" role="button" tabIndex={0}
+                    aria-label={`Play ${station.name}`}
+                    onClick={() => playStation(station, false)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playStation(station, false); } }}
+                    style={{ cursor: 'pointer' }}>
                     <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
                       {station.favicon ? (
                         <img 
@@ -259,7 +265,7 @@ const RadioPage: React.FC = () => {
                         <Radio size={48} color="var(--text-muted)" />
                       </div>
                       <div className="play-overlay">
-                        <button className="play-btn">
+                        <button className="play-btn" aria-label={`Play ${station.name}`} onClick={(e) => { e.stopPropagation(); playStation(station, false); }}>
                           <Play size={24} fill="currentColor" />
                         </button>
                       </div>
@@ -330,7 +336,11 @@ const RadioPage: React.FC = () => {
             ) : (
               <div className="album-grid">
                 {subscriptions.map(sub => (
-                  <div key={sub.station_id} className="album-card" onClick={() => playStation(sub, true)} style={{ cursor: 'pointer' }}>
+                  <div key={sub.station_id} className="album-card" role="button" tabIndex={0}
+                    aria-label={`Play ${sub.name}`}
+                    onClick={() => playStation(sub, true)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playStation(sub, true); } }}
+                    style={{ cursor: 'pointer' }}>
                     <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
                       {sub.favicon ? (
                         <img 
