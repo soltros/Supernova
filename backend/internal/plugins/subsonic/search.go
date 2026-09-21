@@ -3,95 +3,51 @@ package subsonic
 import (
 	"github.com/soltros/Supernova/internal/media"
 	"github.com/soltros/Supernova/internal/models"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func (p *SubsonicPlugin) handleSearch3(w http.ResponseWriter, r *http.Request) {
-	query := r.FormValue("query")
-	if query == "" {
-		p.writeError(w, r, 10, "Required parameter is missing: query")
-		return
+func parseSearchPage(r *http.Request, countKey, offsetKey string, defaultCount int) (int,int,error) {
+	count:=defaultCount
+	offset:=0
+	if raw:=r.FormValue(countKey);raw!="" {
+		n,err:=strconv.Atoi(raw);if err!=nil||n<0||n>500{return 0,0,fmt.Errorf("invalid %s",countKey)}
+		count=n
 	}
+	if raw:=r.FormValue(offsetKey);raw!="" {
+		n,err:=strconv.Atoi(raw);if err!=nil||n<0{return 0,0,fmt.Errorf("invalid %s",offsetKey)}
+		offset=n
+	}
+	return count,offset,nil
+}
 
-	limitStr := r.FormValue("songCount")
-	limit := 20
-	if limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 500 {
-			limit = l
-		}
-	}
+func (p *SubsonicPlugin) handleSearch3(w http.ResponseWriter,r *http.Request){
+	query:=strings.TrimSpace(r.FormValue("query"))
+	if query==""{p.writeError(w,r,10,"Required parameter is missing: query");return}
+	artistCount,artistOffset,err:=parseSearchPage(r,"artistCount","artistOffset",20);if err!=nil{p.writeError(w,r,10,err.Error());return}
+	albumCount,albumOffset,err:=parseSearchPage(r,"albumCount","albumOffset",20);if err!=nil{p.writeError(w,r,10,err.Error());return}
+	songCount,songOffset,err:=parseSearchPage(r,"songCount","songOffset",20);if err!=nil{p.writeError(w,r,10,err.Error());return}
+	results,err:=p.repo.SearchPaged(r.Context(),query,artistCount,artistOffset,albumCount,albumOffset,songCount,songOffset)
+	if err!=nil{p.writeError(w,r,0,"Database error");return}
 
-	results, err := p.repo.Search(r.Context(), query, limit)
-	if err != nil {
-		p.writeError(w, r, 0, "Database error")
-		return
+	artists:=[]map[string]interface{}{}
+	for _,a:=range results["artists"].([]map[string]interface{}){
+		artists=append(artists,map[string]interface{}{"id":a["id"],"name":a["name"],"albumCount":a["album_count"]})
 	}
-
-	// Map DB generic maps to Subsonic XML/JSON
-	var artists []map[string]interface{}
-	if dbArtists, ok := results["artists"].([]map[string]interface{}); ok {
-		for _, a := range dbArtists {
-			artists = append(artists, map[string]interface{}{
-				"id":         a["id"],
-				"name":       a["name"],
-				"albumCount": 1,
-			})
-		}
+	albums:=[]map[string]interface{}{}
+	for _,a:=range results["albums"].([]map[string]interface{}){
+		albums=append(albums,map[string]interface{}{"id":a["id"],"title":a["title"],"name":a["title"],"artist":a["artist_name"],"coverArt":a["id"],"songCount":a["song_count"],"duration":a["duration"]})
 	}
-
-	var albums []map[string]interface{}
-	if dbAlbums, ok := results["albums"].([]map[string]interface{}); ok {
-		for _, a := range dbAlbums {
-			albums = append(albums, map[string]interface{}{
-				"id":        a["id"],
-				"title":     a["title"],
-				"name":      a["title"],
-				"artist":    a["artist_name"],
-				"coverArt":  a["id"],
-				"songCount": 1,
-			})
-		}
+	songs:=[]map[string]interface{}{}
+	for _,t:=range results["tracks"].([]map[string]interface{}){
+		duration,_:=t["duration_ms"].(int)
+		songs=append(songs,map[string]interface{}{"id":t["id"],"title":t["title"],"album":t["album_title"],"artist":t["artist_name"],"coverArt":t["album_id"],"duration":duration/1000,"parent":t["album_id"],"albumId":t["album_id"],"isDir":false,"suffix":t["format"],"bitRate":t["bitrate"],"track":t["track_number"],"discNumber":t["disc_number"]})
 	}
-
-	var songs []map[string]interface{}
-	if dbTracks, ok := results["tracks"].([]map[string]interface{}); ok {
-		for _, t := range dbTracks {
-			songs = append(songs, map[string]interface{}{
-				"id":       t["id"],
-				"title":    t["title"],
-				"album":    t["album_title"],
-				"artist":   t["artist_name"],
-				"coverArt": t["album_id"],
-				"duration": t["duration_ms"].(int) / 1000,
-				"parent":   t["album_id"],
-				"albumId":  t["album_id"],
-				"isDir":    false,
-			})
-		}
-	}
-
-	searchKey := "searchResult3"
-	if strings.HasPrefix(r.URL.Path, "/rest/search2") {
-		searchKey = "searchResult2"
-	}
-
-	resultMap := map[string]interface{}{}
-	if len(artists) > 0 {
-		resultMap["artist"] = artists
-	}
-	if len(albums) > 0 {
-		resultMap["album"] = albums
-	}
-	if len(songs) > 0 {
-		resultMap["song"] = songs
-	}
-
-	p.writeResponse(w, r, map[string]interface{}{
-		searchKey: resultMap,
-	})
+	key:="searchResult3";if strings.HasPrefix(r.URL.Path,"/rest/search2"){key="searchResult2"}
+	p.writeResponse(w,r,map[string]interface{}{key:map[string]interface{}{"artist":artists,"album":albums,"song":songs}})
 }
 
 func songNode(t models.Track) map[string]interface{} {
