@@ -4,7 +4,7 @@ import { apiService } from '../services/api';
 
 interface HeartsState {
   heartedIds: Set<string>;
-  toggleHeart: (entityType: string, entityId: string) => Promise<void>;
+  toggleHeart: (entityType: string, entityId: string, metadata?: any) => Promise<void>;
   isHearted: (entityId: string) => boolean;
   refreshHearts: () => Promise<void>;
 }
@@ -28,7 +28,7 @@ export const HeartsProvider: FC<{ children: ReactNode }> = ({ children }) => {
     refreshHearts();
   }, [refreshHearts]);
 
-  const toggleHeart = useCallback(async (entityType: string, entityId: string) => {
+  const toggleHeart = useCallback(async (entityType: string, entityId: string, metadata?: any) => {
     const currentlyHearted = heartedIds.has(entityId);
     
     // Optimistic UI update
@@ -44,7 +44,7 @@ export const HeartsProvider: FC<{ children: ReactNode }> = ({ children }) => {
         await apiService.removeHeart(entityType, entityId);
       } else {
         // The backend securely generates the UUID now
-        await apiService.addHeart(entityType, entityId);
+        await apiService.addHeart(entityType, entityId, metadata);
       }
     } catch (e) {
       console.error("Failed to toggle heart:", e);
