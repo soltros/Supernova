@@ -86,6 +86,9 @@ func (s *Server) routes() {
 	// Authentication
 	s.mux.HandleFunc("POST /api/auth/register", s.handleRegister())
 	s.mux.HandleFunc("POST /api/auth/login", s.handleLogin())
+	s.mux.HandleFunc("POST /api/auth/logout", s.requireAuth(s.handleLogout()))
+	s.mux.HandleFunc("POST /api/auth/change-password", s.requireAuth(s.handleChangePassword()))
+	s.mux.HandleFunc("POST /api/media-ticket", s.requireAuth(s.handleMediaTicket()))
 
 	s.mux.HandleFunc("GET /api/auth/me", s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(r.Context().Value(contextKey("user")))
