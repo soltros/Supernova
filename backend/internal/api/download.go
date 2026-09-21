@@ -2,14 +2,14 @@ package api
 
 import (
 	"archive/zip"
+	"os"
 	"fmt"
 	"github.com/soltros/Supernova/internal/media"
 	"io"
 	"log"
 	"mime"
 	"net/http"
-	"os"
-	"path/filepath"
+		"path/filepath"
 	"strings"
 )
 
@@ -28,20 +28,25 @@ func (s *Server) handleDownloadTrack() http.HandlerFunc {
 			return
 		}
 
-		resolved, err := media.Resolve(track.FilePath)
+		file, err := media.Open(track.FilePath)
 		if err != nil {
 			http.Error(w, "media file unavailable", http.StatusNotFound)
 			return
 		}
-		track.FilePath = resolved
+		defer file.Close()
+		info, err := file.Stat()
+		if err != nil {
+			http.Error(w, "media file unavailable", http.StatusNotFound)
+			return
+		}
 		safeTitle := strings.ReplaceAll(track.Title, "\"", "'")
 		safeTitle = strings.ReplaceAll(safeTitle, "\n", " ")
 		safeTitle = strings.ReplaceAll(safeTitle, "\r", "")
-		filename := fmt.Sprintf("%s%s", safeTitle, filepath.Ext(track.FilePath))
+		filename := fmt.Sprintf("%s%s", safeTitle, filepath.Ext(info.Name()))
 
 		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 		w.Header().Del("Content-Type")
-		http.ServeFile(w, r, track.FilePath)
+		http.ServeContent(w, r, info.Name(), info.ModTime(), file)
 	}
 }
 
@@ -70,15 +75,18 @@ func (s *Server) handleDownloadAlbum() http.HandlerFunc {
 		safeTitle = strings.ReplaceAll(safeTitle, "\n", " ")
 		safeTitle = strings.ReplaceAll(safeTitle, "\r", "")
 
-		// Pre-check files exist
-		for i := range tracks {
-			resolved, err := media.Resolve(tracks[i].FilePath)
+		// Preflight every rooted open before committing ZIP headers.
+		files := make([]*os.File, 0, len(tracks))
+		for _, track := range tracks {
+			file, err := media.Open(track.FilePath)
 			if err != nil {
+				for _, opened := range files { _ = opened.Close() }
 				http.Error(w, "one or more track files are missing from disk", http.StatusInternalServerError)
 				return
 			}
-			tracks[i].FilePath = resolved
+			files = append(files, file)
 		}
+		defer func(){ for _, file := range files { _ = file.Close() } }()
 
 		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": safeTitle + ".zip"}))
 		w.Header().Set("Content-Type", "application/zip")
@@ -86,24 +94,20 @@ func (s *Server) handleDownloadAlbum() http.HandlerFunc {
 		zipWriter := zip.NewWriter(w)
 		defer zipWriter.Close()
 
-		for _, track := range tracks {
-			file, err := os.Open(track.FilePath)
-			if err != nil {
-				continue
-			}
-
+		for i, track := range tracks {
+			file := files[i]
 			ext := filepath.Ext(track.FilePath)
 			safeTrackTitle := strings.NewReplacer("/", "-", "\\", "-", "\r", "", "\n", " ").Replace(track.Title)
 			fileName := fmt.Sprintf("%02d-%02d - %s-%s%s", track.DiscNumber, track.TrackNumber, safeTrackTitle, track.ID, ext)
 
 			f, err := zipWriter.Create(fileName)
 			if err != nil {
-				file.Close()
-				continue
+				log.Printf("Album ZIP entry creation failed: %v", err)
+				return
 			}
 
+			if _, err := file.Seek(0, io.SeekStart); err != nil { log.Printf("Album file seek failed: %v", err); return }
 			_, copyErr := io.Copy(f, file)
-			file.Close()
 			if copyErr != nil {
 				log.Printf("Album download interrupted: %v", copyErr)
 				return
