@@ -19,6 +19,35 @@ export const HeartsProvider: FC<{ children: ReactNode }> = ({ children }) => {
       const hearts = await apiService.fetchHearts();
       const newSet = new Set((hearts || []).map(h => h.entity_id));
       setHeartedIds(newSet);
+
+      const migrateLegacy = async (key: string, entityType: 'radio' | 'podcast', idOf: (value: any) => string) => {
+        let cached: any[] = [];
+        try {
+          const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+          if (Array.isArray(parsed)) cached = parsed;
+        } catch {
+          return;
+        }
+        if (cached.length === 0) return;
+        const migrated = new Set<string>();
+        for (const value of cached) {
+          const id = idOf(value);
+          if (!id || !newSet.has(id)) continue;
+          try {
+            await apiService.addHeart(entityType, id, value);
+            migrated.add(id);
+          } catch {
+            // Keep failed entries for a later retry.
+          }
+        }
+        if (migrated.size === 0) return;
+        const remaining = cached.filter(value => !migrated.has(idOf(value)));
+        if (remaining.length === 0) localStorage.removeItem(key);
+        else localStorage.setItem(key, JSON.stringify(remaining));
+      };
+
+      await migrateLegacy('heartedRadioStations', 'radio', value => String(value?.stationuuid || ''));
+      await migrateLegacy('heartedPodcasts', 'podcast', value => String(value?.id ?? ''));
     } catch (e) {
       console.error("Failed to fetch hearts:", e);
     }
