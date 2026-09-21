@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 	"strings"
+	"time"
 )
 
 func testRepository(t *testing.T) *Repository {
@@ -331,4 +332,59 @@ func TestFavoriteBackupV2RestoresFingerprintMetadataAndTimestamp(t *testing.T) {
 	if restoredCreated!=created{t.Fatalf("timestamp changed: %q != %q",restoredCreated,created)}
 	radio,_,err:=r.GetExternalHeartMetadata(ctx,user.ID)
 	if err!=nil || len(radio)!=1 || !strings.Contains(string(radio[0]),"Station"){t.Fatalf("radio metadata: %s %v",radio,err)}
+}
+
+
+func TestEnrichmentFailureBackoffPersistsAndClears(t *testing.T) {
+	r := testRepository(t)
+	ctx := context.Background()
+
+	if err := r.UpsertTrack(ctx, &models.TrackMetadata{
+		Title:"Song", Album:"Retry Album", Artist:"Retry Artist", FilePath:"/music/retry.mp3",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	albums, err := r.GetUnenrichedAlbums(ctx, 10)
+	if err != nil || len(albums) != 1 {
+		t.Fatalf("initial unenriched albums: %+v %v", albums, err)
+	}
+	albumID := albums[0].AlbumID
+
+	if err := r.MarkEnrichmentFailure(ctx, "musicbrainz-album", albumID, errors.New("upstream timeout")); err != nil {
+		t.Fatal(err)
+	}
+	state, err := r.GetEnrichmentRetryState(ctx, "musicbrainz-album", albumID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Attempts != 1 || state.LastError != "upstream timeout" || !state.NextAttemptAt.After(time.Now().UTC()) {
+		t.Fatalf("unexpected retry state: %+v", state)
+	}
+	albums, err = r.GetUnenrichedAlbums(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, album := range albums {
+		if album.AlbumID == albumID {
+			t.Fatal("backed-off album was immediately selected again")
+		}
+	}
+
+	if _, err := r.db.ExecContext(ctx,
+		`UPDATE enrichment_retry SET next_attempt_at=datetime('now','-1 second') WHERE kind=? AND entity_id=?`,
+		"musicbrainz-album", albumID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	albums, err = r.GetUnenrichedAlbums(ctx, 10)
+	if err != nil || len(albums) != 1 || albums[0].AlbumID != albumID {
+		t.Fatalf("due retry not selected: %+v %v", albums, err)
+	}
+
+	if err := r.ClearEnrichmentFailure(ctx, "musicbrainz-album", albumID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.GetEnrichmentRetryState(ctx, "musicbrainz-album", albumID); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("retry state still present: %v", err)
+	}
 }

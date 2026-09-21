@@ -180,3 +180,15 @@ CREATE TABLE IF NOT EXISTS sessions (
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user_active ON sessions(user_id, expires_at, revoked_at);
+
+
+CREATE TABLE IF NOT EXISTS enrichment_retry (
+    kind TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_error TEXT NOT NULL DEFAULT '',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(kind, entity_id)
+);
+CREATE INDEX IF NOT EXISTS idx_enrichment_retry_due ON enrichment_retry(kind, next_attempt_at);

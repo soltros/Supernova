@@ -288,6 +288,28 @@ func Init(dbPath string) (*DB, error) {
 		}
 		version = 9
 	}
+
+	if version < 10 {
+		log.Println("Migrating database to version 10 (enrichment retry state)...")
+		if _, err := db.Exec(`
+			CREATE TABLE IF NOT EXISTS enrichment_retry (
+				kind TEXT NOT NULL,
+				entity_id TEXT NOT NULL,
+				attempts INTEGER NOT NULL DEFAULT 0,
+				next_attempt_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				last_error TEXT NOT NULL DEFAULT '',
+				updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY(kind, entity_id)
+			);
+			CREATE INDEX IF NOT EXISTS idx_enrichment_retry_due ON enrichment_retry(kind, next_attempt_at);
+		`); err != nil {
+			return nil, fmt.Errorf("migration to v10 failed: %w", err)
+		}
+		if _, err := db.Exec("PRAGMA user_version = 10"); err != nil {
+			return nil, fmt.Errorf("failed to write user_version 10: %w", err)
+		}
+		version = 10
+	}
 	success = true
 	return &DB{db}, nil
 }
