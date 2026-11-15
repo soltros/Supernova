@@ -36,11 +36,34 @@ describe('playback regression coverage', () => {
     render(<PlayerProvider><Probe /></PlayerProvider>);
     let reject!: (reason: Error) => void;
     audio.play.mockImplementationOnce(() => new Promise((_, fail) => { reject = fail; }));
-    act(() => { player.playContext([track], 0, album); });
+    await act(async () => { void player.playContext([track], 0, album); });
     await act(async () => { player.playContext([{ ...track, id: 'new' }], 0, album); });
     expect(audio.src).toContain('/api/stream/new'); expect(player.isPlaying).toBe(true);
     await act(async () => { reject(new Error('old source cancelled')); });
     expect(player.currentTrack?.id).toBe('new'); expect(player.isPlaying).toBe(true);
+  });
+  it('ignores a media ticket resolved after a newer track starts', async () => {
+    render(<PlayerProvider><Probe /></PlayerProvider>);
+    let resolve!: (url: string) => void;
+    vi.mocked(apiService.mediaUrl).mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    act(() => { void player.playContext([track], 0, album); });
+    await act(async () => { void player.playContext([{ ...track, id: 'new' }], 0, album); });
+    await act(async () => { resolve('/api/stream/old'); });
+    expect(audio.src).toContain('/api/stream/new');
+    expect(audio.play).toHaveBeenCalledTimes(1);
+  });
+  it('cancels pending resume listeners on track replacement and unmount', async () => {
+    const spy = vi.spyOn(audio, 'addEventListener');
+    const view = render(<PlayerProvider><Probe /></PlayerProvider>);
+    const episode = { ...track, id: 'podcast-ep', stream_url: 'https://example.test/audio' };
+    await act(async () => { void player.internalPlay(episode, album, { start_position_ms: 20000 }); });
+    const options = spy.mock.calls.filter(([type]) => type === 'loadedmetadata').at(-1)?.[2] as AddEventListenerOptions;
+    expect(options.signal?.aborted).toBe(false);
+    await act(async () => { void player.internalPlay(episode, album, { start_position_ms: 30000 }); });
+    expect(options.signal?.aborted).toBe(true);
+    const nextOptions = spy.mock.calls.filter(([type]) => type === 'loadedmetadata').at(-1)?.[2] as AddEventListenerOptions;
+    view.unmount();
+    expect(nextOptions.signal?.aborted).toBe(true);
   });
   it('saves podcast identity and resume position without scrobbling the old music queue', async () => {
     localStorage.setItem('lastfm_session', 'test');

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
- "net/url"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -175,9 +175,11 @@ func downloadFile(endpoint, dest string) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("close download: %w", err)
 	}
-	if err := os.Rename(tmpName, dest); err != nil {
+	if err := os.Link(tmpName, dest); err != nil {
 		return fmt.Errorf("publish download: %w", err)
 	}
+	// Linking publishes atomically without replacing a destination created concurrently.
+	_ = os.Remove(tmpName)
 	published = true
 	return nil
 }
@@ -462,8 +464,8 @@ func main() {
 	case "unheart":
 		requireArgs(4, "sn unheart <entity_type> <entity_id>")
 		c := requireConfig()
-values := url.Values{"entity_type": {os.Args[2]}, "entity_id": {os.Args[3]}}
- _, err := doRequest("DELETE", "/api/hearts?"+values.Encode(), nil, c.Token)
+		values := url.Values{"entity_type": {os.Args[2]}, "entity_id": {os.Args[3]}}
+		_, err := doRequest("DELETE", "/api/hearts?"+values.Encode(), nil, c.Token)
 		if err != nil {
 			fmt.Println("Error:", err)
 			os.Exit(1)

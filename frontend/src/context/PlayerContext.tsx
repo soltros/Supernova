@@ -41,6 +41,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeTrackRef = useRef<Track | null>(null);
   const playbackRequestRef = useRef(0);
+  const resumeControllerRef = useRef<AbortController | null>(null);
   
   // We use Refs for state accessed inside event listeners to avoid stale closures
   const queueRef = useRef<Track[]>([]);
@@ -163,6 +164,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
     return () => {
       controller.abort();
+      resumeControllerRef.current?.abort();
       playbackRequestRef.current++;
       audio.pause();
       audioRef.current = null;
@@ -181,6 +183,9 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
     const audio = audioRef.current;
     if (!audio) return;
     const request = ++playbackRequestRef.current;
+    resumeControllerRef.current?.abort();
+    const resumeController = new AbortController();
+    resumeControllerRef.current = resumeController;
     audio.pause();
     activeTrackRef.current = track;
 
@@ -213,7 +218,9 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       audio.src = track.stream_url;
     } else {
       try {
-        audio.src = await apiService.mediaUrl('stream', track.id);
+        const source = await apiService.mediaUrl('stream', track.id);
+        if (request !== playbackRequestRef.current) return;
+        audio.src = source;
       } catch {
         if (request === playbackRequestRef.current) setIsPlaying(false);
         return;
@@ -224,7 +231,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
       audio.addEventListener('loadedmetadata', () => {
         if (request !== playbackRequestRef.current) return;
         audio.currentTime = resumeAt; lastTimeRef.current = resumeAt;
-      }, { once: true });
+      }, { once: true, signal: resumeController.signal });
     }
     try {
       // Replacing src cancels the old play promise; never wait on a stalled source.

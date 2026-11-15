@@ -49,8 +49,18 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     timeoutsRef.current.set(id, timeout);
   }, [removeToast]);
 
+  const pendingConfirmRef = React.useRef<((value: boolean) => void) | null>(null);
+  React.useEffect(() => () => {
+    for (const timer of timeoutsRef.current.values()) clearTimeout(timer);
+    timeoutsRef.current.clear();
+    pendingConfirmRef.current?.(false);
+    pendingConfirmRef.current = null;
+  }, []);
+
   const confirm = React.useCallback((message: string): Promise<boolean> => {
     return new Promise((resolve) => {
+      pendingConfirmRef.current?.(false);
+      pendingConfirmRef.current = resolve;
       setConfirmDialog({ message, resolve });
     });
   }, []);
@@ -58,6 +68,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const handleConfirm = (result: boolean) => {
     if (confirmDialog) {
       confirmDialog.resolve(result);
+      pendingConfirmRef.current = null;
       setConfirmDialog(null);
     }
   };

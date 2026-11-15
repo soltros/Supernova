@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/soltros/Supernova/internal/authn"
@@ -23,9 +24,10 @@ import (
 )
 
 type PodcastsPlugin struct {
-	config plugins.PluginConfig
-	repo   *database.Repository
-	client *http.Client
+	config    plugins.PluginConfig
+	repo      *database.Repository
+	client    *http.Client
+	importing atomic.Bool
 }
 
 func init() {
@@ -74,7 +76,7 @@ func (p *PodcastsPlugin) authenticate(r *http.Request) (string, error) {
 	return user.ID, nil
 }
 
-func (p *PodcastsPlugin) doPodcastIndexRequest(endpoint string, queryValues string) (*http.Response, error) {
+func (p *PodcastsPlugin) doPodcastIndexRequest(ctx context.Context, endpoint string, queryValues string) (*http.Response, error) {
 	apiKey := os.Getenv("PODCAST_INDEX_API_KEY")
 	apiSecret := os.Getenv("PODCAST_INDEX_API_SECRET")
 
@@ -82,7 +84,7 @@ func (p *PodcastsPlugin) doPodcastIndexRequest(endpoint string, queryValues stri
 		return nil, fmt.Errorf("Podcast Index API keys are not configured in the .env file")
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), "GET", "https://api.podcastindex.org/api/1.0"+endpoint+"?"+queryValues, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.podcastindex.org/api/1.0"+endpoint+"?"+queryValues, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +112,7 @@ func (p *PodcastsPlugin) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := p.doPodcastIndexRequest("/search/byterm", "q="+url.QueryEscape(query))
+	resp, err := p.doPodcastIndexRequest(r.Context(), "/search/byterm", "q="+url.QueryEscape(query))
 	if err != nil {
 		if err.Error() == "Podcast Index API keys are not configured in the .env file" {
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
@@ -147,7 +149,7 @@ func (p *PodcastsPlugin) handleEpisodes(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resp, err := p.doPodcastIndexRequest("/episodes/byfeedid", "id="+url.QueryEscape(id))
+	resp, err := p.doPodcastIndexRequest(r.Context(), "/episodes/byfeedid", "id="+url.QueryEscape(id))
 	if err != nil {
 		if err.Error() == "Podcast Index API keys are not configured in the .env file" {
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
@@ -358,11 +360,25 @@ func (p *PodcastsPlugin) handleImportOPML(w http.ResponseWriter, r *http.Request
 	}
 
 	urls := extractFeeds(opml.Body.Outlines)
+	if len(urls) > 1000 {
+		http.Error(w, "OPML import exceeds 1000 feeds", http.StatusBadRequest)
+		return
+	}
+	if !p.importing.CompareAndSwap(false, true) {
+		http.Error(w, "another OPML import is running", http.StatusTooManyRequests)
+		return
+	}
 
 	// For each URL, fetch podcast info from PodcastIndex
 	go func(urls []string, userID string) {
+		defer p.importing.Store(false)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		defer cancel()
 		for _, u := range urls {
-			resp, err := p.doPodcastIndexRequest("/podcasts/byfeedurl", "url="+url.QueryEscape(u))
+			if ctx.Err() != nil {
+				return
+			}
+			resp, err := p.doPodcastIndexRequest(ctx, "/podcasts/byfeedurl", "url="+url.QueryEscape(u))
 			if err != nil {
 				log.Printf("[Podcasts] Failed to fetch feed %s: %v\n", u, err)
 				continue
@@ -390,7 +406,7 @@ func (p *PodcastsPlugin) handleImportOPML(w http.ResponseWriter, r *http.Request
 						Title:    title,
 						ImageURL: img,
 					}
-					p.repo.AddPodcastSubscription(context.Background(), sub)
+					p.repo.AddPodcastSubscription(ctx, sub)
 				}
 			} else {
 				log.Printf("[Podcasts] Failed to decode response for %s: %v\n", u, err)

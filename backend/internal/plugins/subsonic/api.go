@@ -47,7 +47,7 @@ func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 
 		if t != "" && s != "" {
 			// Token-based auth: client sends t = md5(password + salt), s = salt
-			user, _, err := p.repo.GetUserByUsername(r.Context(), u)
+			user, hash, err := p.repo.GetUserByUsername(r.Context(), u)
 			if err != nil || user == nil {
 				p.writeError(w, r, 40, "Wrong username or password.")
 				return
@@ -68,7 +68,7 @@ func (p *SubsonicPlugin) auth(next http.HandlerFunc) http.HandlerFunc {
 			// SUBSONIC_CREDENTIAL_KEY existed.
 			if legacy {
 				if migrated, encErr := api.EncryptSubsonicPassword(plain); encErr == nil {
-					_ = p.repo.SetSubsonicPassword(r.Context(), u, migrated)
+					_ = p.repo.SetSubsonicPasswordForHash(r.Context(), u, hash, migrated)
 				}
 			}
 
