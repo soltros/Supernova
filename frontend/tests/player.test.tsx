@@ -22,7 +22,7 @@ let audio: FakeAudio;
 let player: ReturnType<typeof usePlayer>;
 const album: Album = { id: 'album', title: 'Album', release_year: 2026, cover_art_path: '' };
 const track: Track = { id: 'song', title: 'Song', album_id: 'album', duration_ms: 120000, track_number: 1, disc_number: 1, bitrate: 192, format: 'mp3' };
-function Probe() { player = usePlayer(); return null; }
+function Probe() { const value = usePlayer(); React.useLayoutEffect(() => { player = value; }); return null; }
 beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); audio = new FakeAudio(); vi.stubGlobal('Audio', function () { return audio; }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 describe('playback regression coverage', () => {

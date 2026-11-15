@@ -30,6 +30,7 @@ services:
       - SUPERNOVA_PLUGIN_DEDUPER=${SUPERNOVA_PLUGIN_DEDUPER:-}
       # Required: set a strong random secret >= 32 chars, e.g. openssl rand -hex 32
       - JWT_SECRET=${JWT_SECRET}
+      - SUBSONIC_CREDENTIAL_KEY=${SUBSONIC_CREDENTIAL_KEY:-}
       - REGISTRATION_INVITE_CODE=${REGISTRATION_INVITE_CODE:-}
       - SUPERNOVA_PLUGIN_ALBUMMERGER=${SUPERNOVA_PLUGIN_ALBUMMERGER:-}
       - CORS_ALLOWED_ORIGIN=${CORS_ALLOWED_ORIGIN:-http://localhost:5174}
@@ -39,6 +40,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+    stop_grace_period: 30s
     restart: unless-stopped
 
   frontend:
@@ -49,6 +51,7 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    stop_grace_period: 30s
     restart: unless-stopped
 
 volumes:

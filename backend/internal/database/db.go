@@ -66,13 +66,24 @@ func Init(dbPath string) (*DB, error) {
 	db.SetMaxIdleConns(10)
 	db.SetConnMaxLifetime(time.Hour)
 
+	// Reject newer schemas before executing any schema or migration writes.
+	var sourceVersion int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&sourceVersion); err != nil {
+		return nil, err
+	}
+	if sourceVersion > 10 {
+		return nil, fmt.Errorf("database schema %d is newer than supported schema 10; use a compatible server or restore a backup", sourceVersion)
+	}
+
 	// Automatically run our embedded schema migrations
 	if _, err := db.Exec(schemaSQL); err != nil {
 		return nil, fmt.Errorf("failed to execute schema migrations: %w", err)
 	}
 
 	// Ensure new columns exist for older databases
-	_, _ = db.Exec("ALTER TABLE users ADD COLUMN subsonic_password TEXT DEFAULT '';")
+	if _, err := db.Exec("ALTER TABLE users ADD COLUMN subsonic_password TEXT DEFAULT '';"); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return nil, fmt.Errorf("Subsonic credential migration: %w", err)
+	}
 
 	// Track migration states using user_version
 	var version int

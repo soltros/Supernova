@@ -1,6 +1,7 @@
 package external
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
@@ -22,6 +23,7 @@ type LastFmClient struct {
 	apiKey    string
 	apiSecret string
 	client    *http.Client
+	ctx       context.Context
 }
 
 // NewLastFmClient initializes the client. Requires both Key and Secret for scrobbling support.
@@ -29,8 +31,28 @@ func NewLastFmClient(apiKey, apiSecret string) *LastFmClient {
 	return &LastFmClient{
 		apiKey:    apiKey,
 		apiSecret: apiSecret,
-		client: resourcebudget.NewHTTPClient(10 * time.Second),
+		client:    resourcebudget.NewHTTPClient(10 * time.Second),
 	}
+}
+
+// WithContext returns a request-scoped copy; the shared client remains immutable.
+func (c *LastFmClient) WithContext(ctx context.Context) *LastFmClient {
+	clone := *c
+	clone.ctx = ctx
+	return &clone
+}
+func (c *LastFmClient) requestContext() context.Context {
+	if c.ctx != nil {
+		return c.ctx
+	}
+	return context.Background()
+}
+func (c *LastFmClient) get(target string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(c.requestContext(), http.MethodGet, target, nil)
+	if err != nil {
+		return nil, err
+	}
+	return c.client.Do(req)
 }
 
 // --- 1. RICH METADATA (Read-Only) ---
@@ -59,7 +81,7 @@ func (c *LastFmClient) GetArtistInfo(artistName string) (*ArtistInfoResponse, er
 	params.Add("format", "json")
 
 	reqURL := fmt.Sprintf("%s?%s", lastFmBaseURL, params.Encode())
-	resp, err := c.client.Get(reqURL)
+	resp, err := c.get(reqURL)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +115,7 @@ func (c *LastFmClient) GetArtistTopTracks(artistName string) (*ArtistTopTracksRe
 	params.Add("limit", "100")
 
 	reqURL := fmt.Sprintf("%s?%s", lastFmBaseURL, params.Encode())
-	resp, err := c.client.Get(reqURL)
+	resp, err := c.get(reqURL)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +198,7 @@ func (c *LastFmClient) GetSession(token string) (string, error) {
 	reqURL := fmt.Sprintf("%s?method=auth.getSession&token=%s&api_key=%s&api_sig=%s&format=json",
 		lastFmBaseURL, url.QueryEscape(token), url.QueryEscape(c.apiKey), apiSig)
 
-	resp, err := c.client.Get(reqURL)
+	resp, err := c.get(reqURL)
 	if err != nil {
 		return "", err
 	}
@@ -219,7 +241,7 @@ func (c *LastFmClient) postAuthenticated(params map[string]string) error {
 	form.Add("api_sig", apiSig)
 	form.Add("format", "json")
 
-	req, err := http.NewRequest(http.MethodPost, lastFmBaseURL, strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(c.requestContext(), http.MethodPost, lastFmBaseURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return err
 	}
@@ -347,7 +369,7 @@ func (c *LastFmClient) GetAlbumInfo(artist, album, mbid string, autocorrect int)
 	params.Add("format", "json")
 
 	reqURL := fmt.Sprintf("%s?%s", lastFmBaseURL, params.Encode())
-	resp, err := c.client.Get(reqURL)
+	resp, err := c.get(reqURL)
 	if err != nil {
 		return nil, err
 	}
@@ -380,7 +402,7 @@ func (c *LastFmClient) GetTrackInfo(artist, track, mbid string, autocorrect int)
 	params.Add("format", "json")
 
 	reqURL := fmt.Sprintf("%s?%s", lastFmBaseURL, params.Encode())
-	resp, err := c.client.Get(reqURL)
+	resp, err := c.get(reqURL)
 	if err != nil {
 		return nil, err
 	}
@@ -411,7 +433,7 @@ func (c *LastFmClient) GetTopAlbumsByTag(tag string, limit, page int) (*TopAlbum
 	params.Add("format", "json")
 
 	reqURL := fmt.Sprintf("%s?%s", lastFmBaseURL, params.Encode())
-	resp, err := c.client.Get(reqURL)
+	resp, err := c.get(reqURL)
 	if err != nil {
 		return nil, err
 	}
@@ -442,7 +464,7 @@ func (c *LastFmClient) GetTopTracksByTag(tag string, limit, page int) (*TopTrack
 	params.Add("format", "json")
 
 	reqURL := fmt.Sprintf("%s?%s", lastFmBaseURL, params.Encode())
-	resp, err := c.client.Get(reqURL)
+	resp, err := c.get(reqURL)
 	if err != nil {
 		return nil, err
 	}
@@ -461,7 +483,7 @@ func (c *LastFmClient) GetTopTracksByTag(tag string, limit, page int) (*TopTrack
 // ScrapeArtistImage fetches the real artist image from Last.fm's HTML, bypassing their API limitation
 func (c *LastFmClient) ScrapeArtistImage(artistName string) string {
 	reqURL := "https://www.last.fm/music/" + url.PathEscape(artistName)
-	req, err := http.NewRequest("GET", reqURL, nil)
+	req, err := http.NewRequestWithContext(c.requestContext(), "GET", reqURL, nil)
 	if err != nil {
 		return ""
 	}

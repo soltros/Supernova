@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -80,6 +79,7 @@ func main() {
 
 	// 5. Initialize application lifecycle and supervised background jobs.
 	appCtx, cancelApp := context.WithCancel(context.Background())
+	defer cancelApp()
 	jobSupervisor := jobs.New(appCtx)
 	enricher := scanner.NewEnricher(repo, mbClient, lastfmClient)
 	enricher.Start(appCtx)
@@ -105,19 +105,22 @@ func main() {
 	// 8. Initialize the HTTP API Server
 	pluginManager := plugins.InitManager()
 	pluginManager.Start(plugins.PluginConfig{
-		Repo: repo,
-		Jobs: jobSupervisor,
+		Context: appCtx,
+		Repo:    repo,
+		Jobs:    jobSupervisor,
 	})
 
 	apiServer := api.NewServer(repo, lastfmClient, enricher, mediaScanner, pluginManager)
 
 	// Configure the HTTP Server with sensible production timeouts
 	srv := &http.Server{
-		Addr:         ":" + port,
-		Handler:      apiServer,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 0, // Disable for streaming; use per-route timeouts for API endpoints
-		IdleTimeout:  60 * time.Second,
+		Addr:              ":" + port,
+		Handler:           apiServer,
+		ReadTimeout:       15 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		MaxHeaderBytes:    64 << 10,
+		WriteTimeout:      0, // Disable for streaming; use per-route timeouts for API endpoints
+		IdleTimeout:       60 * time.Second,
 	}
 
 	// 9. Start the HTTP server in a background goroutine
@@ -131,6 +134,7 @@ func main() {
 	// 10. Graceful Shutdown listener
 	// This keeps the main thread alive until Docker or the user sends a termination signal (CTRL+C)
 	quit := make(chan os.Signal, 1)
+	defer signal.Stop(quit)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
@@ -142,6 +146,7 @@ func main() {
 	// Stop accepting new HTTP work before closing the application context.
 	if err := srv.Shutdown(ctxShutdown); err != nil {
 		log.Printf("HTTP shutdown deadline reached: %v", err)
+		_ = srv.Close()
 	}
 	cancelApp()
 
@@ -150,7 +155,11 @@ func main() {
 			log.Printf("scanner shutdown: %v", err)
 		}
 	}
-	if err := jobSupervisor.Shutdown(ctxShutdown); err != nil {
+	enricher.Wait()
+	pluginManager.Shutdown()
+	workShutdown, cancelWork := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelWork()
+	if err := jobSupervisor.Shutdown(workShutdown); err != nil {
 		log.Printf("background job shutdown deadline reached: %v", err)
 	}
 }

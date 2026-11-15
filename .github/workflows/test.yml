@@ -29,6 +29,9 @@ jobs:
         working-directory: backend
       - run: go test ./... && go vet ./...
         working-directory: supernova-cli
+      - name: Go vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+        working-directory: backend
       - name: Validate manual Subsonic smoke client
         run: python3 -m py_compile test_subsonic.py
   clients:

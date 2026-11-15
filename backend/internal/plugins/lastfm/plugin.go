@@ -109,7 +109,7 @@ func (p *LastFmPlugin) handleNowPlaying(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	err := p.client.UpdateNowPlaying(payload.SessionKey, payload.Artist, payload.Track)
+	err := p.client.WithContext(r.Context()).UpdateNowPlaying(payload.SessionKey, payload.Artist, payload.Track)
 	if err != nil {
 		if resourcebudget.IsSaturated(err) {
 			http.Error(w, "external request budget is busy; retry shortly", http.StatusServiceUnavailable)
@@ -141,7 +141,7 @@ func (p *LastFmPlugin) handleScrobble(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := p.client.Scrobble(payload.SessionKey, payload.Artist, payload.Track, payload.Timestamp)
+	err := p.client.WithContext(r.Context()).Scrobble(payload.SessionKey, payload.Artist, payload.Track, payload.Timestamp)
 	if err != nil {
 		if resourcebudget.IsSaturated(err) {
 			http.Error(w, "external request budget is busy; retry shortly", http.StatusServiceUnavailable)
@@ -170,7 +170,7 @@ func (p *LastFmPlugin) handleGetSession(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	session, err := p.client.GetSession(payload.Token)
+	session, err := p.client.WithContext(r.Context()).GetSession(payload.Token)
 	if err != nil {
 		if resourcebudget.IsSaturated(err) {
 			http.Error(w, "external request budget is busy; retry shortly", http.StatusServiceUnavailable)

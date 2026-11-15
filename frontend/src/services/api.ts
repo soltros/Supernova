@@ -2,7 +2,9 @@ import type { Album, Artist, Track, AuthResponse, Playlist } from '../types';
 
 const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
 
-const lyricsCache: Record<string, any> = {};
+const lyricsCache = new Map<string, any>();
+const MAX_LYRICS_ENTRIES = 128;
+const MAX_CACHED_LYRICS_BYTES = 128 * 1024;
 
 const getHeaders = () => {
   const token = localStorage.getItem('sn_token');
@@ -16,10 +18,13 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
   const headers = new Headers(getHeaders());
   new Headers(options.headers).forEach((value, key) => headers.set(key, value));
   if (options.body instanceof FormData) headers.delete('Content-Type');
+  const deadline = AbortSignal.timeout(30_000);
+  const signal = options.signal ? AbortSignal.any([options.signal, deadline]) : deadline;
   let response: Response;
   try {
-    response = await fetch(url, { ...options, headers });
-  } catch {
+    response = await fetch(url, { ...options, headers, signal });
+  } catch (error) {
+    if (signal.aborted) throw error;
     throw new Error("Network error. Please check your connection.");
   }
   if (response.status === 401 && !url.includes('/api/auth/login') && !url.includes('/api/auth/register')) {
@@ -260,9 +265,13 @@ export const apiService = {
     return response.json();
   },
 
-  getLyrics: async (artist: string, track: string, album: string, durationSec: number): Promise<any> => {
-    const cacheKey = `${artist}-${track}-${album}-${durationSec}`;
-    if (lyricsCache[cacheKey]) return lyricsCache[cacheKey];
+  getLyrics: async (artist: string, track: string, album: string, durationSec: number, signal?: AbortSignal): Promise<any> => {
+    const cacheKey = JSON.stringify([artist, track, album, durationSec]);
+    if (lyricsCache.has(cacheKey)) {
+      const cached = lyricsCache.get(cacheKey);
+      lyricsCache.delete(cacheKey); lyricsCache.set(cacheKey, cached);
+      return cached;
+    }
 
     const params = new URLSearchParams({
       artist_name: artist,
@@ -271,10 +280,13 @@ export const apiService = {
       duration: (durationSec || 0).toString()
     });
     // This goes through the backend plugin to avoid CORS and allow caching/rate-limiting
-    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/lrclib/lyrics?${params}`);
+    const response = await fetchWithAuth(`${API_BASE_URL}/api/plugins/lrclib/lyrics?${params}`, { signal });
     if (!response.ok) throw new Error('Lyrics not found');
     const data = await response.json();
-    lyricsCache[cacheKey] = data;
+    if (JSON.stringify(data).length * 2 <= MAX_CACHED_LYRICS_BYTES) {
+      lyricsCache.delete(cacheKey); lyricsCache.set(cacheKey, data);
+      while (lyricsCache.size > MAX_LYRICS_ENTRIES) lyricsCache.delete(lyricsCache.keys().next().value!);
+    }
     return data;
   },
 

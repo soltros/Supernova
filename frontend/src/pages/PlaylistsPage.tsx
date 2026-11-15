@@ -1,3 +1,4 @@
+/* oxlint-disable react/set-state-in-effect -- Effects initialize external resources or reset loading state before asynchronous requests. */
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ListMusic, Trash2, Play } from 'lucide-react';

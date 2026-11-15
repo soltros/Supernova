@@ -1,0 +1,50 @@
+{
+  "go_toolchain": "1.26.11",
+  "backend_soak": {
+    "cycles": 17,
+    "goroutines_after": 9,
+    "goroutines_before": 9,
+    "heap_after": 1483656,
+    "heap_before": 1494808,
+    "requests": 2975,
+    "seconds": 90,
+    "tracks": 1024
+  },
+  "browser_navigation": {
+    "navigations": 200,
+    "before": {
+      "heap": 3668760,
+      "documents": 3,
+      "nodes": 192,
+      "jsEventListeners": 199
+    },
+    "after": {
+      "heap": 4229952,
+      "documents": 3,
+      "nodes": 192,
+      "jsEventListeners": 199
+    },
+    "page_errors": []
+  },
+  "deployment": {
+    "authorization_and_proxy": "passed",
+    "live_wal_backup": "passed",
+    "interrupted_scan_shutdown_seconds": 0.194,
+    "restore_accounts_sessions_playlists": "passed",
+    "restart_after_interrupted_scan": "passed",
+    "backend_limits": {
+      "memory_mib": 256,
+      "cpus": 1,
+      "pids": 128,
+      "read_only_root": true,
+      "non_root": true
+    }
+  },
+  "vulnerabilities": {
+    "go": "No vulnerabilities found",
+    "frontend_npm": 0,
+    "website_npm": 0,
+    "desktop_npm": 0
+  },
+  "limits": "Synthetic workloads; not a guarantee of no leaks or production-scale capacity. Native macOS/Windows packaging and long real-library soaks remain separate checks."
+}

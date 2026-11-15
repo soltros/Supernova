@@ -74,3 +74,21 @@ func TestChangePasswordRollsBackOnRevocationFailure(t *testing.T) {
 		t.Fatalf("credential not rolled back: %q %v", encrypted, err)
 	}
 }
+
+func TestStaleLoginCannotCreateSession(t *testing.T) {
+	r := testRepository(t)
+	ctx := context.Background()
+	u, err := r.CreateUser(ctx, "alice", "old")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.ChangePassword(ctx, u.ID, "old", "new", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.CreateSessionForHash(ctx, u.ID, "old", time.Now().Add(time.Hour)); err == nil {
+		t.Fatal("stale login accepted")
+	}
+	if _, err := r.CreateSessionForHash(ctx, u.ID, "new", time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+}

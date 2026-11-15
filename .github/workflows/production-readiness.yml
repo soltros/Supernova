@@ -1,0 +1,44 @@
+name: Production readiness soak
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  disposable-deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Go memory soak and heap profiles
+        working-directory: backend
+        env:
+          SUPERNOVA_SOAK_SECONDS: 90
+          SUPERNOVA_SOAK_TRACKS: 1024
+          SUPERNOVA_SOAK_OUTPUT: /tmp/supernova-profile
+        run: go test ./internal/api -run TestProductionMemorySoak -count=1 -v
+      - run: docker build --target backend -t supernova-review-backend .
+      - run: docker build --target frontend -t supernova-review-frontend .
+      - run: python3 scripts/production-smoke.py
+      - name: Browser navigation memory soak
+        run: |
+          npm ci --prefix frontend
+          npm run build --prefix frontend
+          npm install --prefix /tmp/supernova-browser playwright@1.65.1
+          /tmp/supernova-browser/node_modules/.bin/playwright install --with-deps chromium
+          PLAYWRIGHT_MODULE=/tmp/supernova-browser/node_modules/playwright node scripts/browser-memory-soak.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-readiness-results
+          path: |
+            /tmp/supernova-profile/
+            /tmp/supernova-deployment-results.json
+            /tmp/supernova-browser-results.json

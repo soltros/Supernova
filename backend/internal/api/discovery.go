@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"github.com/soltros/Supernova/internal/resourcebudget"
 	"net/http"
 	"net/url"
 	"os"
@@ -46,13 +47,20 @@ func (s *Server) handleGetDiscovery() http.HandlerFunc {
 		var allReleases []externalRelease
 		var similarArtists []map[string]interface{}
 
-		client := &http.Client{Timeout: 5 * time.Second}
+		client := resourcebudget.NewHTTPClient(5 * time.Second)
+		get := func(target string) (*http.Response, error) {
+			req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target, nil)
+			if err != nil {
+				return nil, err
+			}
+			return client.Do(req)
+		}
 		lastFmKey := os.Getenv("LASTFM_API_KEY")
 
 		for _, artist := range artists {
 			// iTunes
 			u := "https://itunes.apple.com/search?term=" + url.QueryEscape(artist) + "&entity=album&limit=50"
-			resp, err := client.Get(u)
+			resp, err := get(u)
 			if err == nil {
 				var res iTunesResponse
 				if err := json.NewDecoder(resp.Body).Decode(&res); err == nil && len(res.Results) > 0 {
@@ -84,7 +92,7 @@ func (s *Server) handleGetDiscovery() http.HandlerFunc {
 			// Last.fm Similar
 			if lastFmKey != "" {
 				lUrl := "https://ws.audioscrobbler.com/2.0/?method=artist.getsimilar&artist=" + url.QueryEscape(artist) + "&api_key=" + lastFmKey + "&format=json&limit=3"
-				lResp, err := client.Get(lUrl)
+				lResp, err := get(lUrl)
 				if err == nil {
 					var lRes struct {
 						SimilarArtists struct {
@@ -103,7 +111,7 @@ func (s *Server) handleGetDiscovery() http.HandlerFunc {
 
 							// Fetch Top Album for this artist to get an actual image (since Last.fm removed artist images)
 							albumUrl := "https://ws.audioscrobbler.com/2.0/?method=artist.gettopalbums&artist=" + url.QueryEscape(sim.Name) + "&api_key=" + lastFmKey + "&format=json&limit=1"
-							aResp, err := client.Get(albumUrl)
+							aResp, err := get(albumUrl)
 							if err == nil {
 								var aRes struct {
 									TopAlbums struct {

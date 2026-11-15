@@ -214,3 +214,20 @@ func (r *Repository) ChangePassword(ctx context.Context, userID, oldHash, newHas
 	}
 	return tx.Commit()
 }
+
+// CreateSessionForHash rejects logins verified before a concurrent password change.
+func (r *Repository) CreateSessionForHash(ctx context.Context, userID, hash string, expires time.Time) (string, error) {
+	id := generateUUID()
+	res, err := r.db.ExecContext(ctx, `INSERT INTO sessions(id,user_id,expires_at) SELECT ?,id,? FROM users WHERE id=? AND password_hash=?`, id, expires.UTC(), userID, hash)
+	if err != nil {
+		return "", err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return "", err
+	}
+	if n != 1 {
+		return "", errors.New("credentials changed during login")
+	}
+	return id, nil
+}

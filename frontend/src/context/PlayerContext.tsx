@@ -1,3 +1,4 @@
+/* oxlint-disable react/set-state-in-effect -- Effects initialize external resources or reset loading state before asynchronous requests. */
 import { createContext, useState, useContext, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { FC, ReactNode } from 'react';
 import { apiService } from '../services/api';
@@ -164,7 +165,9 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
     return () => {
       controller.abort();
+      // oxlint-disable-next-line react-hooks/exhaustive-deps -- Abort the latest playback request, including requests created after mount.
       resumeControllerRef.current?.abort();
+      // oxlint-disable-next-line react-hooks/exhaustive-deps -- Invalidating the latest request prevents asynchronous playback after teardown.
       playbackRequestRef.current++;
       audio.pause();
       audioRef.current = null;
@@ -395,6 +398,7 @@ export const PlayerProvider: FC<{ children: ReactNode }> = ({ children }) => {
   );
 };
 
+// oxlint-disable-next-line react/only-export-components -- Context hooks intentionally share their provider module.
 export const usePlayer = () => {
   const context = useContext(PlayerContext);
   if (!context) throw new Error('usePlayer must be used within PlayerProvider');

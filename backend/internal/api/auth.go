@@ -159,7 +159,7 @@ func (s *Server) handleRegister() http.HandlerFunc {
 		if enc, err := EncryptSubsonicPassword(req.Password); err == nil {
 			_ = s.repo.SetSubsonicPasswordForHash(r.Context(), user.Username, string(hash), enc)
 		}
-		token, _, err := s.issueSessionToken(r.Context(), user.ID)
+		token, _, err := s.issueSessionToken(r.Context(), user.ID, string(hash))
 		if err != nil {
 			http.Error(w, "failed to generate token", 500)
 			return
@@ -199,7 +199,7 @@ func (s *Server) handleLogin() http.HandlerFunc {
 		if enc, err := EncryptSubsonicPassword(req.Password); err == nil {
 			_ = s.repo.SetSubsonicPasswordForHash(r.Context(), user.Username, string(hash), enc)
 		}
-		token, _, err := s.issueSessionToken(r.Context(), user.ID)
+		token, _, err := s.issueSessionToken(r.Context(), user.ID, string(hash))
 		if err != nil {
 			http.Error(w, "failed to generate token", 500)
 			return
@@ -209,9 +209,9 @@ func (s *Server) handleLogin() http.HandlerFunc {
 	}
 }
 
-func (s *Server) issueSessionToken(ctx context.Context, userID string) (string, string, error) {
+func (s *Server) issueSessionToken(ctx context.Context, userID, hash string) (string, string, error) {
 	expires := time.Now().Add(7 * 24 * time.Hour)
-	sessionID, err := s.repo.CreateSession(ctx, userID, expires)
+	sessionID, err := s.repo.CreateSessionForHash(ctx, userID, hash, expires)
 	if err != nil {
 		return "", "", err
 	}

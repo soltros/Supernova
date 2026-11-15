@@ -20,6 +20,7 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
+// oxlint-disable-next-line react/only-export-components -- Context hooks intentionally share their provider module.
 export const useToast = () => {
   const context = useContext(ToastContext);
   if (!context) throw new Error('useToast must be used within ToastProvider');
@@ -50,11 +51,14 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [removeToast]);
 
   const pendingConfirmRef = React.useRef<((value: boolean) => void) | null>(null);
-  React.useEffect(() => () => {
-    for (const timer of timeoutsRef.current.values()) clearTimeout(timer);
-    timeoutsRef.current.clear();
-    pendingConfirmRef.current?.(false);
-    pendingConfirmRef.current = null;
+  React.useEffect(() => {
+    const timers = timeoutsRef.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+      pendingConfirmRef.current?.(false);
+      pendingConfirmRef.current = null;
+    };
   }, []);
 
   const confirm = React.useCallback((message: string): Promise<boolean> => {

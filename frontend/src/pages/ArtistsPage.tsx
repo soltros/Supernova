@@ -1,3 +1,4 @@
+/* oxlint-disable react/set-state-in-effect -- Effects initialize external resources or reset loading state before asynchronous requests. */
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Mic2 } from 'lucide-react';

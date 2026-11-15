@@ -2,6 +2,7 @@ package resourcebudget
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -75,3 +76,34 @@ func TestClosingBodyReleasesSlot(t *testing.T) {
 		}
 	}
 }
+
+func TestMetadataResponseBudgetAndSlotRelease(t *testing.T) {
+	slots := make(chan struct{}, 1)
+	tr := &transport{slots: slots, wait: time.Millisecond, base: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		length := int64(-1)
+		if r.URL.Path == "/known" {
+			length = maxResponseBytes + 1
+		}
+		return &http.Response{StatusCode: 200, ContentLength: length, Body: io.NopCloser(io.LimitReader(repeatReader{}, maxResponseBytes+1)), Header: make(http.Header), Request: r}, nil
+	})}
+	client := &http.Client{Transport: tr}
+	if _, err := client.Get("https://example.test/known"); !errors.Is(err, ErrResponseTooLarge) {
+		t.Fatalf("known length accepted: %v", err)
+	}
+	resp, err := client.Get("https://example.test/chunked")
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+	if n != maxResponseBytes || !errors.Is(err, ErrResponseTooLarge) {
+		t.Fatalf("unbounded read: %d %v", n, err)
+	}
+	if len(slots) != 0 {
+		t.Fatal("slot leaked")
+	}
+}
+
+type repeatReader struct{}
+
+func (repeatReader) Read(p []byte) (int, error) { clear(p); return len(p), nil }

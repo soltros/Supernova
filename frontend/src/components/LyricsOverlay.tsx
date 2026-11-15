@@ -1,3 +1,4 @@
+/* oxlint-disable react/set-state-in-effect -- Effects initialize external resources or reset loading state before asynchronous requests. */
 import React, { useEffect, useState, useRef } from 'react';
 import { apiService } from '../services/api';
 import { usePlayer } from '../context/PlayerContext';
@@ -15,9 +16,26 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const requestGeneration = useRef(0);
-  
+
   // Track parsed synced lyrics
   const [syncedLines, setSyncedLines] = useState<{time: number, text: string}[]>([]);
+
+  function parseSyncedLyrics(lrc: string) {
+    const lines = lrc.split('\n');
+    const parsed = lines.map(line => {
+      // match [mm:ss.xx]
+      const match = line.match(/\[(\d{2}):(\d{2}\.\d{2})\](.*)/);
+      if (match) {
+        const mins = parseInt(match[1]);
+        const secs = parseFloat(match[2]);
+        const text = match[3].trim();
+        return { time: mins * 60 + secs, text };
+      }
+      return null;
+    }).filter(l => l !== null) as {time: number, text: string}[];
+
+    setSyncedLines(parsed);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -27,6 +45,7 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
     }
 
     const generation = ++requestGeneration.current;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
     setLyricsData(null);
@@ -44,7 +63,7 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
       currentTrack.artist_name,
       currentTrack.title,
       currentAlbum.title,
-      currentTrack.duration_ms / 1000
+      currentTrack.duration_ms / 1000, controller.signal
     )
       .then(data => {
         if (generation !== requestGeneration.current) return;
@@ -62,7 +81,7 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
         if (generation === requestGeneration.current) setLoading(false);
       });
 
-    return () => { requestGeneration.current++; };
+    return () => { controller.abort(); requestGeneration.current = generation + 1; };
   }, [isOpen, currentTrack, currentAlbum]);
 
   useEffect(() => {
@@ -75,23 +94,6 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
     audioElement.addEventListener('timeupdate', handleTimeUpdate);
     return () => audioElement.removeEventListener('timeupdate', handleTimeUpdate);
   }, [isOpen, audioElement]);
-
-  const parseSyncedLyrics = (lrc: string) => {
-    const lines = lrc.split('\n');
-    const parsed = lines.map(line => {
-      // match [mm:ss.xx]
-      const match = line.match(/\[(\d{2}):(\d{2}\.\d{2})\](.*)/);
-      if (match) {
-        const mins = parseInt(match[1]);
-        const secs = parseFloat(match[2]);
-        const text = match[3].trim();
-        return { time: mins * 60 + secs, text };
-      }
-      return null;
-    }).filter(l => l !== null) as {time: number, text: string}[];
-    
-    setSyncedLines(parsed);
-  };
 
   // Find active line
   let activeIndex = -1;
@@ -136,7 +138,7 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
       color: '#fff',
       animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
     }}>
-      <button 
+      <button
         onClick={onClose}
         aria-label="Close lyrics"
         style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '50%', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -151,13 +153,13 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
 
       <div ref={containerRef} className="content-scroll" style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         {loading && <div className="loader"></div>}
-        
+
         {error && (
           <div style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', marginTop: '40px' }}>
             {error}
           </div>
         )}
-        
+
         {lyricsData && !loading && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '40px' }}>
             {syncedLines.length > 0 ? (
@@ -166,11 +168,11 @@ const LyricsOverlay: React.FC<LyricsOverlayProps> = ({ isOpen, onClose }) => {
                 const isActive = idx === activeIndex;
                 const isPassed = idx < activeIndex;
                 return (
-                  <p 
-                    key={idx} 
+                  <p
+                    key={idx}
                     className={`lyric-line ${isActive ? 'active' : ''}`}
-                    style={{ 
-                      fontSize: isActive ? '20px' : '16px', 
+                    style={{
+                      fontSize: isActive ? '20px' : '16px',
                       fontWeight: isActive ? 800 : 500,
                       color: isActive ? '#fff' : (isPassed ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.2)'),
                       margin: 0,

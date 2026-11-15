@@ -24,3 +24,13 @@ test('Last.fm OAuth is restricted to the official HTTPS authorization endpoint',
     'javascript:alert(1)'
   ]) assert.equal(isLastFmAuthUrl(value), false);
 });
+
+test('patched packaging glob dependency includes app files and excludes dependencies', () => {
+  const { FileMatcher } = require('app-builder-lib/out/fileMatcher');
+  const matcher = new FileMatcher('/tmp/source', '/tmp/dest', value => value, ['**/*.js', '!**/node_modules/**']);
+  const filter = matcher.createFilter();
+  const file = { isDirectory: () => false };
+  assert.equal(filter('/tmp/source/main.js', file), true);
+  assert.equal(filter('/tmp/source/node_modules/other/index.js', file), false);
+  assert.doesNotThrow(() => require('@electron/universal'));
+});

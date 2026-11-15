@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -70,4 +71,27 @@ func TestShutdownWaitsForRunningJobAndBlocksNewOnes(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
+}
+
+func TestRepeatedShutdownDeadlinesDoNotAccumulateWaiters(t *testing.T) {
+	s := New(context.Background())
+	finish, err := s.AcquireMutation(context.Background(), "held")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := runtime.NumGoroutine()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	for i := 0; i < 100; i++ {
+		_ = s.Shutdown(ctx)
+	}
+	if runtime.NumGoroutine() > before+3 {
+		t.Error("shutdown accumulated waiter goroutines")
+	}
+	finish(nil)
+	fresh, stop := context.WithTimeout(context.Background(), time.Second)
+	defer stop()
+	if err := s.Shutdown(fresh); err != nil {
+		t.Fatal(err)
+	}
 }

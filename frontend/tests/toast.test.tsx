@@ -4,7 +4,7 @@ import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ToastProvider, useToast } from '../src/context/ToastContext';
 let toast: ReturnType<typeof useToast>;
-function Probe() { toast = useToast(); return null; }
+function Probe() { const value = useToast(); React.useLayoutEffect(() => { toast = value; }); return null; }
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 it('clears toast timers and settles pending confirmation on unmount', async () => {
   vi.useFakeTimers();

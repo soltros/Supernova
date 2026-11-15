@@ -32,15 +32,20 @@ const SettingsPage: React.FC = () => {
       .catch(err => addToast(err?.message || 'Failed to load plugins.', 'error'));
       
     // Poll scan progress
+    let active = true;
+    let inFlight = false;
     const checkProgress = () => {
+      if (inFlight) return;
+      inFlight = true;
       apiService.getScanProgress()
-        .then(data => setScanStatus(data))
-        .catch(() => {});
+        .then(data => { if (active) setScanStatus(data); })
+        .catch(() => {})
+        .finally(() => { inFlight = false; });
     };
     checkProgress();
     const interval = setInterval(checkProgress, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    return () => { active = false; clearInterval(interval); };
+  }, [addToast]);
 
   const handleClearCache = async () => {
     if ('serviceWorker' in navigator) {
@@ -83,7 +88,7 @@ const SettingsPage: React.FC = () => {
     try {
       await apiService.resetArtists();
       addToast("Artist data cleared successfully. The background scanner will re-fetch data shortly.", 'success');
-    } catch (e) {
+    } catch {
       addToast("Failed to reset artist data.", 'error');
     } finally {
       setIsResetting(false);

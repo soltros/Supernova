@@ -38,3 +38,47 @@ production heap profiles or sustained playback/load soak tests were collected.
 Those are still needed to establish memory behavior under real library sizes and
 long-running workloads. Bounded caches and workers prevent the identified growth
 paths; they do not bound total process memory under arbitrary request concurrency.
+
+## Follow-up readiness pass
+
+The follow-up added real Chromium navigation measurements, a synthetic Go
+streaming/rescan soak, and disposable Docker recovery/resource tests. Repeatable
+commands and limitations are in [OPERATIONS.md](OPERATIONS.md).
+
+Additional fixes include bounded lyrics retention and upstream response sizes,
+cancellable/joined enrichment and podcast work, scanner recovery after event
+queue overflow, consistent WAL-aware backup tooling, stale-login rejection after
+password changes, and rejection of unsupported future database schemas. Compose
+now forwards the dedicated Subsonic key. Docker contexts exclude local dependency
+folders and credential directories. Website builds preserve hand-written docs.
+
+Frontend and website lint were reviewed: initialization/loading effects and
+co-located context hooks have narrow, explained exemptions; stale callback,
+unused-variable, and cleanup issues were fixed. Desktop minimatch overrides use
+11.0.8 and have a packaging-glob compatibility regression test; native macOS and
+Windows installers still require their platform build checks.
+
+### Measured results
+
+- Final Go 1.26.11 soak: 1,024 generated tracks, 90 seconds, 17 rescans, and
+  2,975 API/stream requests. Post-GC heap went from 1,494,808 to 1,483,656 bytes;
+  goroutines remained at nine.
+- Chromium: 200 client-side navigations. Post-GC heap went from 3,668,760 to
+  4,229,952 bytes; DOM nodes remained at 192 and listeners at 199. No page errors.
+- Disposable Docker recovery tests passed with the limits described in OPERATIONS.
+- Backend race tests/vet, CLI tests/vet, 16 frontend tests, frontend/website builds
+  and lint, desktop security/glob tests, and final image builds passed.
+- Go vulnerability scanning originally found 21 reachable standard-library
+  advisories with Go 1.26.4. The minimum compiler and Docker builders now use
+  1.26.11; x/crypto and x/sys were updated. Final govulncheck and the three npm
+  audits report no vulnerabilities.
+
+API fetches now have 30-second deadlines and scan-status polling does not overlap
+requests. This bounds retention when a server stops responding; lyrics overlays
+and session verification also cancel work on teardown.
+
+The machine-readable [results](production-readiness-results.json) record these
+measurements. These are regression signals from small synthetic libraries and
+short runs, not proof of zero leaks. Real audio decoding, external providers,
+very large libraries, hours-long workloads, and native platform installers are
+not covered by the browser/navigation fixture.

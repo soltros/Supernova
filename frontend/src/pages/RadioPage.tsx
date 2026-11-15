@@ -1,3 +1,4 @@
+/* oxlint-disable react/set-state-in-effect -- Load subscriptions on mount through the shared refresh function. */
 import React, { useState, useEffect } from 'react';
 import { Play, Search, Radio, Plus, Check } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
@@ -19,10 +20,6 @@ const RadioPage: React.FC = () => {
   const { internalPlay } = usePlayer();
   const { addToast } = useToast();
 
-  useEffect(() => {
-    fetchSubscriptions();
-  }, []);
-
   const fetchSubscriptions = async () => {
     try {
       const subs = await apiService.getRadioSubscriptions();
@@ -31,6 +28,10 @@ const RadioPage: React.FC = () => {
       setError(err?.message || 'Failed to load radio subscriptions.');
     }
   };
+
+  useEffect(() => {
+    fetchSubscriptions();
+  }, []);
 
   const handleSubscribe = async (e: React.MouseEvent, station: any) => {
     e.stopPropagation();
@@ -61,6 +62,7 @@ const RadioPage: React.FC = () => {
     try {
       const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
       const response = await fetch(`${API_BASE_URL}/api/plugins/radio/search?q=${encodeURIComponent(query)}&country=${encodeURIComponent(country)}&limit=50&offset=0`, {
+        signal: AbortSignal.timeout(30_000),
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sn_token')}`
         }
@@ -84,6 +86,7 @@ const RadioPage: React.FC = () => {
     try {
       const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
       const response = await fetch(`${API_BASE_URL}/api/plugins/radio/search?q=${encodeURIComponent(query)}&country=${encodeURIComponent(country)}&limit=50&offset=${newOffset}`, {
+        signal: AbortSignal.timeout(30_000),
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sn_token')}`
         }

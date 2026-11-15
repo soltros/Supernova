@@ -7,6 +7,7 @@ export default defineConfig({
   base: '/Supernova/',
   build: {
     outDir: '../docs',
-    emptyOutDir: true
+    // Preserve hand-written documentation beside the published website.
+    emptyOutDir: false
   }
 })

@@ -24,7 +24,7 @@ Built with a highly-concurrent Go backend and a Progressive Web App (PWA) React 
 ## Getting Started
 
 ### Prerequisites
-- Go 1.26.4+
+- Go 1.26.11+
 - Node.js 24+
 - FFmpeg (including `ffprobe`)
 

@@ -14,13 +14,13 @@ EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
 
 # Stage 3: Build the Go backend
-FROM golang:1.26-alpine AS backend-builder
+FROM golang:1.26.11-alpine AS backend-builder
 WORKDIR /app/backend
 COPY backend/go.mod backend/go.sum* ./
 RUN go mod download
 COPY backend/ ./
 ENV CGO_ENABLED=0
-RUN go build -o supernova-server cmd/server/main.go
+RUN go build -o supernova-server ./cmd/server && go build -o supernova-backup ./cmd/db-backup
 
 # Stage 4: Run the Go backend
 FROM alpine:latest AS backend
@@ -28,6 +28,7 @@ FROM alpine:latest AS backend
 RUN apk add --no-cache ffmpeg
 WORKDIR /app
 COPY --from=backend-builder /app/backend/supernova-server .
+COPY --from=backend-builder /app/backend/supernova-backup .
 RUN mkdir -p /app/data
 EXPOSE 8080
 CMD ["./supernova-server"]

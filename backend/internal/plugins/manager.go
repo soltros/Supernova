@@ -80,3 +80,14 @@ func (m *Manager) GetManifest() []PluginInfo {
 	}
 	return manifest
 }
+
+// Shutdown joins plugins with background work after the app context is cancelled.
+func (m *Manager) Shutdown() {
+	for id, p := range m.registry {
+		if m.enabled[id] {
+			if worker, ok := p.(interface{ Shutdown() }); ok {
+				worker.Shutdown()
+			}
+		}
+	}
+}

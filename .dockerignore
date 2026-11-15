@@ -32,3 +32,14 @@ supernova-desktop
 
 # Environment
 .env
+
+# Never send credentials, host dependencies, or build output to the daemon.
+.aws/
+.codex/
+.agents/
+**/node_modules/
+**/dist/
+backend/server
+backend/supernova-backend
+.env.*
+!.env.example

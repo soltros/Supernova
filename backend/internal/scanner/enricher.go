@@ -21,7 +21,8 @@ type Enricher struct {
 	mbClient *external.MusicBrainzClient
 	lastfm   *external.LastFmClient
 	trigger  chan struct{}
-	running atomic.Bool
+	running  atomic.Bool
+	wg       sync.WaitGroup
 }
 
 // NewEnricher initializes the background daemon.
@@ -45,8 +46,10 @@ func (e *Enricher) Trigger() {
 // Start begins the background worker loop. This should run for the lifecycle of the app.
 func (e *Enricher) Start(ctx context.Context) {
 	log.Println("Background Enrichment Worker started")
+	e.wg.Add(1)
 	go func() {
-		ticker:=time.NewTicker(5*time.Minute)
+		defer e.wg.Done()
+		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
 		for {
 			select {
@@ -56,7 +59,9 @@ func (e *Enricher) Start(ctx context.Context) {
 			case <-e.trigger:
 			case <-ticker.C:
 			}
-			if !e.running.CompareAndSwap(false,true){continue}
+			if !e.running.CompareAndSwap(false, true) {
+				continue
+			}
 			e.processQueue(ctx)
 			e.processArtistQueue(ctx)
 			e.processAlbumQueue(ctx)
@@ -67,33 +72,51 @@ func (e *Enricher) Start(ctx context.Context) {
 
 // processQueue iterates over the database finding albums missing an MBID
 func (e *Enricher) processQueue(ctx context.Context) {
-	if e.mbClient==nil{return}
-	albums,err:=e.repo.GetUnenrichedAlbums(ctx,50)
-	if err!=nil{log.Printf("Enricher DB error: %v",err);return}
+	if e.mbClient == nil {
+		return
+	}
+	albums, err := e.repo.GetUnenrichedAlbums(ctx, 50)
+	if err != nil {
+		log.Printf("Enricher DB error: %v", err)
+		return
+	}
 	var wg sync.WaitGroup
-	sem:=make(chan struct{},3)
-	for _,a:=range albums{
-		if ctx.Err()!=nil{return}
-		wg.Add(1);sem<-struct{}{}
-		go func(album database.UnenrichedAlbum){
-			defer wg.Done();defer func(){<-sem}()
-			meta:=&models.TrackMetadata{Title:album.TrackTitle,Album:album.AlbumTitle,Artist:album.ArtistName}
-			if err:=e.mbClient.EnhanceMetadata(meta);err!=nil{
-				if markErr:=e.repo.MarkEnrichmentFailure(ctx,"musicbrainz-album",album.AlbumID,err);markErr!=nil{
-					log.Printf("failed to persist MusicBrainz retry state for %s: %v",album.AlbumTitle,markErr)
+	defer wg.Wait()
+	sem := make(chan struct{}, 3)
+	for _, a := range albums {
+		if ctx.Err() != nil {
+			return
+		}
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			return
+		}
+		wg.Add(1)
+		go func(album database.UnenrichedAlbum) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			meta := &models.TrackMetadata{Title: album.TrackTitle, Album: album.AlbumTitle, Artist: album.ArtistName}
+			if err := e.mbClient.EnhanceMetadataContext(ctx, meta); err != nil {
+				if markErr := e.repo.MarkEnrichmentFailure(ctx, "musicbrainz-album", album.AlbumID, err); markErr != nil {
+					log.Printf("failed to persist MusicBrainz retry state for %s: %v", album.AlbumTitle, markErr)
 				}
-				log.Printf("MusicBrainz transient error for %s; backing off: %v",album.AlbumTitle,err)
+				log.Printf("MusicBrainz transient error for %s; backing off: %v", album.AlbumTitle, err)
 				return
 			}
-			albumMBID:=meta.AlbumMBID
-			if albumMBID==""{albumMBID="NOT_FOUND"}
-			if err:=e.repo.UpdateMBIDs(ctx,album.AlbumID,albumMBID,album.ArtistID,meta.ArtistMBID);err!=nil{
-				_ = e.repo.MarkEnrichmentFailure(ctx,"musicbrainz-album",album.AlbumID,err)
-				log.Printf("Failed to persist MusicBrainz result for %s: %v",album.AlbumTitle,err)
+			albumMBID := meta.AlbumMBID
+			if albumMBID == "" {
+				albumMBID = "NOT_FOUND"
+			}
+			if err := e.repo.UpdateMBIDs(ctx, album.AlbumID, albumMBID, album.ArtistID, meta.ArtistMBID); err != nil {
+				_ = e.repo.MarkEnrichmentFailure(ctx, "musicbrainz-album", album.AlbumID, err)
+				log.Printf("Failed to persist MusicBrainz result for %s: %v", album.AlbumTitle, err)
 				return
 			}
-			_ = e.repo.ClearEnrichmentFailure(ctx,"musicbrainz-album",album.AlbumID)
-			if albumMBID!="NOT_FOUND"{log.Printf("Successfully background-enriched album: %s",album.AlbumTitle)}
+			_ = e.repo.ClearEnrichmentFailure(ctx, "musicbrainz-album", album.AlbumID)
+			if albumMBID != "NOT_FOUND" {
+				log.Printf("Successfully background-enriched album: %s", album.AlbumTitle)
+			}
 		}(a)
 	}
 	wg.Wait()
@@ -101,7 +124,9 @@ func (e *Enricher) processQueue(ctx context.Context) {
 
 // processArtistQueue iterates over the database finding artists missing LastFM imagery/bios
 func (e *Enricher) processArtistQueue(ctx context.Context) {
-	if e.lastfm==nil{return}
+	if e.lastfm == nil {
+		return
+	}
 	{
 		artists, err := e.repo.GetUnenrichedArtists(ctx, 10) // bounded fair batch
 		if err != nil {
@@ -115,6 +140,7 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 		}
 
 		var wg sync.WaitGroup
+		defer wg.Wait()
 		semaphore := make(chan struct{}, 5) // Limit concurrent Last.fm API calls to 5
 
 		for _, a := range artists {
@@ -124,27 +150,31 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 			default:
 			}
 
-			wg.Add(1)
-			semaphore <- struct{}{} // Acquire semaphore
+			select {
+			case semaphore <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+			wg.Add(1) // Acquire semaphore
 
 			go func(artist models.Artist) {
 				defer wg.Done()
 				defer func() { <-semaphore }() // Release semaphore
 
-				info, err := e.lastfm.GetArtistInfo(artist.Name)
+				info, err := e.lastfm.WithContext(ctx).GetArtistInfo(artist.Name)
 				if err != nil {
-					if markErr:=e.repo.MarkEnrichmentFailure(ctx,"lastfm-artist",artist.ID,err);markErr!=nil{
-						log.Printf("failed to persist Last.fm artist retry state for %s: %v",artist.Name,markErr)
+					if markErr := e.repo.MarkEnrichmentFailure(ctx, "lastfm-artist", artist.ID, err); markErr != nil {
+						log.Printf("failed to persist Last.fm artist retry state for %s: %v", artist.Name, markErr)
 					}
-					log.Printf("Last.fm transient error for artist %s; backing off: %v",artist.Name,err)
+					log.Printf("Last.fm transient error for artist %s; backing off: %v", artist.Name, err)
 					return
 				}
 				if info == nil || len(info.Artist.Image) == 0 {
-					if err:=e.repo.UpdateArtistInfo(ctx,artist.ID,"NOT_FOUND","");err!=nil{
-						_ = e.repo.MarkEnrichmentFailure(ctx,"lastfm-artist",artist.ID,err)
-						log.Printf("Failed to persist artist NOT_FOUND for %s: %v",artist.Name,err)
-					}else{
-						_ = e.repo.ClearEnrichmentFailure(ctx,"lastfm-artist",artist.ID)
+					if err := e.repo.UpdateArtistInfo(ctx, artist.ID, "NOT_FOUND", ""); err != nil {
+						_ = e.repo.MarkEnrichmentFailure(ctx, "lastfm-artist", artist.ID, err)
+						log.Printf("Failed to persist artist NOT_FOUND for %s: %v", artist.Name, err)
+					} else {
+						_ = e.repo.ClearEnrichmentFailure(ctx, "lastfm-artist", artist.ID)
 					}
 					return
 				}
@@ -159,7 +189,7 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 
 				// If we didn't find a valid image, try scraping the Last.fm website directly
 				if imgURL == "" {
-					scrapedImage := e.lastfm.ScrapeArtistImage(artist.Name)
+					scrapedImage := e.lastfm.WithContext(ctx).ScrapeArtistImage(artist.Name)
 					if scrapedImage != "" {
 						imgURL = scrapedImage
 					}
@@ -172,15 +202,15 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 				bio := info.Artist.Bio.Summary
 				err = e.repo.UpdateArtistInfo(ctx, artist.ID, imgURL, bio)
 				if err != nil {
-					_ = e.repo.MarkEnrichmentFailure(ctx,"lastfm-artist",artist.ID,err)
+					_ = e.repo.MarkEnrichmentFailure(ctx, "lastfm-artist", artist.ID, err)
 					log.Printf("Failed to update artist info in DB for %s: %v", artist.Name, err)
 					return
 				}
-				_ = e.repo.ClearEnrichmentFailure(ctx,"lastfm-artist",artist.ID)
+				_ = e.repo.ClearEnrichmentFailure(ctx, "lastfm-artist", artist.ID)
 				log.Printf("Successfully enriched artist via LastFM: %s", artist.Name)
 
 				// Additionally fetch top tracks to update local track popularity
-				topTracks, err := e.lastfm.GetArtistTopTracks(artist.Name)
+				topTracks, err := e.lastfm.WithContext(ctx).GetArtistTopTracks(artist.Name)
 				if err == nil && topTracks != nil {
 					for _, track := range topTracks.Toptracks.Track {
 						// We'll use listeners as a proxy for popularity
@@ -206,7 +236,9 @@ func (e *Enricher) processArtistQueue(ctx context.Context) {
 
 // processAlbumQueue iterates over the database finding albums missing LastFM bios/track durations
 func (e *Enricher) processAlbumQueue(ctx context.Context) {
-	if e.lastfm==nil{return}
+	if e.lastfm == nil {
+		return
+	}
 	{
 		albums, err := e.repo.GetAlbumsMissingBio(ctx, 10)
 		if err != nil {
@@ -220,6 +252,7 @@ func (e *Enricher) processAlbumQueue(ctx context.Context) {
 		}
 
 		var wg sync.WaitGroup
+		defer wg.Wait()
 		semaphore := make(chan struct{}, 5)
 
 		for _, a := range albums {
@@ -229,27 +262,31 @@ func (e *Enricher) processAlbumQueue(ctx context.Context) {
 			default:
 			}
 
+			select {
+			case semaphore <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
 			wg.Add(1)
-			semaphore <- struct{}{}
 
 			go func(album database.UnenrichedAlbum) {
 				defer wg.Done()
 				defer func() { <-semaphore }()
 
-				info, err := e.lastfm.GetAlbumInfo(album.ArtistName, album.AlbumTitle, "", 0)
+				info, err := e.lastfm.WithContext(ctx).GetAlbumInfo(album.ArtistName, album.AlbumTitle, "", 0)
 				if err != nil {
-					if markErr:=e.repo.MarkEnrichmentFailure(ctx,"lastfm-album",album.AlbumID,err);markErr!=nil{
-						log.Printf("failed to persist Last.fm album retry state for %s: %v",album.AlbumTitle,markErr)
+					if markErr := e.repo.MarkEnrichmentFailure(ctx, "lastfm-album", album.AlbumID, err); markErr != nil {
+						log.Printf("failed to persist Last.fm album retry state for %s: %v", album.AlbumTitle, markErr)
 					}
-					log.Printf("Last.fm transient error for album %s; backing off: %v",album.AlbumTitle,err)
+					log.Printf("Last.fm transient error for album %s; backing off: %v", album.AlbumTitle, err)
 					return
 				}
 				if info == nil || info.Error > 0 {
-					if err:=e.repo.UpdateAlbumBio(ctx,album.AlbumID,"NOT_FOUND");err!=nil{
-						_ = e.repo.MarkEnrichmentFailure(ctx,"lastfm-album",album.AlbumID,err)
-						log.Printf("Failed to persist album NOT_FOUND for %s: %v",album.AlbumTitle,err)
-					}else{
-						_ = e.repo.ClearEnrichmentFailure(ctx,"lastfm-album",album.AlbumID)
+					if err := e.repo.UpdateAlbumBio(ctx, album.AlbumID, "NOT_FOUND"); err != nil {
+						_ = e.repo.MarkEnrichmentFailure(ctx, "lastfm-album", album.AlbumID, err)
+						log.Printf("Failed to persist album NOT_FOUND for %s: %v", album.AlbumTitle, err)
+					} else {
+						_ = e.repo.ClearEnrichmentFailure(ctx, "lastfm-album", album.AlbumID)
 					}
 					return
 				}
@@ -261,11 +298,11 @@ func (e *Enricher) processAlbumQueue(ctx context.Context) {
 
 				err = e.repo.UpdateAlbumBio(ctx, album.AlbumID, bio)
 				if err != nil {
-					_ = e.repo.MarkEnrichmentFailure(ctx,"lastfm-album",album.AlbumID,err)
+					_ = e.repo.MarkEnrichmentFailure(ctx, "lastfm-album", album.AlbumID, err)
 					log.Printf("Failed to update album bio in DB for %s: %v", album.AlbumTitle, err)
 					return
 				}
-				_ = e.repo.ClearEnrichmentFailure(ctx,"lastfm-album",album.AlbumID)
+				_ = e.repo.ClearEnrichmentFailure(ctx, "lastfm-album", album.AlbumID)
 				if bio != "NOT_FOUND" {
 					log.Printf("Successfully enriched album bio via LastFM: %s", album.AlbumTitle)
 				}
@@ -285,3 +322,6 @@ func (e *Enricher) processAlbumQueue(ctx context.Context) {
 		wg.Wait()
 	}
 }
+
+// Wait joins the worker after its application context is cancelled.
+func (e *Enricher) Wait() { e.wg.Wait() }

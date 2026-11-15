@@ -1,3 +1,4 @@
+/* oxlint-disable react/set-state-in-effect -- Effects initialize external resources or reset loading state before asynchronous requests. */
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import DOMPurify from 'dompurify';
@@ -43,6 +44,7 @@ const PodcastsPage: React.FC = () => {
     try {
       const API_BASE_URL = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
       const response = await fetch(`${API_BASE_URL}/api/plugins/podcasts/search?q=${encodeURIComponent(query)}`, {
+        signal: AbortSignal.timeout(30_000),
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sn_token')}`
         }
@@ -73,6 +75,7 @@ const PodcastsPage: React.FC = () => {
       const feedId = podcast.feed_id || podcast.id;
       
       const response = await fetch(`${API_BASE_URL}/api/plugins/podcasts/episodes?id=${feedId}`, {
+        signal: AbortSignal.timeout(30_000),
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('sn_token')}`
         }
@@ -382,7 +385,8 @@ const PodcastsPage: React.FC = () => {
                   <button 
                     onClick={(e) => {
                       const feedId = selectedPodcast.feed_id || selectedPodcast.id?.toString();
-                      isSubscribed(feedId) ? handleUnsubscribe(e, feedId) : handleSubscribe(e, selectedPodcast)
+                      if (isSubscribed(feedId)) void handleUnsubscribe(e, feedId);
+                      else void handleSubscribe(e, selectedPodcast);
                     }}
                     style={{ background: isSubscribed(selectedPodcast.feed_id || selectedPodcast.id?.toString()) ? 'var(--bg-glass)' : 'var(--accent-gradient)', padding: '10px 20px', borderRadius: '24px', border: 'none', color: 'white', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
                   >

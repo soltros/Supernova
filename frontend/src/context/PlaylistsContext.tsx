@@ -1,3 +1,4 @@
+/* oxlint-disable react/set-state-in-effect -- Effects initialize external resources or reset loading state before asynchronous requests. */
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import type { FC, ReactNode } from 'react';
 import { apiService } from '../services/api';
@@ -50,6 +51,7 @@ export const PlaylistsProvider: FC<{ children: ReactNode }> = ({ children }) => 
   );
 };
 
+// oxlint-disable-next-line react/only-export-components -- Context hooks intentionally share their provider module.
 export const usePlaylists = () => {
   const context = useContext(PlaylistsContext);
   if (context === undefined) {

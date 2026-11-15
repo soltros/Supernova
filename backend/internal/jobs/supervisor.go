@@ -26,14 +26,17 @@ type Supervisor struct {
 	stopping bool
 	states   map[string]State
 
-	mutation chan struct{}
-	wg       sync.WaitGroup
+	mutation     chan struct{}
+	wg           sync.WaitGroup
+	shutdownOnce sync.Once
+	done         chan struct{}
 }
 
 func New(ctx context.Context) *Supervisor {
 	return &Supervisor{
 		ctx:      ctx,
 		states:   make(map[string]State),
+		done:     make(chan struct{}),
 		mutation: make(chan struct{}, 1),
 	}
 }
@@ -119,14 +122,10 @@ func (s *Supervisor) Shutdown(ctx context.Context) error {
 	s.stopping = true
 	s.mu.Unlock()
 
-	done := make(chan struct{})
-	go func() {
-		s.wg.Wait()
-		close(done)
-	}()
+	s.shutdownOnce.Do(func() { go func() { s.wg.Wait(); close(s.done) }() })
 
 	select {
-	case <-done:
+	case <-s.done:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()

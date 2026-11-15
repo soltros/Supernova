@@ -3,12 +3,42 @@ package resourcebudget
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"sync"
 	"time"
 )
 
 var ErrSaturated = errors.New("outbound request budget is saturated")
+
+var ErrResponseTooLarge = errors.New("upstream metadata response exceeds 8 MiB")
+
+const maxResponseBytes int64 = 8 << 20
+
+type boundedBody struct {
+	io.ReadCloser
+	remaining int64
+}
+
+func (b *boundedBody) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	if b.remaining == 0 {
+		var extra [1]byte
+		n, err := b.ReadCloser.Read(extra[:])
+		if n > 0 {
+			return 0, ErrResponseTooLarge
+		}
+		return 0, err
+	}
+	if int64(len(p)) > b.remaining {
+		p = p[:int(b.remaining)]
+	}
+	n, err := b.ReadCloser.Read(p)
+	b.remaining -= int64(n)
+	return n, err
+}
 
 const defaultSlots = 8
 const defaultAdmissionWait = 500 * time.Millisecond
@@ -22,7 +52,7 @@ type transport struct {
 }
 
 type releaseBody struct {
-	body    interface {
+	body interface {
 		Read([]byte) (int, error)
 		Close() error
 	}
@@ -72,7 +102,12 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		release()
 		return resp, nil
 	}
-	resp.Body = &releaseBody{body: resp.Body, release: release}
+	if resp.ContentLength > maxResponseBytes {
+		resp.Body.Close()
+		release()
+		return nil, ErrResponseTooLarge
+	}
+	resp.Body = &releaseBody{body: &boundedBody{ReadCloser: resp.Body, remaining: maxResponseBytes}, release: release}
 	return resp, nil
 }
 

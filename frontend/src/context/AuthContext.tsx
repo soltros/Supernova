@@ -44,8 +44,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
+    const controller = new AbortController();
     const base = import.meta.env.DEV ? (import.meta.env.VITE_API_URL || 'http://localhost:8080') : '';
-    fetch(`${base}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${base}/api/auth/me`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]), headers: { Authorization: `Bearer ${token}` } })
       .then(async response => {
         if (cancelled) return;
         if (response.status === 401) { clearLocalSession(); return; }
@@ -53,7 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const account = await response.json();
         if (!cancelled) { setUser(account); localStorage.setItem('sn_user', JSON.stringify(account)); }
       }).catch(() => {});
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [token, clearLocalSession]);
 
   const login = (data: AuthResponse) => {
@@ -72,6 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
+// oxlint-disable-next-line react/only-export-components -- Context hooks intentionally share their provider module.
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) throw new Error('useAuth must be used within an AuthProvider');

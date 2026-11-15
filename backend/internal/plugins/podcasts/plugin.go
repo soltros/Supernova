@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -28,6 +29,9 @@ type PodcastsPlugin struct {
 	repo      *database.Repository
 	client    *http.Client
 	importing atomic.Bool
+	importMu  sync.Mutex
+	stopping  bool
+	importWG  sync.WaitGroup
 }
 
 func init() {
@@ -364,15 +368,25 @@ func (p *PodcastsPlugin) handleImportOPML(w http.ResponseWriter, r *http.Request
 		http.Error(w, "OPML import exceeds 1000 feeds", http.StatusBadRequest)
 		return
 	}
+	p.importMu.Lock()
+	if p.stopping {
+		p.importMu.Unlock()
+		http.Error(w, "server shutting down", 503)
+		return
+	}
 	if !p.importing.CompareAndSwap(false, true) {
+		p.importMu.Unlock()
 		http.Error(w, "another OPML import is running", http.StatusTooManyRequests)
 		return
 	}
 
+	p.importWG.Add(1)
+	p.importMu.Unlock()
 	// For each URL, fetch podcast info from PodcastIndex
 	go func(urls []string, userID string) {
+		defer p.importWG.Done()
 		defer p.importing.Store(false)
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+		ctx, cancel := context.WithTimeout(p.importContext(), 15*time.Minute)
 		defer cancel()
 		for _, u := range urls {
 			if ctx.Err() != nil {
@@ -418,4 +432,18 @@ func (p *PodcastsPlugin) handleImportOPML(w http.ResponseWriter, r *http.Request
 
 	w.WriteHeader(http.StatusAccepted)
 	w.Write([]byte("Import started in background"))
+}
+
+func (p *PodcastsPlugin) Shutdown() {
+	p.importMu.Lock()
+	p.stopping = true
+	p.importMu.Unlock()
+	p.importWG.Wait()
+}
+
+func (p *PodcastsPlugin) importContext() context.Context {
+	if p.config.Context != nil {
+		return p.config.Context
+	}
+	return context.Background()
 }

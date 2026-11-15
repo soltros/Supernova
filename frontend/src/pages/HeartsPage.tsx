@@ -64,7 +64,7 @@ const HeartsPage: FC = () => {
     try {
       await apiService.importHearts(file);
       refreshHearts();
-    } catch (err) {
+    } catch {
       addToast("Failed to import backup. Ensure it is a valid Supernova JSON backup.", 'error');
     }
     e.target.value = '';

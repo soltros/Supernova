@@ -1,11 +1,11 @@
 package external
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/soltros/Supernova/internal/models"
@@ -18,13 +18,14 @@ const mbBaseURL = "https://musicbrainz.org/ws/2"
 type MusicBrainzClient struct {
 	client    *http.Client
 	userAgent string
-	mu        sync.Mutex
+	gate      chan struct{}
 }
 
 // NewMusicBrainzClient creates a new client. MusicBrainz strictly requires a descriptive User-Agent.
 func NewMusicBrainzClient(appName, version, contact string) *MusicBrainzClient {
 	return &MusicBrainzClient{
-		client: resourcebudget.NewHTTPClient(10 * time.Second),
+		gate:      make(chan struct{}, 1),
+		client:    resourcebudget.NewHTTPClient(10 * time.Second),
 		userAgent: fmt.Sprintf("%s/%s ( %s )", appName, version, contact),
 	}
 }
@@ -52,6 +53,9 @@ type mbRecording struct {
 // EnhanceMetadata takes raw local metadata (from ID3/FLAC tags) and queries MusicBrainz
 // to find official IDs and correct any spelling/casing mistakes.
 func (c *MusicBrainzClient) EnhanceMetadata(raw *models.TrackMetadata) error {
+	return c.EnhanceMetadataContext(context.Background(), raw)
+}
+func (c *MusicBrainzClient) EnhanceMetadataContext(ctx context.Context, raw *models.TrackMetadata) error {
 	// If it doesn't have an artist or title, we can't search effectively
 	if raw.Title == "" || raw.Artist == "" {
 		return nil
@@ -66,12 +70,21 @@ func (c *MusicBrainzClient) EnhanceMetadata(raw *models.TrackMetadata) error {
 	reqURL := fmt.Sprintf("%s/recording/?query=%s&fmt=json&limit=1", mbBaseURL, url.QueryEscape(query))
 
 	// Globally lock to enforce 1 req/sec rate limit across all worker routines
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	// WARNING: MusicBrainz rate limits heavily (1 request per second per IP).
-	// We MUST sleep while holding the lock to avoid getting banned.
-	defer time.Sleep(1100 * time.Millisecond)
-	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	select {
+	case c.gate <- struct{}{}:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	defer func() { <-c.gate }()
+	defer func() {
+		timer := time.NewTimer(1100 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+		}
+	}()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return err
 	}

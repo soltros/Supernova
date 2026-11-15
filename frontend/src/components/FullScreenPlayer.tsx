@@ -1,3 +1,4 @@
+/* oxlint-disable react/set-state-in-effect -- Effects initialize external resources or reset loading state before asynchronous requests. */
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { usePlayer } from '../context/PlayerContext';
@@ -39,6 +40,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) 
   // Fetch lyrics
   useEffect(() => {
     if (!isOpen || !currentTrack || !currentAlbum) return;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
     setSyncedLines([]);
@@ -48,8 +50,9 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) 
       currentTrack.artist_name || '',
       currentTrack.title || '',
       currentAlbum.title || '',
-      currentTrack.duration_ms / 1000
+      currentTrack.duration_ms / 1000, controller.signal
     ).then(data => {
+      if (controller.signal.aborted) return;
       if (data.syncedLyrics) {
         const lines = data.syncedLyrics.split('\n');
         const parsed = lines.map((line: string) => {
@@ -66,8 +69,10 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) 
         setError("No lyrics found");
       }
     }).catch(() => {
+      if (controller.signal.aborted) return;
       setError("Lyrics not found for this track.");
-    }).finally(() => setLoading(false));
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, [isOpen, currentTrack, currentAlbum]);
 
   let activeIndex = -1;
