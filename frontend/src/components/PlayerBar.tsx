@@ -96,10 +96,11 @@ const PlayerBar: FC = () => {
         <div className="album-art-container" style={{ position: 'relative', width: '60px', height: '60px', flexShrink: 0 }}>
           {currentTrack?.album_id || currentAlbum ? (
             <img 
-              src={currentAlbum?.cover_art_url ? currentAlbum.cover_art_url : `${API_BASE_URL}/api/art/album/${currentTrack?.album_id || currentAlbum?.id}`} 
+              src={currentTrack?.format === 'radio' ? (currentAlbum?.cover_art_url || '/radio-placeholder.svg') : (currentAlbum?.cover_art_url || `${API_BASE_URL}/api/art/album/${currentTrack?.album_id || currentAlbum?.id}`)} 
               alt="art"
               className={`track-art-small ${isPlaying ? 'playing' : ''}`}
               onError={(e) => {
+                if (currentTrack?.format === 'radio' && !e.currentTarget.src.endsWith('/radio-placeholder.svg')) { e.currentTarget.src = '/radio-placeholder.svg'; return; }
                 e.currentTarget.style.display = 'none';
                 if (e.currentTarget.nextElementSibling) {
                   (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex';
