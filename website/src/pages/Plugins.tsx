@@ -11,11 +11,12 @@ function Plugins() {
 
       <nav className="navbar">
         <Link to="/" className="logo-container">
-          <img src="/logo.svg" alt="Supernova Logo" />
+          <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="Supernova Logo" />
           <span className="logo-text">Supernova</span>
         </Link>
         <div className="nav-links">
           <Link to="/#features" className="nav-link">Features</Link>
+          <Link to="/#clients" className="nav-link">Clients</Link>
           <Link to="/plugins" className="nav-link" style={{ color: '#fff', textShadow: '0 0 10px rgba(255,255,255,0.5)' }}>Plugins</Link>
           <a href="https://github.com/soltros/Supernova" target="_blank" rel="noreferrer" className="nav-link">GitHub</a>
           <Link to="/#download" className="btn btn-primary" style={{ padding: '8px 20px' }}>Deploy</Link>

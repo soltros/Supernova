@@ -1,8 +1,18 @@
 import heroScreenshot from '../assets/hero-screenshot.png';
 import { Sparkles, Music, Mic2, Radio, Wand2, Rocket, Heart } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import Clients from './Clients';
 
 function Landing() {
+  const { hash, key } = useLocation();
+
+  useEffect(() => {
+    const target = hash.slice(1);
+    if (target) document.getElementById(target)?.scrollIntoView();
+    else window.scrollTo(0, 0);
+  }, [hash, key]);
+
   return (
     <>
       <div className="bg-gradients">
@@ -11,12 +21,13 @@ function Landing() {
       </div>
 
       <nav className="navbar">
-        <a href="#" className="logo-container">
+        <Link to="/" className="logo-container">
           <img src="./logo.svg" alt="Supernova Logo" />
           <span className="logo-text">Supernova</span>
-        </a>
+        </Link>
         <div className="nav-links">
           <Link to="/#features" className="nav-link">Features</Link>
+          <Link to="/#clients" className="nav-link">Clients</Link>
           <Link to="/plugins" className="nav-link">Plugins</Link>
           <a href="https://github.com/soltros/Supernova" target="_blank" rel="noreferrer" className="nav-link">GitHub</a>
           <Link to="/#download" className="btn btn-primary" style={{ padding: '8px 20px' }}>Deploy</Link>
@@ -28,14 +39,14 @@ function Landing() {
           <div className="hero-content">
             <div className="hero-text">
               <h1>The Infinite Local Music Player</h1>
-              <p>Experience your local music library in a completely new light. Gorgeous glassmorphism UI, a massive plugin ecosystem, and seamless Docker Compose deployment.</p>
+              <p>Host your own music library and listen in the browser, on Linux, or on your phone. Stream your files, organize your collection, and add radio, podcasts, and lyrics with server plugins.</p>
               <div className="hero-actions">
-                <a href="#download" className="btn btn-primary">Deploy with Docker</a>
-                <a href="https://github.com/soltros/Supernova" target="_blank" rel="noreferrer" className="btn btn-glass">View Source Code</a>
+                <Link to="/#download" className="btn btn-primary">Deploy with Docker</Link>
+                <Link to="/#clients" className="btn btn-glass">Explore the apps</Link>
               </div>
             </div>
             <div className="hero-image-wrapper">
-              <img src={heroScreenshot} alt="Supernova UI" className="hero-image" />
+              <img src={heroScreenshot} alt="Supernova web player showing an album library" className="hero-image" />
             </div>
           </div>
         </section>
@@ -56,7 +67,7 @@ function Landing() {
             <div className="feature-card">
               <div className="feature-icon"><Mic2 size={24} /></div>
               <h3>Synchronized Lyrics</h3>
-              <p>Sing along in style. Supernova automatically fetches and synchronizes lyrics for your entire library using LRCLIB.</p>
+              <p>Sing along in style. Follow synchronized lyrics when LRCLIB has a match for your track.</p>
             </div>
             <div className="feature-card">
               <div className="feature-icon"><Radio size={24} /></div>
@@ -66,17 +77,19 @@ function Landing() {
             <div className="feature-card">
               <div className="feature-icon"><Wand2 size={24} /></div>
               <h3>Smart Library Management</h3>
-              <p>Clean up your library automatically. Built-in deduplication, auto-tagging, and artist merging keep your collection perfectly organized.</p>
+              <p>Run metadata auto-tagging and preview candidate album merges, artist merges, and duplicate tracks.</p>
             </div>
             <div className="feature-card">
               <div className="feature-icon"><Rocket size={24} /></div>
               <h3>Subsonic API Support</h3>
-              <p>Stream your library anywhere. Supernova includes full Subsonic API compatibility so you can use third-party mobile apps.</p>
+              <p>Stream your library anywhere. Enable the Subsonic server plugin to connect compatible third-party clients.</p>
             </div>
           </div>
         </section>
 
 
+
+        <Clients />
 
         <section id="download" className="download-section">
           <div className="download-box">

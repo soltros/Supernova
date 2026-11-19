@@ -4,9 +4,9 @@
 
 # Supernova Music
 
-Supernova is a self-hosted music server for large local libraries. It focuses on direct playback, responsive library browsing, user-owned data, and a web/PWA client. The PWA can cache the application shell for startup while offline; music, API data, and authenticated media are intentionally network-only.
+Supernova is a self-hosted music server for large local libraries. Browse and stream the same library in the web player or in the Supernova desktop, iOS, and Android clients. Favorites, playlists, listening history, and plugin data live on your server.
 
-Built with a highly-concurrent Go backend and a Progressive Web App (PWA) React frontend.
+Built with a concurrent Go backend and a React web player. [Visit the Supernova website](https://soltros.github.io/Supernova/).
 
 ## Core Features
 
@@ -20,6 +20,22 @@ Built with a highly-concurrent Go backend and a Progressive Web App (PWA) React 
 - **Progressive Web App (PWA):** Installs to supported desktop and mobile browsers. The service worker caches the UI shell/static assets only; it does not provide offline music downloads or cache authenticated media/API responses.
 - **Extensible Plugin Architecture:** An `interface`-based compile-time Go registry for modular features such as Internet Radio, synchronized lyrics, podcasts, Last.fm, and Subsonic compatibility. Compiled plugins can be enabled or disabled with environment variables.
 - **Comprehensive Wiki:** Full documentation covering the database architecture, design philosophy, API, and plugin internals is available on our [GitHub Wiki](https://github.com/soltros/Supernova/wiki).
+
+## Clients
+
+| Client | How to get it | What it offers |
+| --- | --- | --- |
+| **Web / PWA** | Open the web frontend at your server address. Use your browser’s install option where supported. | Library browsing, search, playback queue, favorites, playlists, listening history, and discovery. The PWA can cache its interface for startup. Music and authenticated API data require a connection to your server. |
+| **Linux desktop** | Download a DEB, RPM, or AppImage from the [client preview builds](https://github.com/soltros/supernova-desktop/actions?query=branch%3Amobile%2Fcapacitor). Current preview packages target x86-64. | A dedicated Electron player with a library sidebar, keyboard shortcuts, media controls, a playback queue, and track and album downloads. |
+| **iOS / iPadOS** | Download the unsigned IPA from the preview builds and sign and sideload it through SideStore. | Touch-friendly Home, Library, and Search tabs, swipeable album shelves, a mini-player, and full-screen Now Playing. |
+| **Android** | Download the APK from the preview builds and open it on your device. Allow installation from that source if prompted. | The same phone layout and shared player as the iOS client. |
+| **Third-party Subsonic** | Enable the Subsonic server plugin and point a compatible client at your server. | Access through the compatible Subsonic endpoints. The Supernova desktop and mobile apps connect through the native REST API. |
+
+The desktop and mobile apps share the playback and library code. Browse albums and artists, search tracks, build queues, manage favorites and playlists, and explore Release Radar and similar artists. Mobile clients connect to a trusted HTTPS server URL.
+
+Enable the relevant server plugins to browse and save Radio Browser stations, subscribe to Podcast Index shows and resume episodes, display LRCLib lyrics when available, or connect Last.fm for scrobbling. In the desktop and mobile apps, **Settings → Server** shows plugin status and offers JSON backups for favorites and playlists, podcast OPML import/export, and maintenance controls for administrators. Features that rely on external services require the corresponding server credentials or service availability.
+
+For Linux package commands, SideStore setup, and Android signing details, see the [client installation guide](https://github.com/soltros/supernova-desktop/blob/mobile/capacitor/PREVIEW.md). Client source and release information live in [soltros/supernova-desktop](https://github.com/soltros/supernova-desktop).
 
 ## Getting Started
 
