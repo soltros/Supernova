@@ -93,7 +93,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) 
   if (!isOpen) return null;
 
   const coverUrl = (currentTrack?.album_id || currentAlbum)
-    ? (currentAlbum?.cover_art_url ? currentAlbum.cover_art_url : `${API_BASE_URL}/api/art/album/${currentTrack?.album_id || currentAlbum?.id}`)
+    ? (currentTrack?.format === 'radio' ? (currentAlbum?.cover_art_url || '/radio-placeholder.svg') : (currentAlbum?.cover_art_url || `${API_BASE_URL}/api/art/album/${currentTrack?.album_id || currentAlbum?.id}`))
     : '';
 
   return createPortal(
@@ -146,7 +146,7 @@ const FullScreenPlayer: React.FC<FullScreenPlayerProps> = ({ isOpen, onClose }) 
             marginBottom: '40px'
           }}>
             {coverUrl ? (
-              <img src={coverUrl} alt="Album Art" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={coverUrl} onError={(e) => { if (currentTrack?.format === 'radio' && !e.currentTarget.src.endsWith('/radio-placeholder.svg')) e.currentTarget.src = '/radio-placeholder.svg'; }} alt="Album Art" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <span style={{ fontSize: '64px', color: 'rgba(255,255,255,0.2)' }}>♪</span>
             )}
