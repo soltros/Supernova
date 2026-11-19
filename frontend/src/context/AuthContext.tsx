@@ -31,7 +31,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const logout = useCallback(() => {
-    apiService.logout().catch(() => {}).finally(clearLocalSession);
+    // Request server-side revocation before clearing the token, but return to login immediately.
+    void apiService.logout().catch(() => {});
+    clearLocalSession();
   }, [clearLocalSession]);
 
   useEffect(() => {
