@@ -61,7 +61,7 @@ function Landing() {
             </div>
             <div className="feature-card">
               <div className="feature-icon"><Music size={24} /></div>
-              <h3>Automagic Metadata</h3>
+              <h3>Library Metadata</h3>
               <p>Supernova seamlessly links your local files to Last.fm and iTunes to fetch high-res artwork, artist bios, and similar artists instantly.</p>
             </div>
             <div className="feature-card">
