@@ -127,9 +127,9 @@ const RadioPage: React.FC = () => {
     const mockAlbum = {
       id: 'radio',
       title: tags,
-      cover_art_url: favicon || '',
+      cover_art_url: favicon?.trim() || '/radio-placeholder.svg',
       release_year: new Date().getFullYear(),
-      cover_art_path: favicon || ''
+      cover_art_path: favicon?.trim() || '/radio-placeholder.svg'
     };
     
     if (internalPlay) {
@@ -251,22 +251,9 @@ const RadioPage: React.FC = () => {
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playStation(station, false); } }}
                     style={{ cursor: 'pointer' }}>
                     <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
-                      {station.favicon ? (
-                        <img 
-                          src={station.favicon} 
-                          alt={station.name} 
-                          style={{ objectFit: 'contain', width: '70%', height: '70%' }}
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            if (e.currentTarget.nextElementSibling) {
-                              (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'block';
-                            }
-                          }}
-                        />
-                      ) : null}
-                      <div style={{ display: station.favicon ? 'none' : 'block' }}>
-                        <Radio size={48} color="var(--text-muted)" />
-                      </div>
+                      <img src={station.favicon?.trim() || '/radio-placeholder.svg'} alt={`${station.name} station artwork`}
+                        style={{ objectFit: 'contain', width: '70%', height: '70%' }}
+                        onError={(e) => { if (!e.currentTarget.src.endsWith('/radio-placeholder.svg')) e.currentTarget.src = '/radio-placeholder.svg'; }} />
                       <div className="play-overlay">
                         <button className="play-btn" aria-label={`Play ${station.name}`} onClick={(e) => { e.stopPropagation(); playStation(station, false); }}>
                           <Play size={24} fill="currentColor" />
@@ -345,22 +332,9 @@ const RadioPage: React.FC = () => {
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playStation(sub, true); } }}
                     style={{ cursor: 'pointer' }}>
                     <div className="album-art-container" style={{ position: 'relative', width: '100%', aspectRatio: '1/1', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-secondary)' }}>
-                      {sub.favicon ? (
-                        <img 
-                          src={sub.favicon} 
-                          alt={sub.name} 
-                          style={{ objectFit: 'contain', width: '70%', height: '70%' }}
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            if (e.currentTarget.nextElementSibling) {
-                              (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'block';
-                            }
-                          }}
-                        />
-                      ) : null}
-                      <div style={{ display: sub.favicon ? 'none' : 'block' }}>
-                        <Radio size={48} color="var(--text-muted)" />
-                      </div>
+                      <img src={sub.favicon?.trim() || '/radio-placeholder.svg'} alt={`${sub.name} station artwork`}
+                        style={{ objectFit: 'contain', width: '70%', height: '70%' }}
+                        onError={(e) => { if (!e.currentTarget.src.endsWith('/radio-placeholder.svg')) e.currentTarget.src = '/radio-placeholder.svg'; }} />
                       <div className="play-overlay">
                         <button className="play-btn">
                           <Play size={24} fill="currentColor" />
