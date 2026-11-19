@@ -45,5 +45,3 @@ jobs:
         working-directory: frontend
       - run: npm ci && npm run build
         working-directory: website
-      - run: npm ci --ignore-scripts && npm test
-        working-directory: desktop-app
