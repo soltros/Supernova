@@ -802,3 +802,27 @@
     display: none;
   }
 }
+
+
+/* Keep the logo and account actions visible while long playlist lists scroll. */
+.sidebar { min-height: 0; max-height: calc(100dvh - 32px); overflow: hidden; flex-shrink: 0; }
+.sidebar .logo-container { flex-shrink: 0; }
+.sidebar .nav-menu { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; overscroll-behavior: contain; padding-right: 4px; }
+.sidebar-playlists { margin-left: 16px; display: flex; flex-direction: column; gap: 4px; border-left: 1px solid var(--border-glass); padding-left: 8px; min-width: 0; }
+.sidebar-playlist-link { font-size: 13px; padding: 8px 12px; opacity: 0.8; min-width: 0; }
+.sidebar-playlist-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-account { border-top: 1px solid var(--border-glass); padding-top: 16px; margin-top: 12px; flex-shrink: 0; }
+.sidebar-account-name { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 13px; margin-bottom: 10px; min-width: 0; }
+.sidebar-account-name span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sidebar-account-action, .topbar-logout { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--border-glass-bright); background: var(--bg-glass); color: var(--text-primary); cursor: pointer; font: inherit; font-weight: 600; }
+.sidebar-account-action:hover, .topbar-logout:hover { background: var(--bg-glass-hover); }
+.user-profile { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.topbar-username { display: inline-flex; align-items: center; gap: 6px; max-width: 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text-secondary); font-size: 13px; }
+.topbar-logout { width: auto; white-space: nowrap; }
+@media (max-width: 768px) {
+  .sidebar { height: 100dvh; max-height: 100dvh; }
+  .topbar-username { display: none; }
+  .topbar-logout { padding: 10px; }
+  .topbar-logout span { display: none; }
+  .search-bar { min-width: 0; flex: 1; }
+}
